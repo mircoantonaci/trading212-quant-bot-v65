@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trading 212 Autonomous Quant Bot — V6.5 Institutional Zero-Latency</title>
+  <style>
+    :root {
+      --bg: #080b11;
+      --panel: #111723;
+      --panel-2: #172031;
+      --border: #25324a;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --gold: #f59e0b;
+      --green: #10b981;
+      --red: #ef4444;
+      --blue: #38bdf8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 28px;
+      line-height: 1.5;
+    }
+    .container { max-width: 1280px; margin: 0 auto; }
+    .header {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 16px; padding: 24px;
+      background: linear-gradient(135deg, #111827 0%, #0f172a 100%);
+      border: 1px solid var(--border); border-radius: 16px; margin-bottom: 24px;
+    }
+    .header h1 { font-size: 1.45rem; letter-spacing: -0.02em; }
+    .header p { color: var(--muted); font-size: 0.9rem; margin-top: 4px; }
+    .status-pill {
+      background: rgba(16, 185, 129, 0.15); border: 1px solid var(--green);
+      color: #34d399; padding: 8px 16px; border-radius: 999px; font-weight: 600; font-size: 0.85rem;
+    }
+    .kpi-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px; margin-bottom: 24px;
+    }
+    .kpi {
+      background: var(--panel); border: 1px solid var(--border);
+      padding: 20px; border-radius: 14px;
+    }
+    .kpi span { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .kpi h2 { font-size: 1.8rem; margin-top: 6px; }
+    .kpi small { color: var(--muted); font-size: 0.82rem; display: block; margin-top: 4px; }
+    .pos { color: var(--green); }
+    .neg { color: var(--red); }
+    .progress-wrap {
+      background: var(--panel); border: 1px solid var(--border);
+      padding: 18px 22px; border-radius: 14px; margin-bottom: 24px;
+    }
+    .progress-bar-bg {
+      height: 10px; background: #1e293b; border-radius: 999px; overflow: hidden; margin-top: 10px;
+    }
+    .progress-bar-fill {
+      height: 100%; width: 3.9%;
+      background: linear-gradient(90deg, var(--blue), var(--green));
+    }
+    .section-title {
+      font-size: 1.1rem; font-weight: 700; margin: 26px 0 14px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .cards-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 18px;
+    }
+    .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+    .slot-tag { font-size: 0.72rem; color: var(--blue); text-transform: uppercase; font-weight: 700; }
+    .card h3 { font-size: 1.05rem; margin-top: 4px; }
+    .card h3 small { color: var(--muted); font-weight: 400; }
+    .price-pill {
+      padding: 4px 10px; border-radius: 8px; font-weight: 700; font-size: 0.9rem;
+      background: rgba(255,255,255,0.05);
+    }
+    .metrics-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+      margin: 14px 0; padding: 12px; background: var(--panel-2); border-radius: 10px;
+    }
+    .metrics-grid span { display: block; font-size: 0.75rem; color: var(--muted); }
+    .metrics-grid strong { font-size: 0.95rem; }
+    .shield-bar {
+      font-size: 0.8rem; color: #fde68a; background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.35); padding: 8px 12px; border-radius: 8px;
+    }
+    table {
+      width: 100%; border-collapse: collapse; background: var(--panel);
+      border: 1px solid var(--border); border-radius: 14px; overflow: hidden; font-size: 0.88rem;
+    }
+    th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+    th { background: var(--panel-2); color: var(--muted); font-size: 0.76rem; text-transform: uppercase; }
+    .badge-ok { color: var(--green); font-weight: 700; }
+    .badge-wait { color: var(--muted); }
+    .shields-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;
+    }
+    .shield-item {
+      background: var(--panel); border: 1px solid var(--border);
+      padding: 14px; border-radius: 12px; font-size: 0.85rem;
+    }
+    .shield-item strong { color: var(--blue); display: block; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div>
+        <h1>🛡️ Trading 212 Autonomous Quant Bot — V6.5 Institutional Zero-Latency</h1>
+        <p>Conto ID: 52318994 (EUR) • 4 Cartucce 2+2 Senza Tetto • 12 Blindature Istituzionali • Ciclo #90 (2026-11-05T14:45:21)</p>
+      </div>
+      <div class="status-pill">🟢 MOTORE V6.5 ATTIVO (0ms Zero-Latency)</div>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <span>Valore Portafoglio (Base 100 €)</span>
+        <h2 class="pos">101,18 €</h2>
+        <small>Profitto Totale: +1,18 € (+1,18%)</small>
+      </div>
+      <div class="kpi">
+        <span>Utili Realizzati in Cassa</span>
+        <h2 class="pos">+1,38 €</h2>
+        <small>Già contabilizzati nel Registro 730 LIFO</small>
+      </div>
+      <div class="kpi">
+        <span>PnL Aperto (4 Cartucce)</span>
+        <h2 class="neg">-0,20 €</h2>
+        <small>Investiti: 73,56 € • Cassa: 27,82 €</small>
+      </div>
+      <div class="kpi">
+        <span>Taglia Cartuccia Kelly</span>
+        <h2>25,34 €</h2>
+        <small>Auto-Compounding su 101,38 € attivi</small>
+      </div>
+    </div>
+
+    <div class="progress-wrap">
+      <div style="display:flex; justify-content:space-between; font-size:0.88rem; flex-wrap:wrap; gap:8px;">
+        <strong>🎯 Traguardo Cash-Out Automatico (+30,00%): 130,00 €</strong>
+        <span>Avanzamento: 3.9% (101,18 € / 130,00 €) • Radar 17:15: ONDA_NOTTURNA_POSITIVA_CAVALCA_IL_GAP_09_00 (Nasdaq +1,44%)</span>
+      </div>
+      <div class="progress-bar-bg"><div class="progress-bar-fill"></div></div>
+    </div>
+
+    <div class="section-title">🎯 Le 4 Cartucce Attive (Schema 2+2 • Vincolo Markowitz 4 Settori)</div>
+    <div class="cards-grid">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <span class="slot-tag">CARTUCCIA #1 • SEMICONDUTTORI_CHIP</span>
+              <h3>ASML Holding NV <small>(ASMLa_EQ)</small></h3>
+            </div>
+            <div class="price-pill neg">-0,99%</div>
+          </div>
+          <div class="metrics-grid">
+            <div><span>Capitale Investito</span><strong>26,26 €</strong></div>
+            <div><span>PnL Fluttuante</span><strong class="neg">-0,26 €</strong></div>
+            <div><span>Picco Toccato</span><strong>+0,16%</strong></div>
+            <div><span>Prezzo 0ms Live</span><strong>1300.00 €</strong></div>
+          </div>
+          <div class="shield-bar">⏳ Target Scudo ATR +1,38% • RSI 5m: 40.3</div>
+        </div>
+        
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <span class="slot-tag">CARTUCCIA #2 • TELECOMUNICAZIONI</span>
+              <h3>Deutsche Telekom AG <small>(DTEd_EQ)</small></h3>
+            </div>
+            <div class="price-pill neg">-0,75%</div>
+          </div>
+          <div class="metrics-grid">
+            <div><span>Capitale Investito</span><strong>22,54 €</strong></div>
+            <div><span>PnL Fluttuante</span><strong class="neg">-0,17 €</strong></div>
+            <div><span>Picco Toccato</span><strong>-0,75%</strong></div>
+            <div><span>Prezzo 0ms Live</span><strong>26.32 €</strong></div>
+          </div>
+          <div class="shield-bar">⏳ Target Scudo ATR +0,72% • RSI 5m: 61.3</div>
+        </div>
+        
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <span class="slot-tag">CARTUCCIA #3 • INDUSTRIA_INFRASTRUTTURE</span>
+              <h3>Siemens AG <small>(SIEd_EQ)</small></h3>
+            </div>
+            <div class="price-pill pos">+0,92%</div>
+          </div>
+          <div class="metrics-grid">
+            <div><span>Capitale Investito</span><strong>24,76 €</strong></div>
+            <div><span>PnL Fluttuante</span><strong class="pos">+0,23 €</strong></div>
+            <div><span>Picco Toccato</span><strong>+0,92%</strong></div>
+            <div><span>Prezzo 0ms Live</span><strong>277.63 €</strong></div>
+          </div>
+          <div class="shield-bar">🛡️ Pre-Scudo Salva-Utile (+0,25%) • RSI 5m: 57.3</div>
+        </div>
+        </div>
+
+    <div class="section-title">📡 Scanner Sinusoidale a 5 Minuti + Fusione Zero-Latency (0ms)</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Titolo (EUR)</th><th>Settore Markowitz</th><th>Prezzo 0ms</th>
+          <th>RSI 5m</th><th>ATR Mult</th><th>Scudo / Ritracc.</th><th>Uncino Verde</th><th>Quant Score</th><th>Fase Onda 5m</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>IFXd_EQ</strong> <small>Infineon Technologies AG</small></td>
+          <td>SEMICONDUTTORI_CHIP</td>
+          <td>48.55 €</td>
+          <td>25.3</td>
+          <td>1.30x</td>
+          <td>1,75% / -0,33%</td>
+          <td><span class="badge-wait">🔴 NO (Attesa)</span></td>
+          <td><strong>99.6</strong></td>
+          <td><small>COLTELLO_IN_CADUTA_ATTENDERE_UNCINO_VERDE</small></td>
+        </tr>
+        
+        <tr>
+          <td><strong>ASMLa_EQ</strong> <small>ASML Holding NV</small></td>
+          <td>SEMICONDUTTORI_CHIP</td>
+          <td>1300.00 €</td>
+          <td>40.3</td>
+          <td>0.95x</td>
+          <td>1,38% / -0,27%</td>
+          <td><span class="badge-ok">🟢 SÌ (Verde)</span></td>
+          <td><strong>66.8</strong></td>
+          <td><small>ONDA_DISCENDENTE_O_DEBOLE</small></td>
+        </tr>
+        
+        <tr>
+          <td><strong>SAPd_EQ</strong> <small>SAP SE</small></td>
+          <td>SOFTWARE_CLOUD</td>
+          <td>218.59 €</td>
+          <td>36.7</td>
+          <td>0.84x</td>
+          <td>1,05% / -0,20%</td>
+          <td><span class="badge-wait">🔴 NO (Attesa)</span></td>
+          <td><strong>44.1</strong></td>
+          <td><small>COLTELLO_IN_CADUTA_ATTENDERE_UNCINO_VERDE</small></td>
+        </tr>
+        
+        <tr>
+          <td><strong>SIEd_EQ</strong> <small>Siemens AG</small></td>
+          <td>INDUSTRIA_INFRASTRUTTURE</td>
+          <td>277.63 €</td>
+          <td>57.3</td>
+          <td>1.30x</td>
+          <td>1,11% / -0,21%</td>
+          <td><span class="badge-ok">🟢 SÌ (Verde)</span></td>
+          <td><strong>27.4</strong></td>
+          <td><small>ONDA_ASCENDENTE_SANA_VERO_POSITIVO</small></td>
+        </tr>
+        
+        <tr>
+          <td><strong>DTEd_EQ</strong> <small>Deutsche Telekom AG</small></td>
+          <td>TELECOMUNICAZIONI</td>
+          <td>26.32 €</td>
+          <td>61.3</td>
+          <td>1.30x</td>
+          <td>0,72% / -0,17%</td>
+          <td><span class="badge-ok">🟢 SÌ (Verde)</span></td>
+          <td><strong>24.9</strong></td>
+          <td><small>ONDA_ASCENDENTE_SANA_VERO_POSITIVO</small></td>
+        </tr>
+        
+        <tr>
+          <td><strong>ALVd_EQ</strong> <small>Allianz SE</small></td>
+          <td>ASSICURAZIONI_FINANZA</td>
+          <td>465.70 €</td>
+          <td>63.3</td>
+          <td>0.80x</td>
+          <td>0,52% / -0,11%</td>
+          <td><span class="badge-wait">🔴 NO (Attesa)</span></td>
+          <td><strong>6.0</strong></td>
+          <td><small>ONDA_DISCENDENTE_O_DEBOLE</small></td>
+        </tr>
+        </tbody>
+    </table>
+
+    <div class="section-title">🇮🇹 Registro Fiscale Modello 730 (Quadro T LIFO — Operazioni Chiuse: 8)</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Data/Ora</th><th>Titolo</th><th>Quantità</th><th>Costo Carico LIFO</th>
+          <th>Ricavo Vendita</th><th>Plus/Minus Netto</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>2026-11-05T09:44:17</td>
+          <td><strong>SAPd_EQ</strong></td>
+          <td>0.1100</td>
+          <td>23,46 €</td>
+          <td>23,98 €</td>
+          <td class="pos"><strong>+0,52 €</strong></td>
+        </tr>
+        
+        <tr>
+          <td>2026-11-05T10:09:10</td>
+          <td><strong>SIEd_EQ</strong></td>
+          <td>0.1300</td>
+          <td>35,73 €</td>
+          <td>36,38 €</td>
+          <td class="pos"><strong>+0,65 €</strong></td>
+        </tr>
+        
+        <tr>
+          <td>2026-11-05T10:16:21</td>
+          <td><strong>IFXd_EQ</strong></td>
+          <td>0.2900</td>
+          <td>14,32 €</td>
+          <td>14,34 €</td>
+          <td class="pos"><strong>+0,02 €</strong></td>
+        </tr>
+        
+        <tr>
+          <td>2026-11-05T11:01:43</td>
+          <td><strong>ALVd_EQ</strong></td>
+          <td>0.0400</td>
+          <td>18,56 €</td>
+          <td>18,48 €</td>
+          <td class="neg"><strong>-0,08 €</strong></td>
+        </tr>
+        
+        <tr>
+          <td>2026-11-05T12:00:42</td>
+          <td><strong>IFXd_EQ</strong></td>
+          <td>0.5100</td>
+          <td>25,18 €</td>
+          <td>25,30 €</td>
+          <td class="pos"><strong>+0,11 €</strong></td>
+        </tr>
+        
+        <tr>
+          <td>2026-11-05T12:10:47</td>
+          <td><strong>ASMLa_EQ</strong></td>
+          <td>0.0200</td>
+          <td>26,26 €</td>
+          <td>26,28 €</td>
+          <td class="pos"><strong>+0,02 €</strong></td>
+        </tr>
+        
+        <tr>
+          <td>2026-11-05T14:20:11</td>
+          <td><strong>SAPd_EQ</strong></td>
+          <td>0.1100</td>
+          <td>24,00 €</td>
+          <td>24,04 €</td>
+          <td class="pos"><strong>+0,05 €</strong></td>
+        </tr>
+        
+        <tr>
+          <td>2026-11-05T14:20:14</td>
+          <td><strong>ALVd_EQ</strong></td>
+          <td>0.0500</td>
+          <td>23,19 €</td>
+          <td>23,29 €</td>
+          <td class="pos"><strong>+0,09 €</strong></td>
+        </tr>
+        </tbody>
+    </table>
+
+    <div class="section-title">🏛️ Le 12 Blindature Istituzionali Attive (V6.5)</div>
+    <div class="shields-grid">
+      <div class="shield-item"><strong>1. Pre-Scudo Salva-Utile</strong>Da +0,60% blocca un pavimento garantito a +0,25% (+0,42% → +0,20% con Cassaforte attiva).</div>
+      <div class="shield-item"><strong>2. Filtro Uncino Verde</strong>Vietato comprare su candele rosse in caduta libera: richiede candela verde o minimo crescente.</div>
+      <div class="shield-item"><strong>3. Raccolto Gap 09:00–09:30</strong>Stringe il ritracciamento a 0,14% sui gap di apertura mattutini >= +0,50%.</div>
+      <div class="shield-item"><strong>4. Radar Onda Notturna 17:15</strong>Incrocia Nasdaq, S&P500 e VIX per tenere le onde vere e liquidare le creste in inversione.</div>
+      <div class="shield-item"><strong>5. Scudo Weekend Venerdì</strong>Protegge il capitale dalle 63 ore di chiusura mercati del fine settimana.</div>
+      <div class="shield-item"><strong>6. Interesse Composto Kelly</strong>Reinveste gli utili netti aumentando ogni cartuccia a 25,34 €.</div>
+      <div class="shield-item"><strong>7. Vincolo Markowitz</strong>4 cartucce su 4 settori industriali diversi (mai ASML + Infineon insieme).</div>
+      <div class="shield-item"><strong>8. Scudo Elastico ATR 5m</strong>Adatta attivazione e ritracciamento (0,80x–1,30x) alla volatilità reale a 5 minuti.</div>
+      <div class="shield-item"><strong>9. Rotazione Fiscale 730</strong>Sblocca i titoli fermi >4h sotto VWAP compensando al 100% la minusvalenza.</div>
+      <div class="shield-item"><strong>10. Cassaforte Giornaliera</strong>A +1,80 € di utile giornaliero blinda i parametri in modalità difesa capitale.</div>
+      <div class="shield-item"><strong>11. Fusione Zero-Latency 0ms</strong>Inietta i prezzi live Trading 212 sulle candele 5m eliminando i 15m di ritardo XETRA.</div>
+      <div class="shield-item"><strong>12. Scudo Macro USA 14:30</strong>Congela i nuovi acquisti tra le 14:28 e le 14:35 CET durante i dati CPI/NFP USA.</div>
+    </div>
+  </div>
+</body>
+</html>

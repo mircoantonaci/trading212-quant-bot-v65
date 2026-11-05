@@ -1,0 +1,8 @@
+# Credenziali API private (MAI caricare su GitHub - gestite tramite GitHub Secrets)
+t212_credentials.json
+
+# Cache Python e file temporanei
+__pycache__/
+*.py[cod]
+.DS_Store
+*.log

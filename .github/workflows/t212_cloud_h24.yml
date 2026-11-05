@@ -1,0 +1,65 @@
+name: "🛡️ Trading 212 Autonomous Quant Bot V6.5 (Cloud H24)"
+
+on:
+  schedule:
+    # Sessioni automatiche Cloud durante l'orario di Borsa Europea (XETRA / Euronext 09:00-17:30 CET, Lun-Ven)
+    - cron: "*/10 7-16 * * 1-5"
+    # Controllo extra sulla finestra critica 17:15-17:30 CET (Radar Onda Notturna)
+    - cron: "14,22 16 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      cycles:
+        description: "Numero di cicli da 30s da eseguire (es. 12 = 6 min, 120 = 1 ora continua)"
+        required: false
+        default: "12"
+
+concurrency:
+  group: t212-quant-v65-cloud-runner
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  quant-bot-v65:
+    name: "Esecuzione Motore V6.5 Institutional Zero-Latency"
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      TZ: Europe/Rome
+      T212_API_KEY: ${{ secrets.T212_API_KEY }}
+      T212_API_SECRET: ${{ secrets.T212_API_SECRET }}
+      T212_MODE: ${{ secrets.T212_MODE }}
+
+    steps:
+      - name: "📥 Checkout Repository & Stato Portafoglio"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: "🐍 Setup Python 3.11"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: "🛡️ Avvio Ciclo Quantitativo V6.5 (12 Blindature + 0ms + 730 LIFO)"
+        run: |
+          CYCLES="${{ github.event.inputs.cycles || '12' }}"
+          echo "Avvio sessione Cloud H24 per $CYCLES cicli (fuso orario: $(date))"
+          python3 t212_daemon_100e.py --cycles "$CYCLES"
+          python3 t212-cli.py dashboard
+          python3 t212-cli.py status
+          python3 t212-cli.py tax-730
+
+      - name: "💾 Salvataggio Stato Portafoglio & Registro Fiscale 730 su GitHub"
+        run: |
+          git config user.name "t212-quant-bot[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase origin main || true
+          git add trading212_state.json registro_fiscale_730.json dashboard_v6_5.html
+          if ! git diff --cached --quiet; then
+            git commit -m "chore(state): aggiornamento automatico Cloud H24 portafoglio & registro 730 [skip ci]"
+            git push origin main
+          else
+            echo "Nessuna variazione di stato da salvare."
+          fi

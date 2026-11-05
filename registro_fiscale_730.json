@@ -1,0 +1,123 @@
+{
+  "anno_fiscale": 2026,
+  "broker": "Trading 212 (Conto Invest - EUR)",
+  "stato_estero_codice": "040 (Cipro) / 031 (Regno Unito)",
+  "valore_iniziale_quadro_w_eur": 100.0,
+  "valore_finale_stimato_quadro_w_eur": 100.86,
+  "giorni_detenzione_ivafe": 365,
+  "lotti_aperti_lifo": {
+    "SAPd_EQ": [],
+    "SIEd_EQ": [
+      {
+        "timestamp": "2026-11-05T14:20:17",
+        "ticker": "SIEd_EQ",
+        "isin": "DE0007236101",
+        "quantity": 0.09,
+        "price_eur": 276.25,
+        "total_eur": 24.8625
+      }
+    ],
+    "IFXd_EQ": [],
+    "DTEd_EQ": [
+      {
+        "timestamp": "2026-11-05T09:00:02",
+        "ticker": "DTEd_EQ",
+        "isin": "DE0005557508",
+        "quantity": 0.85,
+        "price_eur": 26.52,
+        "total_eur": 22.54
+      }
+    ],
+    "ALVd_EQ": [],
+    "ASMLa_EQ": [
+      {
+        "timestamp": "2026-11-05T12:00:45",
+        "ticker": "ASMLa_EQ",
+        "isin": "NL0010273215",
+        "quantity": 0.02,
+        "price_eur": 1313.0,
+        "total_eur": 26.26
+      }
+    ]
+  },
+  "operazioni_chiuse": [
+    {
+      "timestamp": "2026-11-05T09:44:17",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.11,
+      "sell_price_eur": 217.97,
+      "corrispettivo_eur": 23.98,
+      "costo_lifo_eur": 23.46,
+      "risultato_fiscale_eur": 0.52
+    },
+    {
+      "timestamp": "2026-11-05T10:09:10",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.13,
+      "sell_price_eur": 279.88,
+      "corrispettivo_eur": 36.38,
+      "costo_lifo_eur": 35.73,
+      "risultato_fiscale_eur": 0.65
+    },
+    {
+      "timestamp": "2026-11-05T10:16:21",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.29,
+      "sell_price_eur": 49.442,
+      "corrispettivo_eur": 14.34,
+      "costo_lifo_eur": 14.32,
+      "risultato_fiscale_eur": 0.02
+    },
+    {
+      "timestamp": "2026-11-05T11:01:43",
+      "ticker": "ALVd_EQ",
+      "quantity": 0.04,
+      "sell_price_eur": 462.0,
+      "corrispettivo_eur": 18.48,
+      "costo_lifo_eur": 18.56,
+      "risultato_fiscale_eur": -0.08
+    },
+    {
+      "timestamp": "2026-11-05T12:00:42",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.51,
+      "sell_price_eur": 49.603,
+      "corrispettivo_eur": 25.3,
+      "costo_lifo_eur": 25.18,
+      "risultato_fiscale_eur": 0.11
+    },
+    {
+      "timestamp": "2026-11-05T12:10:47",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.02,
+      "sell_price_eur": 1314.2,
+      "corrispettivo_eur": 26.28,
+      "costo_lifo_eur": 26.26,
+      "risultato_fiscale_eur": 0.02
+    },
+    {
+      "timestamp": "2026-11-05T14:20:11",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.11,
+      "sell_price_eur": 218.59,
+      "corrispettivo_eur": 24.04,
+      "costo_lifo_eur": 24.0,
+      "risultato_fiscale_eur": 0.05
+    },
+    {
+      "timestamp": "2026-11-05T14:20:14",
+      "ticker": "ALVd_EQ",
+      "quantity": 0.05,
+      "sell_price_eur": 465.7,
+      "corrispettivo_eur": 23.29,
+      "costo_lifo_eur": 23.19,
+      "risultato_fiscale_eur": 0.09
+    }
+  ],
+  "totale_corrispettivi_vendita_eur": 192.09,
+  "totale_costi_carico_lifo_eur": 190.7,
+  "plusvalenze_lorde_eur": 1.46,
+  "minusvalenze_lorde_eur": 0.08,
+  "imponibile_netto_eur": 1.38,
+  "imposta_sostitutiva_26_eur": 0.36
+}
