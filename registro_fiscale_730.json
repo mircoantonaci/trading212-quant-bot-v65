@@ -7,16 +7,7 @@
   "giorni_detenzione_ivafe": 365,
   "lotti_aperti_lifo": {
     "SAPd_EQ": [],
-    "SIEd_EQ": [
-      {
-        "timestamp": "2026-11-05T14:20:17",
-        "ticker": "SIEd_EQ",
-        "isin": "DE0007236101",
-        "quantity": 0.09,
-        "price_eur": 276.25,
-        "total_eur": 24.8625
-      }
-    ],
+    "SIEd_EQ": [],
     "IFXd_EQ": [],
     "DTEd_EQ": [
       {
@@ -112,12 +103,21 @@
       "corrispettivo_eur": 23.29,
       "costo_lifo_eur": 23.19,
       "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-05T15:08:12",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.09,
+      "sell_price_eur": 277.67,
+      "corrispettivo_eur": 24.99,
+      "costo_lifo_eur": 24.86,
+      "risultato_fiscale_eur": 0.13
     }
   ],
-  "totale_corrispettivi_vendita_eur": 192.09,
-  "totale_costi_carico_lifo_eur": 190.7,
-  "plusvalenze_lorde_eur": 1.46,
+  "totale_corrispettivi_vendita_eur": 217.08,
+  "totale_costi_carico_lifo_eur": 215.56,
+  "plusvalenze_lorde_eur": 1.59,
   "minusvalenze_lorde_eur": 0.08,
-  "imponibile_netto_eur": 1.38,
-  "imposta_sostitutiva_26_eur": 0.36
+  "imponibile_netto_eur": 1.51,
+  "imposta_sostitutiva_26_eur": 0.39
 }

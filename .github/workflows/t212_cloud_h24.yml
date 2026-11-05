@@ -1,17 +1,21 @@
-name: "🛡️ Trading 212 Autonomous Quant Bot V6.5 (Cloud H24)"
+name: "🛡️ Trading 212 Autonomous Quant Bot V6.5 (Cloud H24 Auto-Relay)"
 
 on:
   schedule:
-    # Sessioni automatiche Cloud durante l'orario di Borsa Europea (XETRA / Euronext 09:00-17:30 CET, Lun-Ven)
-    - cron: "*/10 7-16 * * 1-5"
-    # Controllo extra sulla finestra critica 17:15-17:30 CET (Radar Onda Notturna)
-    - cron: "14,22 16 * * 1-5"
+    # Avvio anticipato alle 07:35 UTC (08:35 CET) per assorbire qualsiasi coda di GitHub prima delle 09:00!
+    - cron: "35 7 * * 1-5"
+    # Paracadute di sicurezza di metà giornata (12:45 UTC / 13:45 CET) se il turno mattutino non fosse attivo
+    - cron: "45 12 * * 1-5"
   workflow_dispatch:
     inputs:
       cycles:
-        description: "Numero di cicli da 30s da eseguire (es. 12 = 6 min, 120 = 1 ora continua)"
+        description: "Numero di cicli da 30s (es. 540 = 4h30m continui senza ritardi cron)"
         required: false
-        default: "12"
+        default: "540"
+      relay_afternoon:
+        description: "Lancia automaticamente il Turno Pomeridiano (13:15 -> 17:35 CET) a fine sessione?"
+        required: false
+        default: "auto"
 
 concurrency:
   group: t212-quant-v65-cloud-runner
@@ -19,14 +23,16 @@ concurrency:
 
 permissions:
   contents: write
+  actions: write
 
 jobs:
   quant-bot-v65:
-    name: "Esecuzione Motore V6.5 Institutional Zero-Latency"
+    name: "Motore Continuo V6.5 (Zero-Jitter 09:00-17:35 CET)"
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 330
     env:
       TZ: Europe/Rome
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       T212_API_KEY: ${{ secrets.T212_API_KEY }}
       T212_API_SECRET: ${{ secrets.T212_API_SECRET }}
       T212_MODE: ${{ secrets.T212_MODE }}
@@ -42,24 +48,56 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: "🛡️ Avvio Ciclo Quantitativo V6.5 (12 Blindature + 0ms + 730 LIFO)"
-        run: |
-          CYCLES="${{ github.event.inputs.cycles || '12' }}"
-          echo "Avvio sessione Cloud H24 per $CYCLES cicli (fuso orario: $(date))"
-          python3 t212_daemon_100e.py --cycles "$CYCLES"
-          python3 t212-cli.py dashboard
-          python3 t212-cli.py status
-          python3 t212-cli.py tax-730
-
-      - name: "💾 Salvataggio Stato Portafoglio & Registro Fiscale 730 su GitHub"
+      - name: "🛡️ Sessione Continua al Secondo (Zero-Latency 30s Loop + Checkpoint Git)"
         run: |
           git config user.name "t212-quant-bot[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git pull --rebase origin main || true
-          git add trading212_state.json registro_fiscale_730.json dashboard_v6_5.html
-          if ! git diff --cached --quiet; then
-            git commit -m "chore(state): aggiornamento automatico Cloud H24 portafoglio & registro 730 [skip ci]"
-            git push origin main
-          else
-            echo "Nessuna variazione di stato da salvare."
+
+          TOTAL_CYCLES="${{ github.event.inputs.cycles || '540' }}"
+          BATCH=30
+          DONE=0
+
+          echo "🚀 Avvio Sessione Continua per $TOTAL_CYCLES cicli (Ora locale Borsa: $(date))"
+          while [ "$DONE" -lt "$TOTAL_CYCLES" ]; do
+            HOUR=$(date +%H)
+            MIN=$(date +%M)
+            HM=$((10#$HOUR * 60 + 10#$MIN))
+
+            # Se sono passate le 17:35 CET (1055 min), la Borsa Europea è chiusa: termina il turno
+            if [ "$HM" -ge 1055 ] && [ "${{ github.event_name }}" = "schedule" ]; then
+              echo "🏁 Borsa Europea chiusa (ore $(date +%H:%M) CET). Fine sessione giornaliera."
+              break
+            fi
+
+            python3 t212_daemon_100e.py --cycles "$BATCH"
+            python3 t212-cli.py dashboard
+
+            # Checkpoint automatico su GitHub ogni 15 minuti (30 cicli)
+            git pull --rebase origin main || true
+            git add trading212_state.json registro_fiscale_730.json dashboard_v6_5.html
+            if ! git diff --cached --quiet; then
+              git commit -m "chore(state): checkpoint live portafoglio & 730 ($(date +%H:%M) CET) [skip ci]"
+              git push origin main || true
+            fi
+
+            DONE=$((DONE + BATCH))
+          done
+
+          python3 t212-cli.py status
+          python3 t212-cli.py tax-730
+
+      - name: "🔁 Auto-Staffetta Istantanea Turno Pomeridiano (Fino alle 17:35 CET)"
+        if: always()
+        run: |
+          HOUR=$(date +%H)
+          MIN=$(date +%M)
+          HM=$((10#$HOUR * 60 + 10#$MIN))
+          RELAY="${{ github.event.inputs.relay_afternoon || 'auto' }}"
+
+          # Se siamo tra le 12:00 e le 16:30 CET, lancia via workflow_dispatch (avvio in 2 secondi, zero coda cron!) il turno fino alle 17:35
+          if [ "$RELAY" != "false" ] && [ "$HM" -ge 720 ] && [ "$HM" -le 990 ]; then
+            REMAINING_MIN=$((1055 - HM))
+            NEXT_CYCLES=$((REMAINING_MIN * 2 + 10))
+            echo "⚡ Attivazione Staffetta Pomeridiana Istantanea ($NEXT_CYCLES cicli fino alle 17:35 CET)..."
+            gh workflow run t212_cloud_h24.yml --repo "${{ github.repository }}" -f cycles="$NEXT_CYCLES" -f relay_afternoon="false" || true
           fi
