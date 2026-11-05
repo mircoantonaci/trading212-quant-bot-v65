@@ -165,19 +165,20 @@ def cmd_status() -> None:
     scanner = state.get("classifica_scanner_quantitativo_5m", [])
     if scanner:
         print("\n" + "─" * 90)
-        print(" 📡 SCANNER SINUSOIDALE 5m + FUSIONE ZERO-LATENCY (0ms TRADING 212 API)")
+        print(" 📡 SCANNER V7.0 HIGH-BETA (12 TITOLI EUR • PROFIT-VELOCITY + KAUFMAN ER + 0ms)")
         print("─" * 90)
         for item in scanner:
             tk = item.get("ticker", "")
             price = float(item.get("live_price_eur", 0.0))
             rsi = float(item.get("rsi_5m", 50.0))
-            atr_m = float(item.get("atr_elastic_scale", 1.0))
+            vel_m = float(item.get("profit_velocity_mult", item.get("atr_elastic_scale", 1.0)))
+            k_er = float(item.get("kaufman_efficiency_ratio", 0.35))
             hook = "🟢 Hook:SÌ" if item.get("green_hook_confirmed") else "🔴 Hook:NO"
             qscore = float(item.get("quant_buy_score", 0.0))
             phase = item.get("fase_onda_sinusoidale", "N/D")
             print(
-                f" • {tk:<8} | Prezzo 0ms: {price:>7.2f} € | RSI 5m: {rsi:>5.1f} | "
-                f"ATR: {atr_m:.2f}x | {hook} | Score: {qscore:>4.1f} | {phase}"
+                f" • {tk:<8} | {price:>7.2f} € | RSI: {rsi:>4.1f} | "
+                f"Vel: {vel_m:.2f}x | ER: {k_er:.2f} | {hook} | Score: {qscore:>4.1f} | {phase}"
             )
 
     radar = state.get("radar_onda_notturna_wall_street", {})

@@ -43,6 +43,66 @@ from trading212_bot import (
 CREDENTIALS_PATH = os.path.join(BASE_DIR, "t212_credentials.json")
 
 ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
+    "RHMd_EQ": {
+        "yahoo": "RHM.DE",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "DIFESA_AEROSPAZIO",
+        "role_desc": "Turbo High-Beta Difesa/Aerospazio (Senza Tetto)",
+        "ref_price_eur": 725.00,
+        "shield_activation_pct": 0.0145,
+        "shield_pullback_pct": 0.0026,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    "ENRd_EQ": {
+        "yahoo": "ENR.DE",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "ENERGIA_RETI_AI",
+        "role_desc": "Turbo High-Beta Energia & Reti Data Center AI (Senza Tetto)",
+        "ref_price_eur": 56.50,
+        "shield_activation_pct": 0.0140,
+        "shield_pullback_pct": 0.0025,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    "ADYENa_EQ": {
+        "yahoo": "ADYEN.AS",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "FINTECH_PAGAMENTI",
+        "role_desc": "Turbo High-Beta Fintech & Pagamenti Globali (Senza Tetto)",
+        "ref_price_eur": 1450.00,
+        "shield_activation_pct": 0.0135,
+        "shield_pullback_pct": 0.0024,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    "CBKd_EQ": {
+        "yahoo": "CBK.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "BANCHE_FINANZA",
+        "role_desc": "Cecchino High-Beta Bancario DAX (Senza Tetto)",
+        "ref_price_eur": 19.20,
+        "shield_activation_pct": 0.0095,
+        "shield_pullback_pct": 0.0018,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    "BESIa_EQ": {
+        "yahoo": "BESI.AS",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "SEMICONDUTTORI_CHIP",
+        "role_desc": "Turbo High-Beta Packaging Chip AI (Senza Tetto)",
+        "ref_price_eur": 132.00,
+        "shield_activation_pct": 0.0155,
+        "shield_pullback_pct": 0.0028,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    "ZALd_EQ": {
+        "yahoo": "ZAL.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "ECOMMERCE_CONSUMER",
+        "role_desc": "Cecchino High-Beta E-Commerce DAX (Senza Tetto)",
+        "ref_price_eur": 32.50,
+        "shield_activation_pct": 0.0105,
+        "shield_pullback_pct": 0.0020,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
     "DTEd_EQ": {
         "yahoo": "DTE.DE",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
@@ -51,6 +111,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "ref_price_eur": 25.90,
         "shield_activation_pct": 0.0055,
         "shield_pullback_pct": 0.0013,
+        "beta_tier": "DEFENSIVE_LOW_BETA",
     },
     "ALVd_EQ": {
         "yahoo": "ALV.DE",
@@ -60,6 +121,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "ref_price_eur": 461.60,
         "shield_activation_pct": 0.0065,
         "shield_pullback_pct": 0.0014,
+        "beta_tier": "CORE_BLUE_CHIP",
     },
     "SIEd_EQ": {
         "yahoo": "SIE.DE",
@@ -69,6 +131,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "ref_price_eur": 279.50,
         "shield_activation_pct": 0.0085,
         "shield_pullback_pct": 0.0016,
+        "beta_tier": "CORE_BLUE_CHIP",
     },
     "SAPd_EQ": {
         "yahoo": "SAP.DE",
@@ -78,6 +141,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "ref_price_eur": 217.80,
         "shield_activation_pct": 0.0125,
         "shield_pullback_pct": 0.0024,
+        "beta_tier": "CORE_BLUE_CHIP",
     },
     "IFXd_EQ": {
         "yahoo": "IFX.DE",
@@ -87,6 +151,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "ref_price_eur": 49.70,
         "shield_activation_pct": 0.0135,
         "shield_pullback_pct": 0.0025,
+        "beta_tier": "TURBO_HIGH_BETA",
     },
     "ASMLa_EQ": {
         "yahoo": "ASML.AS",
@@ -96,6 +161,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "ref_price_eur": 1313.00,
         "shield_activation_pct": 0.0145,
         "shield_pullback_pct": 0.0028,
+        "beta_tier": "TURBO_HIGH_BETA",
     },
 }
 
@@ -227,7 +293,7 @@ class QuantMarketScanner:
                 b["low"] = min(b["low"], px)
                 b["close"] = px
 
-    def fetch_5m_metrics(self, ticker: str) -> Dict[str, Any]:
+    def fetch_5m_metrics(self, ticker: str, tax_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         prof = ASSET_PROFILES[ticker]
         ysymbol = prof["yahoo"]
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ysymbol}?interval=5m&range=1d"
@@ -267,8 +333,6 @@ class QuantMarketScanner:
             pass
 
         # BLINDATURA #11: Fusione Zero-Latency (0ms)
-        # Incolla in cima alle candele di Yahoo (che su XETRA hanno 15m di ritardo)
-        # le candele costruite in tempo reale al secondo dai prezzi di Trading 212!
         rt_bars = self.realtime_5m_bars.get(ticker, {})
         avg_vol_est = (sum(vols[-6:]) / 6.0) if len(vols) >= 6 else 1000.0
         for b_ts in sorted(rt_bars.keys()):
@@ -288,7 +352,9 @@ class QuantMarketScanner:
                 vols.append(avg_vol_est)
             rsi_14 = compute_rsi(closes, 14)
             day_high = max(max(highs), last_c) if highs else last_c
+            day_low = min(min(lows), last_c) if lows else last_c
             dip_from_high_pct = ((last_c - day_high) / day_high) * 100.0 if day_high > 0 else 0.0
+            day_range_pct = ((day_high - day_low) / day_low) * 100.0 if day_low > 0 else 1.2
             tot_vol = sum(vols)
             vwap = (
                 sum(c * v for c, v in zip(closes, vols)) / tot_vol
@@ -300,19 +366,14 @@ class QuantMarketScanner:
             last_c = self.live_prices.get(ticker, float(prof["ref_price_eur"]))
             rsi_14 = 48.0
             dip_from_high_pct = -0.50
+            day_range_pct = 1.50
             vwap_dist_pct = -0.15
 
-        rsi_score = max(0.0, min(50.0, (65.0 - rsi_14) * 1.25))
-        dip_score = max(0.0, min(35.0, abs(min(0.0, dip_from_high_pct)) * 18.0))
-        vwap_score = max(0.0, min(15.0, -vwap_dist_pct * 10.0)) if vwap_dist_pct < 0 else 0.0
-        quant_score = round(min(100.0, rsi_score + dip_score + vwap_score), 1)
+        rsi_score = max(0.0, min(45.0, (65.0 - rsi_14) * 1.15))
+        dip_score = max(0.0, min(30.0, abs(min(0.0, dip_from_high_pct)) * 15.0))
+        vwap_score = max(0.0, min(12.0, -vwap_dist_pct * 9.0)) if vwap_dist_pct < 0 else 0.0
+        base_opp_score = rsi_score + dip_score + vwap_score
 
-        # Distinzione Chirurgica tra VERO POSITIVO (Super-Trend) e FALSO POSITIVO (Inversione Sinusoidale):
-        # Un RSI alto (> 65) mentre il prezzo fa nuovi massimi coi volumi è un VERO POSITIVO (Breakout)!
-        # È un FALSO POSITIVO solo se tutte e 3 le condizioni di inversione avvengono insieme:
-        # 1) Tirato in alto (RSI > 66)
-        # 2) La candela ha GIÀ girato in giù (closes[-1] < closes[-2])
-        # 3) I volumi di acquisto stanno scendendo sotto la media (esaurimento compratori)
         if len(closes) >= 6:
             price_turning_down = (closes[-1] < closes[-2])
             falling_knife = (closes[-1] < closes[-2] and closes[-2] < closes[-3])
@@ -320,6 +381,7 @@ class QuantMarketScanner:
             slope_rising = (closes[-1] >= closes[-3])
             avg_recent_vol = sum(vols[-6:-1]) / 5.0 if sum(vols[-6:-1]) > 0 else 1.0
             volume_drying_up = (vols[-1] < avg_recent_vol * 0.90)
+            rvol_ratio = round(vols[-1] / avg_recent_vol, 2) if avg_recent_vol > 0 else 1.0
             # BLINDATURA #8: Calcolo ATR (Average True Range) a 5m per Scudo Elastico sulla Volatilità
             tr_pcts: List[float] = []
             start_idx = max(1, len(closes) - 14)
@@ -333,12 +395,49 @@ class QuantMarketScanner:
                     )
                     tr_pcts.append(tr / prev_c)
             atr_5m_pct = (sum(tr_pcts) / len(tr_pcts)) if tr_pcts else 0.0018
+
+            # BLINDATURA #13 (Pilastro 2): Indice di Pulizia dell'Onda di Kaufman (Efficiency Ratio 10 barre)
+            k_win = min(10, len(closes) - 1)
+            net_move = abs(closes[-1] - closes[-1 - k_win])
+            path_move = sum(abs(closes[j] - closes[j - 1]) for j in range(len(closes) - k_win, len(closes)))
+            kaufman_er = round(net_move / path_move, 2) if path_move > 0 else 0.35
         else:
             price_turning_down = False
             green_hook_confirmed = True
             slope_rising = True
             volume_drying_up = False
+            rvol_ratio = 1.0
             atr_5m_pct = 0.0018
+            kaufman_er = 0.35
+
+        # BLINDATURA #13: Selettore Dinamico High-Beta "Profit-Velocity Ranker" (4 Pilastri)
+        # 1) Potenziale di Velocità di Profitto (ATR 5m + Range Giornaliero + Beta Tier)
+        wave_power_pct = (atr_5m_pct * 100.0 * 3.5) + (day_range_pct * 0.45)
+        beta_tier = prof.get("beta_tier", "CORE_BLUE_CHIP")
+        tier_boost = 1.12 if beta_tier == "TURBO_HIGH_BETA" else (0.85 if beta_tier == "DEFENSIVE_LOW_BETA" else 1.0)
+        profit_velocity_mult = round(max(0.75, min(1.55, (0.75 + wave_power_pct * 0.25) * tier_boost)), 2)
+
+        # 2) Bonus Pulizia Onda di Kaufman (premia onde direzionali pulite, penalizza rumore sporco)
+        er_bonus = round((kaufman_er - 0.25) * 18.0, 1)
+        er_bonus = max(-6.0, min(10.0, er_bonus))
+
+        # 3) Bonus Spinta Volumi Istituzionali su Uncino Verde
+        rvol_bonus = 8.0 if (green_hook_confirmed and rvol_ratio >= 1.15) else 0.0
+
+        # 4) Auto-Apprendimento dal Registro Fiscale 730 (premia i titoli che incassano di più)
+        memory_bonus = 0.0
+        if tax_data and "operazioni_chiuse" in tax_data:
+            tkr_pnl = sum(
+                float(op.get("risultato_fiscale_eur", 0.0))
+                for op in tax_data.get("operazioni_chiuse", [])
+                if op.get("ticker") == ticker
+            )
+            memory_bonus = max(-5.0, min(8.0, round(tkr_pnl * 6.0, 1)))
+
+        quant_score = round(
+            max(0.0, min(100.0, (base_opp_score * profit_velocity_mult) + er_bonus + rvol_bonus + memory_bonus)),
+            1,
+        )
 
         # Fattore elastico ATR (tra 0.80x su mercato piatto e 1.30x su mercato esplosivo)
         vol_scale = round(max(0.80, min(1.30, atr_5m_pct / 0.0018)), 2)
@@ -372,13 +471,19 @@ class QuantMarketScanner:
             "name": EUR_ZERO_FEE_UNIVERSE[ticker]["name"],
             "squad": prof["squad"],
             "sector": prof["sector"],
+            "beta_tier": beta_tier,
             "role_desc": prof["role_desc"],
             "live_price_eur": round(last_c, 2),
             "rsi_5m": rsi_14,
             "dip_from_high_pct": round(dip_from_high_pct, 2),
+            "day_range_pct": round(day_range_pct, 2),
             "vwap_dist_pct": round(vwap_dist_pct, 2),
             "atr_5m_volatility_pct": round(atr_5m_pct * 100, 3),
             "atr_elastic_scale": vol_scale,
+            "profit_velocity_mult": profit_velocity_mult,
+            "kaufman_efficiency_ratio": kaufman_er,
+            "rvol_ratio": rvol_ratio,
+            "memory_730_bonus": memory_bonus,
             "quant_buy_score": quant_score,
             "fase_onda_sinusoidale": sine_phase,
             "green_hook_confirmed": green_hook_confirmed,
@@ -392,12 +497,11 @@ class QuantMarketScanner:
             "tetto_massimo_rialzo": "NESSUN TETTO (Lascia correre i profitti)",
         }
 
-    def scan_all(self, force: bool = False) -> Dict[str, Dict[str, Any]]:
+    def scan_all(self, tax_data: Optional[Dict[str, Any]] = None, force: bool = False) -> Dict[str, Dict[str, Any]]:
         now_ts = time.time()
-        # Ricalcola sempre con la fusione Zero-Latency a 0ms dei prezzi live di Trading 212
         results: Dict[str, Dict[str, Any]] = {}
         for tkr in ASSET_PROFILES:
-            results[tkr] = self.fetch_5m_metrics(tkr)
+            results[tkr] = self.fetch_5m_metrics(tkr, tax_data=tax_data)
         self.cached_metrics = results
         self.last_scan_ts = now_ts
         return results
@@ -716,8 +820,8 @@ def run_cycle(
         cur_px = float(p.get("currentPrice", 0.0))
         scanner.update_t212_live_price(tkr, cur_px)
 
-    # 2. Scansione quantitativa 5m + Radar Onda Notturna (Wall Street + VIX)
-    quant_metrics = scanner.scan_all()
+    # 2. Scansione quantitativa 5m + Selettore Dinamico High-Beta V7.0 + Radar Onda Notturna
+    quant_metrics = scanner.scan_all(tax_data=bot.tax_tracker.data)
     overnight_status = radar.evaluate_overnight_wave()
 
     # BLINDATURA #6: Interesse Composto Automatico di Kelly (Auto-Compounding)
@@ -959,6 +1063,8 @@ def run_cycle(
                 break
 
             qty_to_buy = round(alloc_eur / live_px, 2)
+            if qty_to_buy <= 0 and live_px > 0:
+                qty_to_buy = round(alloc_eur / live_px, 3)
             if qty_to_buy <= 0:
                 continue
 
@@ -976,8 +1082,8 @@ def run_cycle(
                 else:
                     sq2_count += 1
                 msg = (
-                    f"INGRESSO V6.0 MARKOWITZ+KELLY ({cand_squad} / {cand_sector}) -> BUY {qty_to_buy} {tkr} ({meta['name']}) "
-                    f"per {est_cost:.2f} EUR | Score: {score}/100 (RSI 5m: {rsi_5m}) | Order ID: {order_res.get('id')}"
+                    f"INGRESSO V7.0 HIGH-BETA ({cand_squad} / {cand_sector}) -> BUY {qty_to_buy} {tkr} ({meta['name']}) "
+                    f"per {est_cost:.2f} EUR | Score: {score}/100 (Vel: {cand.get('profit_velocity_mult', 1.0)}x, RSI: {rsi_5m}) | Order ID: {order_res.get('id')}"
                 )
                 actions_taken.append(msg)
                 cartridge_statuses.append({
@@ -986,7 +1092,7 @@ def run_cycle(
                     "name": meta["name"],
                     "squadra": cand_squad,
                     "settore_markowitz": cand_sector,
-                    "status": "APPENA_ACQUISTATA_V6",
+                    "status": "APPENA_ACQUISTATA_V7_HIGH_BETA",
                     "order_id": order_res.get("id"),
                     "quantity": qty_to_buy,
                     "invested_eur": est_cost,
@@ -994,7 +1100,10 @@ def run_cycle(
                 slot_idx += 1
                 time.sleep(2.5)
             except Exception as e:
-                actions_taken.append(f"Nota su ingresso 2+2 {tkr}: {e}")
+                # Se un ticker ha restrizioni temporanee sul conto Demo, mettilo in cooldown 30m e passa subito al candidato High-Beta successivo!
+                intel.last_sell_price[tkr] = live_px
+                intel.last_sell_time[tkr] = time.time()
+                actions_taken.append(f"Passaggio al candidato High-Beta successivo ({tkr}: {e})")
 
     realized_net_eur = round(
         float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
@@ -1015,7 +1124,7 @@ def run_cycle(
     state = {
         "timestamp": now.isoformat(timespec="seconds"),
         "cycle": cycle_num,
-        "mode": "INSTITUTIONAL_ZERO_LATENCY_V6_5_12_SHIELDS",
+        "mode": "INSTITUTIONAL_V7_0_DYNAMIC_HIGH_BETA_13_SHIELDS",
         "blindature_attive_v6_istituzionali": [
             "1. Pre-Scudo Salva-Utile (Break-Even Lock: picco >= +0,60% -> pavimento garantito +0,25%)",
             "2. Filtro Uncino Verde sugli Acquisti (Anti-Falling-Knife)",
@@ -1023,12 +1132,13 @@ def run_cycle(
             "4. Evacuazione Notturna Totale alle 17:15 se Wall Street è negativa",
             "5. Scudo Weekend del Venerdì alle 17:15 (protezione 63 ore)",
             f"6. Interesse Composto di Kelly (Budget Composto: {compounded_budget_eur:.2f} EUR -> Taglia Cartuccia: {dynamic_cartridge_eur:.2f} EUR)",
-            "7. Vincolo di Markowitz (4 cartucce su 4 settori industriali diversi, mai doppio chip ASML+IFX)",
+            "7. Vincolo di Markowitz su 10 Settori Industriali (4 cartucce su 4 settori diversi)",
             "8. Scudo Elastico sulla Volatilità Reale ATR a 5m (si stringe su mercato piatto, si allarga su mercato esplosivo)",
             "9. Sblocco Titolo Immobile (>4h sotto VWAP) + Scarico Fiscale Modello 730 su occasione estrema",
             f"10. Cassaforte Giornaliera High-Water Mark (>= +1,80 EUR in cassa -> Attiva ora: {daily_vault_active})",
             "11. Fusione Zero-Latency 0ms (Incolla i prezzi in tempo reale di Trading 212 sulle candele 5m eliminando i 15m di ritardo di Yahoo su XETRA)",
             "12. Scudo Anti-Shock Dati Macro USA 14:28-14:35 (Blocca nuovi acquisti nei 7 minuti di caccia agli stop sui dati CPI/NFP delle 14:30)",
+            "13. Selettore Dinamico High-Beta 'Profit-Velocity Ranker' (12 Titoli EUR: ATR Wave Power + Kaufman Efficiency Ratio + Volume Surge + Auto-Apprendimento 730)",
         ],
         "regime_mercato_attivo": regime,
         "radar_onda_notturna_wall_street": overnight_status,

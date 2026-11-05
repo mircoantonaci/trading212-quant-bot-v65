@@ -35,7 +35,50 @@ TAX_REGISTRY_PATH = os.path.join(BASE_DIR, "registro_fiscale_730.json")
 BOT_STATE_PATH = os.path.join(BASE_DIR, "trading212_state.json")
 
 # Universo rigorosamente in EUR su borse senza Tobin Tax (Germania XETRA / Olanda Euronext)
+# Include sia le 6 Blue-Chip classiche sia i 6 Campioni "Turbo High-Beta" per massimizzare il rendimento giornaliero
 EUR_ZERO_FEE_UNIVERSE: Dict[str, Dict[str, str]] = {
+    "RHMd_EQ": {
+        "name": "Rheinmetall AG",
+        "exchange": "XETRA (Francoforte)",
+        "currency": "EUR",
+        "isin": "DE0007030009",
+        "tobin_tax": "0.00%",
+    },
+    "ENRd_EQ": {
+        "name": "Siemens Energy AG",
+        "exchange": "XETRA (Francoforte)",
+        "currency": "EUR",
+        "isin": "DE000ENER6Y0",
+        "tobin_tax": "0.00%",
+    },
+    "ADYENa_EQ": {
+        "name": "Adyen NV",
+        "exchange": "Euronext Amsterdam",
+        "currency": "EUR",
+        "isin": "NL0012969182",
+        "tobin_tax": "0.00%",
+    },
+    "CBKd_EQ": {
+        "name": "Commerzbank AG",
+        "exchange": "XETRA (Francoforte)",
+        "currency": "EUR",
+        "isin": "DE000CBK1001",
+        "tobin_tax": "0.00%",
+    },
+    "BESIa_EQ": {
+        "name": "BE Semiconductor (BESI)",
+        "exchange": "Euronext Amsterdam",
+        "currency": "EUR",
+        "isin": "NL0012866412",
+        "tobin_tax": "0.00%",
+    },
+    "ZALd_EQ": {
+        "name": "Zalando SE",
+        "exchange": "XETRA (Francoforte)",
+        "currency": "EUR",
+        "isin": "DE000ZAL1111",
+        "tobin_tax": "0.00%",
+    },
     "SAPd_EQ": {
         "name": "SAP SE",
         "exchange": "XETRA (Francoforte)",
