@@ -9,16 +9,7 @@
     "SAPd_EQ": [],
     "SIEd_EQ": [],
     "IFXd_EQ": [],
-    "DTEd_EQ": [
-      {
-        "timestamp": "2026-11-05T09:00:02",
-        "ticker": "DTEd_EQ",
-        "isin": "DE0005557508",
-        "quantity": 0.85,
-        "price_eur": 26.52,
-        "total_eur": 22.54
-      }
-    ],
+    "DTEd_EQ": [],
     "ALVd_EQ": [],
     "ASMLa_EQ": [
       {
@@ -112,12 +103,21 @@
       "corrispettivo_eur": 24.99,
       "costo_lifo_eur": 24.86,
       "risultato_fiscale_eur": 0.13
+    },
+    {
+      "timestamp": "2026-11-05T16:06:06",
+      "ticker": "DTEd_EQ",
+      "quantity": 0.85,
+      "sell_price_eur": 26.11,
+      "corrispettivo_eur": 22.19,
+      "costo_lifo_eur": 22.54,
+      "risultato_fiscale_eur": -0.35
     }
   ],
-  "totale_corrispettivi_vendita_eur": 217.08,
-  "totale_costi_carico_lifo_eur": 215.56,
+  "totale_corrispettivi_vendita_eur": 239.27,
+  "totale_costi_carico_lifo_eur": 238.1,
   "plusvalenze_lorde_eur": 1.59,
-  "minusvalenze_lorde_eur": 0.08,
-  "imponibile_netto_eur": 1.51,
-  "imposta_sostitutiva_26_eur": 0.39
+  "minusvalenze_lorde_eur": 0.43,
+  "imponibile_netto_eur": 1.16,
+  "imposta_sostitutiva_26_eur": 0.3
 }
