@@ -29,7 +29,16 @@ def run_cmd(cmd: list[str], cwd: Path = PROJECT_DIR, input_text: str | None = No
 
 
 def main() -> None:
-    print(f"🚀 Inizializzazione progetto GitHub: {REPO_NAME}")
+    print(f"🚀 Inizializzazione & Upgrade V7.0 progetto GitHub: {REPO_NAME}")
+
+    # 0. Esegui 1 ciclo live V7.0 (12 Titoli High-Beta + Blindatura #13) e aggiorna la dashboard
+    print("⚡ Esecuzione ciclo live V7.0 (Scanner 12 Titoli High-Beta + Profit-Velocity Ranker)...")
+    run_cmd([sys.executable, "t212_daemon_100e.py", "--cycles", "1"], check=False)
+    run_cmd([sys.executable, "t212-cli.py", "dashboard"], check=False)
+    run_cmd([sys.executable, "t212-cli.py", "stop"], check=False)
+    run_cmd([sys.executable, "t212-cli.py", "start"], check=False)
+    run_cmd(["git", "add", "-A"], check=False)
+    run_cmd(["git", "commit", "-m", "feat(v7.0): live snapshot 12 High-Beta stocks + Profit-Velocity Ranker"], check=False)
 
     # 1. Verifica se la repo esiste già su GitHub, altrimenti creala privata
     view_res = run_cmd(["gh", "repo", "view", REPO_NAME], check=False)

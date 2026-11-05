@@ -1,0 +1,19 @@
+{
+  "last_price_sol_eur": 170.15,
+  "prudent_equity_eur": 50.25,
+  "prudent_trades_won": 1,
+  "prudent_logs": [
+    "[Giorno 6 - 08:00] ACQUISTO Cartuccia 2/4 (12.50€) a 168.51€ (Mediazione ribasso (-1.5%))",
+    "[Giorno 5 - 00:00] ACQUISTO Cartuccia 1/4 (12.50€) a 171.19€ (RSI ipervenduto (37.2))",
+    "[Giorno 4 - 20:00] VITTORIA: Vendute 1 cartucce a 175.25€ (+1.91%) | Netto: +0.23€",
+    "[Giorno 4 - 04:00] ACQUISTO Cartuccia 1/4 (12.50€) a 171.79€ (RSI ipervenduto (28.3))"
+  ],
+  "aggressive_equity_eur": 46.5,
+  "aggressive_trades_won": 0,
+  "aggressive_trades_lost": 1,
+  "aggressive_logs": [
+    "[Giorno 7 - 04:00] INGRESSO LEVA 3x: Puntati 42.22€ (esposizione 126.66€) a 170.54€",
+    "[Giorno 6 - 08:00] STOP LOSS (Leva 3x): Tagliata perdita a 168.51€ | Perdita: -3.09€ (-6.9%)",
+    "[Giorno 3 - 12:00] INGRESSO LEVA 3x: Puntati 45.00€ (esposizione 135.00€) a 172.10€"
+  ]
+}
