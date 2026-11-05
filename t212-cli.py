@@ -13,6 +13,8 @@ Comandi disponibili:
   python3 t212-cli.py export      -> Crea il pacchetto ZIP di backup (dist/trading212-quant-v6.5-backup.zip)
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import os

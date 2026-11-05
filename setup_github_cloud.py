@@ -3,6 +3,8 @@
 setup_github_cloud.py — Configurazione Automatica Repository GitHub & Cloud H24 (GitHub Actions)
 """
 
+from __future__ import annotations
+
 import json
 import shutil
 import subprocess
