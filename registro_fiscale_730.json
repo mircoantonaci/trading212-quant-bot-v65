@@ -20,6 +20,16 @@
         "price_eur": 1313.0,
         "total_eur": 26.26
       }
+    ],
+    "ZALd_EQ": [
+      {
+        "timestamp": "2026-11-05T16:06:26",
+        "ticker": "ZALd_EQ",
+        "isin": "DE000ZAL1111",
+        "quantity": 0.88,
+        "price_eur": 28.6,
+        "total_eur": 25.168
+      }
     ]
   },
   "operazioni_chiuse": [

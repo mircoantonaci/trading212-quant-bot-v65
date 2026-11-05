@@ -650,9 +650,8 @@ class HybridUncappedIntelligence:
         shield_act = float(ticker_metrics.get("elastic_shield_act_raw", prof["shield_activation_pct"]))
         shield_pull = float(ticker_metrics.get("elastic_shield_pull_raw", prof["shield_pullback_pct"]))
 
-        # BLINDATURA #10: Cassaforte Giornaliera (High-Water Mark Profit Lock)
-        # Se abbiamo già incassato >= +1,80 EUR in cassa, il Pre-Scudo Salva-Utile scatta già a +0,42%!
-        daily_vault_active = (realized_net_eur >= 1.80)
+        # BLINDATURA #10: Cassaforte Giornaliera (High-Water Mark Profit Lock >= +1,60 EUR/giorno)
+        daily_vault_active = (realized_net_eur >= 1.60)
         breakeven_trigger = 0.0042 if daily_vault_active else 0.0060
         breakeven_floor = 0.0020 if daily_vault_active else 0.0025
 
@@ -837,15 +836,25 @@ def run_cycle(
     quant_metrics = scanner.scan_all(tax_data=bot.tax_tracker.data)
     overnight_status = radar.evaluate_overnight_wave()
 
-    # BLINDATURA #6: Interesse Composto Automatico di Kelly (Auto-Compounding)
+    # BLINDATURA #6: Interesse Composto Automatico di Kelly (Auto-Compounding sul totale storico)
     realized_net_eur = round(
         float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
         - float(bot.tax_tracker.data.get("minusvalenze_lorde_eur", 0.0)),
         2,
     )
+    # BLINDATURA #10: Cassaforte Giornaliera ricalcolata sui soli utili chiusi OGGI (target >= +1,60 EUR/giorno)
+    today_prefix = now.date().isoformat()
+    today_realized_net_eur = round(
+        sum(
+            float(op.get("risultato_fiscale_eur", 0.0))
+            for op in bot.tax_tracker.data.get("operazioni_chiuse", [])
+            if str(op.get("timestamp", "")).startswith(today_prefix)
+        ),
+        2,
+    )
     compounded_budget_eur = round(bot.total_budget_eur + max(0.0, realized_net_eur), 2)
     dynamic_cartridge_eur = round(compounded_budget_eur / bot.cartridges, 2)
-    daily_vault_active = (realized_net_eur >= 1.80)
+    daily_vault_active = (today_realized_net_eur >= 1.60)
 
     bench_candidates = [
         m
