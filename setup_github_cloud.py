@@ -66,6 +66,24 @@ def main() -> None:
             sys.exit(1)
         print("✅ Codice aggiornato su GitHub!")
 
+    # 1b. Imposta visibilità PUBLIC per avere Minuti GitHub Actions ILLIMITATI e GRATUITI H24
+    vis_res = run_cmd(
+        [
+            "gh",
+            "repo",
+            "edit",
+            REPO_NAME,
+            "--visibility",
+            "public",
+            "--accept-visibility-change-consequences",
+        ],
+        check=False,
+    )
+    if vis_res.returncode == 0:
+        print("🌐 Visibilità repository impostata su PUBLIC (Minuti Cloud GitHub Actions ILLIMITATI e GRATUITI H24!)")
+    else:
+        print(f"⚠️ Nota cambio visibilità: {vis_res.stderr.strip()}")
+
     # 2. Configura i GitHub Encrypted Secrets per l'esecuzione Cloud H24
     creds = json.loads(CREDS_FILE.read_text(encoding="utf-8"))
     secrets = {
@@ -80,15 +98,22 @@ def main() -> None:
         else:
             print(f"⚠️ Errore configurazione secret {s_name}: {res.stderr}")
 
-    # 3. Avvia subito un ciclo di test del workflow Cloud H24 su GitHub Actions
-    wf_res = run_cmd(
-        ["gh", "workflow", "run", "t212_cloud_h24.yml", "--repo", REPO_NAME, "-f", "cycles=2"],
+    # 3. Verifica ed elenca i job Cloud H24 attivi su GitHub Actions
+    runs_res = run_cmd(
+        ["gh", "run", "list", "--repo", REPO_NAME, "--limit", "3"],
         check=False,
     )
-    if wf_res.returncode == 0:
-        print("☁️ Workflow Cloud H24 ('t212_cloud_h24.yml') attivato e lanciato su GitHub Actions!")
+    if runs_res.returncode == 0 and runs_res.stdout.strip():
+        print("☁️ Stato attuale dei runner Cloud H24 su GitHub Actions:")
+        for line in runs_res.stdout.strip().splitlines():
+            print(f"   • {line}")
     else:
-        print(f"ℹ️ Nota avvio workflow: {wf_res.stderr.strip()}")
+        wf_res = run_cmd(
+            ["gh", "workflow", "run", "t212_cloud_h24.yml", "--repo", REPO_NAME],
+            check=False,
+        )
+        if wf_res.returncode == 0:
+            print("☁️ Workflow Cloud H24 ('t212_cloud_h24.yml') attivato e lanciato su GitHub Actions!")
 
     # 4. Crea anche la cartella gemella fuori da gastronomia (/Users/antonacim/Local Sites/trading212-quant-bot-v65)
     try:
