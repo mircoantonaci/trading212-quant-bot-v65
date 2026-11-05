@@ -537,6 +537,19 @@ class HybridUncappedIntelligence:
                         self.peak_pnl_pct[tkr] = float(pk) / 100.0
             except Exception:
                 pass
+        tax_path = os.path.join(BASE_DIR, "registro_fiscale_730.json")
+        if os.path.exists(tax_path):
+            try:
+                with open(tax_path, "r", encoding="utf-8") as f:
+                    tx = json.load(f)
+                for tkr, lots in tx.get("lotti_aperti_lifo", {}).items():
+                    if lots:
+                        ts_str = lots[-1].get("timestamp", "")
+                        if ts_str:
+                            dt = datetime.datetime.fromisoformat(ts_str)
+                            self.position_open_time[tkr] = dt.timestamp()
+            except Exception:
+                pass
 
     def get_intraday_regime(self, now: datetime.datetime) -> Dict[str, Any]:
         hm = now.hour * 60 + now.minute
