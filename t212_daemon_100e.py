@@ -979,7 +979,12 @@ def run_cycle(
     bench_candidates = [
         m
         for tkr, m in quant_metrics.items()
-        if tkr not in pos_by_ticker and tkr not in pending_by_ticker
+        if tkr not in pos_by_ticker
+        and tkr not in pending_by_ticker
+        and intel.can_buy_ticker(tkr, float(m.get("live_price_eur", 0.0)))
+        and bool(m.get("green_hook_confirmed"))
+        and float(m.get("rsi_5m", 100.0))
+        <= (74.0 if m.get("fase_onda_sinusoidale") == "SUPER_TREND_VERO_POSITIVO_BREAKOUT" else 64.0)
     ]
     bench_scores = [float(m["quant_buy_score"]) for m in bench_candidates]
     best_bench_score = max(bench_scores) if bench_scores else 0.0
@@ -1218,7 +1223,7 @@ def run_cycle(
                 # BLINDATURA #2 (Uncino Verde + Soglia Selettiva V8.0 Multi-Strategia) + BLINDATURA #10 (Cassaforte Giornaliera)
                 min_required_score = 62.0 if daily_vault_active else 52.0
                 max_allowed_rsi = (
-                    70.0
+                    74.0
                     if cand_phase == "SUPER_TREND_VERO_POSITIVO_BREAKOUT"
                     else 64.0
                 )
