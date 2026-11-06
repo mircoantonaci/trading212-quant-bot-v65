@@ -19,7 +19,7 @@ on:
 
 concurrency:
   group: t212-quant-v65-cloud-runner
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -69,6 +69,7 @@ jobs:
               break
             fi
 
+            git pull --rebase origin main || true
             python3 t212_daemon_100e.py --cycles "$BATCH"
             python3 t212-cli.py dashboard
 
