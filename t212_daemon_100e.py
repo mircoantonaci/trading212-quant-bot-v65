@@ -49,8 +49,8 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "sector": "DIFESA_AEROSPAZIO",
         "role_desc": "Turbo High-Beta Difesa/Aerospazio (Senza Tetto)",
         "ref_price_eur": 725.00,
-        "shield_activation_pct": 0.0145,
-        "shield_pullback_pct": 0.0026,
+        "shield_activation_pct": 0.0080,
+        "shield_pullback_pct": 0.0018,
         "beta_tier": "TURBO_HIGH_BETA",
     },
     "ENRd_EQ": {
@@ -59,8 +59,8 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "sector": "ENERGIA_RETI_AI",
         "role_desc": "Turbo High-Beta Energia & Reti Data Center AI (Senza Tetto)",
         "ref_price_eur": 56.50,
-        "shield_activation_pct": 0.0140,
-        "shield_pullback_pct": 0.0025,
+        "shield_activation_pct": 0.0078,
+        "shield_pullback_pct": 0.0018,
         "beta_tier": "TURBO_HIGH_BETA",
     },
     "ADYENa_EQ": {
@@ -69,8 +69,8 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "sector": "FINTECH_PAGAMENTI",
         "role_desc": "Turbo High-Beta Fintech & Pagamenti Globali (Senza Tetto)",
         "ref_price_eur": 1450.00,
-        "shield_activation_pct": 0.0135,
-        "shield_pullback_pct": 0.0024,
+        "shield_activation_pct": 0.0075,
+        "shield_pullback_pct": 0.0017,
         "beta_tier": "TURBO_HIGH_BETA",
     },
     "CBKd_EQ": {
@@ -79,8 +79,8 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "sector": "BANCHE_FINANZA",
         "role_desc": "Cecchino High-Beta Bancario DAX (Senza Tetto)",
         "ref_price_eur": 19.20,
-        "shield_activation_pct": 0.0095,
-        "shield_pullback_pct": 0.0018,
+        "shield_activation_pct": 0.0062,
+        "shield_pullback_pct": 0.0014,
         "beta_tier": "TURBO_HIGH_BETA",
     },
     "BESIa_EQ": {
@@ -89,8 +89,8 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "sector": "SEMICONDUTTORI_CHIP",
         "role_desc": "Turbo High-Beta Packaging Chip AI (Senza Tetto)",
         "ref_price_eur": 132.00,
-        "shield_activation_pct": 0.0155,
-        "shield_pullback_pct": 0.0028,
+        "shield_activation_pct": 0.0082,
+        "shield_pullback_pct": 0.0019,
         "beta_tier": "TURBO_HIGH_BETA",
     },
     "ZALd_EQ": {
@@ -99,8 +99,8 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "sector": "ECOMMERCE_CONSUMER",
         "role_desc": "Cecchino High-Beta E-Commerce DAX (Senza Tetto)",
         "ref_price_eur": 32.50,
-        "shield_activation_pct": 0.0105,
-        "shield_pullback_pct": 0.0020,
+        "shield_activation_pct": 0.0065,
+        "shield_pullback_pct": 0.0015,
         "beta_tier": "TURBO_HIGH_BETA",
     },
     "DTEd_EQ": {
@@ -119,7 +119,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "sector": "ASSICURAZIONI_FINANZA",
         "role_desc": "Incasso Veloce Intraday (Senza Tetto)",
         "ref_price_eur": 461.60,
-        "shield_activation_pct": 0.0065,
+        "shield_activation_pct": 0.0060,
         "shield_pullback_pct": 0.0014,
         "beta_tier": "CORE_BLUE_CHIP",
     },
@@ -129,8 +129,8 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "sector": "INDUSTRIA_INFRASTRUTTURE",
         "role_desc": "Incasso Veloce / Rotazione (Senza Tetto)",
         "ref_price_eur": 279.50,
-        "shield_activation_pct": 0.0085,
-        "shield_pullback_pct": 0.0016,
+        "shield_activation_pct": 0.0065,
+        "shield_pullback_pct": 0.0015,
         "beta_tier": "CORE_BLUE_CHIP",
     },
     "SAPd_EQ": {
@@ -139,8 +139,8 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "sector": "SOFTWARE_CLOUD",
         "role_desc": "Cavalca-Onda Lunga & Gap Notturno Selettivo (Senza Tetto)",
         "ref_price_eur": 217.80,
-        "shield_activation_pct": 0.0125,
-        "shield_pullback_pct": 0.0024,
+        "shield_activation_pct": 0.0072,
+        "shield_pullback_pct": 0.0017,
         "beta_tier": "CORE_BLUE_CHIP",
     },
     "IFXd_EQ": {
@@ -149,8 +149,8 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "sector": "SEMICONDUTTORI_CHIP",
         "role_desc": "Cavalca-Onda Semiconduttori & Gap Notturno Selettivo (Senza Tetto)",
         "ref_price_eur": 49.70,
-        "shield_activation_pct": 0.0135,
-        "shield_pullback_pct": 0.0025,
+        "shield_activation_pct": 0.0078,
+        "shield_pullback_pct": 0.0018,
         "beta_tier": "TURBO_HIGH_BETA",
     },
     "ASMLa_EQ": {
@@ -159,8 +159,8 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "sector": "SEMICONDUTTORI_CHIP",
         "role_desc": "Cavalca-Onda AI/Chip & Gap Notturno Selettivo (Senza Tetto)",
         "ref_price_eur": 1313.00,
-        "shield_activation_pct": 0.0145,
-        "shield_pullback_pct": 0.0028,
+        "shield_activation_pct": 0.0080,
+        "shield_pullback_pct": 0.0018,
         "beta_tier": "TURBO_HIGH_BETA",
     },
 }
@@ -293,7 +293,12 @@ class QuantMarketScanner:
                 b["low"] = min(b["low"], px)
                 b["close"] = px
 
-    def fetch_5m_metrics(self, ticker: str, tax_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def fetch_5m_metrics(
+        self,
+        ticker: str,
+        tax_data: Optional[Dict[str, Any]] = None,
+        dax_change_pct: float = 0.0,
+    ) -> Dict[str, Any]:
         prof = ASSET_PROFILES[ticker]
         ysymbol = prof["yahoo"]
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ysymbol}?interval=5m&range=1d"
@@ -410,11 +415,25 @@ class QuantMarketScanner:
             atr_5m_pct = 0.0018
             kaufman_er = 0.35
 
-        # BLINDATURA #13: Selettore Dinamico High-Beta "Profit-Velocity Ranker" (4 Pilastri)
-        # 1) Potenziale di Velocità di Profitto (ATR 5m + Range Giornaliero + Beta Tier)
+        # BLINDATURA #13: Selettore Dinamico High-Beta "Profit-Velocity Ranker" (4 Pilastri + Cambio Marcia DAX)
+        # 1) Potenziale di Velocità di Profitto:
+        #    - Con mercato normale/positivo (DAX > -0,50%): spinge sui TURBO_HIGH_BETA (1.12x)
+        #    - Con giornata storta/ribassista (DAX <= -0,50%): frena i TURBO_HIGH_BETA (0.82x) e premia i
+        #      CORE_BLUE_CHIP / DEFENSIVE_LOW_BETA di ieri (1.18x) che hanno scudi stretti e incassano subito!
         wave_power_pct = (atr_5m_pct * 100.0 * 3.5) + (day_range_pct * 0.45)
         beta_tier = prof.get("beta_tier", "CORE_BLUE_CHIP")
-        tier_boost = 1.12 if beta_tier == "TURBO_HIGH_BETA" else (0.85 if beta_tier == "DEFENSIVE_LOW_BETA" else 1.0)
+        if dax_change_pct <= -0.50:
+            tier_boost = (
+                1.18
+                if beta_tier in ("CORE_BLUE_CHIP", "DEFENSIVE_LOW_BETA")
+                else 0.82
+            )
+        else:
+            tier_boost = (
+                1.12
+                if beta_tier == "TURBO_HIGH_BETA"
+                else (0.85 if beta_tier == "DEFENSIVE_LOW_BETA" else 1.0)
+            )
         profit_velocity_mult = round(max(0.75, min(1.55, (0.75 + wave_power_pct * 0.25) * tier_boost)), 2)
 
         # 2) Bonus Pulizia Onda di Kaufman (premia onde direzionali pulite, penalizza rumore sporco)
@@ -449,7 +468,7 @@ class QuantMarketScanner:
         if rsi_14 > 66.0 and price_turning_down and volume_drying_up:
             sine_phase = "CRESTA_IN_INVERSIONE_FALSO_POSITIVO"
             strong_for_overnight = False
-        elif rsi_14 > 62.0 and not price_turning_down:
+        elif rsi_14 > 62.0 and (not price_turning_down or slope_rising or vwap_dist_pct >= 0.0):
             sine_phase = "SUPER_TREND_VERO_POSITIVO_BREAKOUT"
             strong_for_overnight = True
         elif 38.0 <= rsi_14 <= 62.0 and slope_rising and vwap_dist_pct >= -0.20:
@@ -497,11 +516,16 @@ class QuantMarketScanner:
             "tetto_massimo_rialzo": "NESSUN TETTO (Lascia correre i profitti)",
         }
 
-    def scan_all(self, tax_data: Optional[Dict[str, Any]] = None, force: bool = False) -> Dict[str, Dict[str, Any]]:
+    def scan_all(
+        self,
+        tax_data: Optional[Dict[str, Any]] = None,
+        dax_change_pct: float = 0.0,
+        force: bool = False,
+    ) -> Dict[str, Dict[str, Any]]:
         now_ts = time.time()
         results: Dict[str, Dict[str, Any]] = {}
         for tkr in ASSET_PROFILES:
-            results[tkr] = self.fetch_5m_metrics(tkr, tax_data=tax_data)
+            results[tkr] = self.fetch_5m_metrics(tkr, tax_data=tax_data, dax_change_pct=dax_change_pct)
         self.cached_metrics = results
         self.last_scan_ts = now_ts
         return results
@@ -533,8 +557,11 @@ class HybridUncappedIntelligence:
                 for c in st.get("cartucce_4x25_eur", []):
                     tkr = c.get("ticker")
                     pk = c.get("peak_pnl_pct")
+                    op_ts = c.get("opened_at_ts")
                     if tkr and pk is not None:
                         self.peak_pnl_pct[tkr] = float(pk) / 100.0
+                    if tkr and op_ts is not None:
+                        self.position_open_time[tkr] = float(op_ts)
             except Exception:
                 pass
         tax_path = os.path.join(BASE_DIR, "registro_fiscale_730.json")
@@ -652,8 +679,8 @@ class HybridUncappedIntelligence:
 
         # BLINDATURA #10: Cassaforte Giornaliera (High-Water Mark Profit Lock >= +1,60 EUR/giorno)
         daily_vault_active = (realized_net_eur >= 1.60)
-        breakeven_trigger = 0.0042 if daily_vault_active else 0.0060
-        breakeven_floor = 0.0020 if daily_vault_active else 0.0025
+        breakeven_trigger = 0.0040 if daily_vault_active else 0.0048
+        breakeven_floor = 0.0018 if daily_vault_active else 0.0022
 
         prev_peak = self.peak_pnl_pct.get(ticker, pnl_pct)
         new_peak = max(prev_peak, pnl_pct)
@@ -670,15 +697,17 @@ class HybridUncappedIntelligence:
                 )
 
         # BLINDATURA #1 (Stadio 2) + BLINDATURA #8 (ATR Elastico): Scudo Mobile Senza Tetto
-        if new_peak >= shield_act and (new_peak - pnl_pct) >= shield_pull and pnl_pct >= 0.0040:
+        # Pavimento a +0,22% per eliminare qualsiasi zona cieca tra Pre-Scudo (+0,22%) e Scudo Mobile!
+        if new_peak >= shield_act and (new_peak - pnl_pct) >= shield_pull and pnl_pct >= 0.0022:
             return (
                 f"SCUDO MOBILE ELASTICO SENZA TETTO ({prof['squad']}): cavalcato rialzo fino al picco "
                 f"di +{new_peak*100:.2f}% e incassato su inversione a +{pnl_pct*100:.2f}%"
             )
 
         # BLINDATURA #1 (Stadio 1): Pre-Scudo "Salva-Utile" (Break-Even Lock)
-        # Appena un titolo tocca >= +0.60% (o +0.42% in modalità Cassaforte Giornaliera), alza una sbarra protettiva!
-        if new_peak >= breakeven_trigger and pnl_pct <= breakeven_floor:
+        # Appena un titolo tocca >= +0.48% (o +0.40% in modalità Cassaforte Giornaliera), alza una sbarra protettiva
+        # che incassa SEMPRE E SOLO in positivo (tra +0.08% e +0.22%)!
+        if new_peak >= breakeven_trigger and 0.0008 <= pnl_pct <= breakeven_floor:
             return (
                 f"BLINDATURA #1 - PRE-SCUDO SALVA-UTILE (Break-Even Lock): {ticker} aveva toccato "
                 f"il picco di +{new_peak*100:.2f}% e ha ritracciato al pavimento garantito di +{pnl_pct*100:.2f}%!"
@@ -692,28 +721,30 @@ class HybridUncappedIntelligence:
         sp500_chg = float(overnight_radar.get("sp500_change_pct", 0.0))
         dax_chg = float(overnight_radar.get("dax_change_pct", 0.0))
         vix_chg = float(overnight_radar.get("vix_fear_change_pct", 0.0))
-        macro_crash_shield_active = (
-            nasdaq_chg <= -1.20 or sp500_chg <= -1.00 or dax_chg <= -1.00 or vix_chg >= 12.0
-        )
-        severe_macro_crash = (nasdaq_chg <= -1.50 or vix_chg >= 15.0)
+        now_rome_dt = datetime.datetime.now(MARKET_TZ)
+        us_market_live = (now_rome_dt.hour > 15) or (now_rome_dt.hour == 15 and now_rome_dt.minute >= 30)
+        if us_market_live:
+            macro_crash_shield_active = (
+                nasdaq_chg <= -1.20 or sp500_chg <= -1.00 or dax_chg <= -1.00 or vix_chg >= 12.0
+            )
+            severe_macro_crash = (nasdaq_chg <= -1.50 or (dax_chg <= -1.50 and vix_chg >= 8.0) or vix_chg >= 15.0)
+        else:
+            macro_crash_shield_active = ((dax_chg <= -1.00 and vix_chg >= 5.0) or vix_chg >= 12.0)
+            severe_macro_crash = ((dax_chg <= -1.50 and vix_chg >= 8.0) or vix_chg >= 15.0)
 
-        # BLINDATURA #14 (Stadio Uscita): Taglio/Incasso Immediato sotto Scudo Anti-Crollo Intraday (senza attendere 4h!)
+        # BLINDATURA #14 (Stadio Uscita): Incasso Protettivo Immediato SOLO IN UTILE sotto Scudo Anti-Crollo Intraday
+        # REGOLA AUREA V7.1: MAI vendere in perdita sui cali intraday (evita di cristallizzare perdite sui minimi)!
         if macro_crash_shield_active and not stock_is_strong:
             if pnl_pct >= 0.0015:
                 return (
                     f"BLINDATURA #14 - SCUDO ANTI-CROLLO INTRADAY (Nasdaq {nasdaq_chg:+.2f}%, VIX {vix_chg:+.2f}%): "
                     f"metto subito in salvo +{pnl_pct*100:.2f}% prima dell'onda ribassista USA!"
                 )
-            if severe_macro_crash and pnl_pct <= -0.0030 and not green_hook_ok:
-                return (
-                    f"BLINDATURA #14 - EVACUAZIONE RAPIDA ANTI-CROLLO ({pnl_pct*100:+.2f}% con Nasdaq {nasdaq_chg:+.2f}%, VIX {vix_chg:+.2f}%): "
-                    f"taglio subito il titolo debole senza aspettare 4 ore per proteggere la cassa!"
-                )
 
         if regime.get("is_pre_close_window"):
             wall_street_positive = bool(overnight_radar.get("allow_overnight_hold", False))
 
-            # A) Blocco Falso Positivo (Tripla prova di inversione dalla cresta)
+            # A) Blocco Falso Positivo (Tripla prova di inversione dalla cresta) - SOLO IN UTILE
             if sine_phase == "CRESTA_IN_INVERSIONE_FALSO_POSITIVO" and pnl_pct >= 0.0010:
                 return (
                     f"BLOCCO FALSO POSITIVO NOTTURNO (17:15): {ticker} mostra tripla prova di inversione "
@@ -721,7 +752,7 @@ class HybridUncappedIntelligence:
                     f"INCASSO SUBITO +{pnl_pct*100:.2f}%!"
                 )
 
-            # B) BLINDATURA #5: Scudo Weekend del Venerdì (63 ore di mercati chiusi)
+            # B) BLINDATURA #5: Scudo Weekend del Venerdì (63 ore di mercati chiusi) - SOLO IN UTILE
             if regime.get("is_friday_pre_weekend") and pnl_pct >= 0.0010:
                 super_friday_ok = (
                     sine_phase == "SUPER_TREND_VERO_POSITIVO_BREAKOUT"
@@ -734,17 +765,12 @@ class HybridUncappedIntelligence:
                         f"in EUR per evitare 63 ore di rischio geopolitico nel fine settimana!"
                     )
 
-            # C) BLINDATURA #4: Evacuazione Totale su Pericolo Wall Street
+            # C) BLINDATURA #4: Evacuazione su Pericolo Wall Street - SOLO IN UTILE (Mai cristallizzare perdite alle 17:15!)
             if not wall_street_positive:
-                if pnl_pct >= 0.0005:
+                if pnl_pct >= 0.0010:
                     return (
                         f"BLINDATURA #4 - EVACUAZIONE NOTTURNA SU PERICOLO USA: Wall Street negativa -> "
                         f"metto in salvo +{pnl_pct*100:.2f}% in contanti prima della notte!"
-                    )
-                if -0.0020 <= pnl_pct < 0.0005 and not stock_is_strong:
-                    return (
-                        f"BLINDATURA #4 - USCITA QUASI-PARI PRE-TEMPESTA NOTTURNA ({pnl_pct*100:+.2f}%): "
-                        f"libero la cartuccia per ricomprare a sconto domattina alle 09:00!"
                     )
 
             # D) Se Wall Street è positiva: tieni i Veri Positivi, incassa i titoli deboli in utile (>= +0.30%)
@@ -756,35 +782,21 @@ class HybridUncappedIntelligence:
                     f"incasso +{pnl_pct*100:.2f}% prima della chiusura!"
                 )
 
-        # Rotazione Costo-Opportunità in Utile (per Squadra 1 Veloce):
+        # BLINDATURA #9 (Ricalibrata ZERO-PERDITE): Rotazione Dinamica Costo-Opportunità SOLO IN UTILE (>= 45 min)
+        # Se una cartuccia è in utile (+0,18% .. shield_act) da >= 45 min ma ha perso spinta,
+        # mentre in panchina c'è un razzo con Uncino Verde (Score >= 82), incassa l'utile e ruota senza MAI chiudere in rosso!
         opened_at = self.position_open_time.setdefault(ticker, time.time())
         hours_open = (time.time() - opened_at) / 3600.0
         if (
-            prof["squad"] == "SQUADRA_1_CECCHINO_GIORNALIERO"
-            and hours_open >= 2.5
-            and 0.0040 <= pnl_pct < shield_act
-            and best_bench_score >= 78.0
-        ):
-            return (
-                f"ROTAZIONE SQUADRA VELOCE: incasso +{pnl_pct*100:.2f}% per spostare cartuccia "
-                f"su occasione estrema (Quant Score {best_bench_score:.0f}/100)"
-            )
-
-        # BLINDATURA #9: Sblocco Chirurgico del Titolo Immobile (Time-Stop > 4h + Zainetto Fiscale 730)
-        # Se un titolo è bloccato e debole (sotto il VWAP) da oltre 4 ore con piccola perdita (-0,60% / -1,80%),
-        # mentre in panchina c'è un razzo (Score >= 65 con Uncino Verde) e abbiamo già abbondante utile in cassa:
-        est_loss_eur = abs(pnl_pct * 25.0)
-        if (
-            hours_open >= 4.0
-            and -0.0180 <= pnl_pct <= -0.0060
-            and not stock_is_strong
+            hours_open >= 0.75
+            and 0.0018 <= pnl_pct < shield_act
+            and (not green_hook_ok or not stock_is_strong)
             and has_green_hook_bench
-            and best_bench_score >= 65.0
-            and realized_net_eur >= max(1.00, est_loss_eur * 2.2)
+            and best_bench_score >= 82.0
         ):
             return (
-                f"BLINDATURA #9 - SBLOCCO TITOLO IMMOBILE (>4h) + ZAINETTO 730 ({pnl_pct*100:+.2f}%): "
-                f"scarico minusvalenza nel 730 e ruoto subito su occasione d'oro (Score {best_bench_score:.0f}/100)!"
+                f"BLINDATURA #9 - ROTAZIONE DINAMICA SOLO IN UTILE: incasso +{pnl_pct*100:.2f}% per spostare cartuccia "
+                f"su occasione estrema con Uncino Verde (Quant Score {best_bench_score:.0f}/100)"
             )
 
         return None
@@ -800,9 +812,9 @@ class HybridUncappedIntelligence:
             return True
         last_px = self.last_sell_price[ticker]
         elapsed_min = (time.time() - self.last_sell_time.get(ticker, 0.0)) / 60.0
-        if live_price_eur <= last_px * (1.0 - 0.0045):
+        if live_price_eur <= last_px * (1.0 - 0.0025):
             return True
-        return elapsed_min >= 30.0
+        return elapsed_min >= 15.0
 
 
 def load_client() -> Trading212Client:
@@ -854,9 +866,10 @@ def run_cycle(
         scanner.update_t212_live_price(tkr, cur_px)
 
     # 2. Scansione quantitativa 5m + Selettore Dinamico High-Beta V7.0 + Radar Onda Notturna
-    bot.tax_tracker.data = bot.tax_tracker._load_or_init()
-    quant_metrics = scanner.scan_all(tax_data=bot.tax_tracker.data)
+    bot.tax_tracker.load()
     overnight_status = radar.evaluate_overnight_wave()
+    dax_live_pct = float(overnight_status.get("dax_change_pct", 0.0))
+    quant_metrics = scanner.scan_all(tax_data=bot.tax_tracker.data, dax_change_pct=dax_live_pct)
 
     # BLINDATURA #6: Interesse Composto Automatico di Kelly (Auto-Compounding sul totale storico)
     realized_net_eur = round(
@@ -916,9 +929,9 @@ def run_cycle(
             if not open_lots:
                 bot.tax_tracker.record_buy(tkr, qty_open, avg_price)
 
-        # Ribilanciamento automatico se una cartuccia supera 1.24x la taglia composta
+        # Ribilanciamento automatico SOLO IN UTILE se una cartuccia supera 1.24x la taglia composta
         max_allowed_cartridge = max(31.00, round(dynamic_cartridge_eur * 1.24, 2))
-        if cost_eur > max_allowed_cartridge and regime["market_open"]:
+        if cost_eur > max_allowed_cartridge and regime["market_open"] and cur_price > avg_price and pnl_pct >= 0.0010:
             target_qty = round(dynamic_cartridge_eur / cur_price, 2)
             if target_qty * cur_price > (dynamic_cartridge_eur + 2.00) and target_qty > 0.01:
                 target_qty = round(target_qty - 0.01, 2)
@@ -940,7 +953,7 @@ def run_cycle(
                 )
                 time.sleep(2.5)
 
-        # A) Valuta Scudo Mobile Elastico Senza Tetto + Selettore Onda Notturna + Time-Stop
+        # A) Valuta Scudo Mobile Elastico Senza Tetto + Selettore Onda Notturna + Rotazione Solo in Utile
         exit_reason = intel.evaluate_uncapped_exit(
             tkr,
             pnl_pct,
@@ -948,10 +961,13 @@ def run_cycle(
             best_bench_score,
             overnight_status,
             tkr_m,
-            realized_net_eur=realized_net_eur,
+            realized_net_eur=today_realized_net_eur,
             has_green_hook_bench=has_green_hook_bench,
         )
-        if exit_reason and regime["market_open"]:
+        # BLINDATURA #15 (REGOLA AUREA "ZERO VENDITE IN PERDITA"):
+        # Essendo azioni reali EUR senza leva e a 0,00 € di costo overnight, è VIETATO vendere una cartuccia
+        # sotto il prezzo di carico (cur_price <= avg_price o pnl_pct < +0,08%), evitando di cristallizzare perdite sui cali!
+        if exit_reason and regime["market_open"] and cur_price > avg_price and pnl_pct >= 0.0008:
             order_res = client.place_market_order(ticker=tkr, quantity=-qty_open)
             closed_op = bot.tax_tracker.record_sell(
                 ticker=tkr,
@@ -969,31 +985,12 @@ def run_cycle(
             time.sleep(2.5)
             continue
 
-        # B) Verifica Stop-Loss di Emergenza (-3.0%)
-        if pnl_pct <= -0.0300 and regime["market_open"]:
-            order_res = client.place_market_order(ticker=tkr, quantity=-qty_open)
-            closed_op = bot.tax_tracker.record_sell(
-                ticker=tkr,
-                sell_qty=qty_open,
-                sell_price_eur=cur_price,
-                fallback_avg_price_eur=avg_price,
-            )
-            intel.register_sell(tkr, cur_price)
-            msg = (
-                f"STOP-LOSS PROTETTIVO ({pnl_pct*100:.2f}%) su {tkr}: vendute {qty_open} azioni "
-                f"a {cur_price:.2f} EUR"
-            )
-            actions_taken.append(msg)
-            pos_by_ticker.pop(tkr, None)
-            time.sleep(2.5)
-            continue
-
         peak_now = intel.peak_pnl_pct.get(tkr, pnl_pct)
         shield_act = float(tkr_m.get("elastic_shield_act_raw", prof["shield_activation_pct"]))
         shield_pull = float(tkr_m.get("elastic_shield_pull_raw", prof["shield_pullback_pct"]))
         shield_is_armed = peak_now >= shield_act
-        breakeven_trigger = 0.0042 if daily_vault_active else 0.0060
-        breakeven_floor_pct = 0.20 if daily_vault_active else 0.25
+        breakeven_trigger = 0.0040 if daily_vault_active else 0.0048
+        breakeven_floor_pct = 0.18 if daily_vault_active else 0.22
         pre_shield_breakeven_armed = peak_now >= breakeven_trigger
         if shield_is_armed:
             current_floor_pct = round((peak_now - shield_pull) * 100, 2)
@@ -1033,6 +1030,7 @@ def run_cycle(
             "fase_onda_sinusoidale": tkr_m.get("fase_onda_sinusoidale", "N/A"),
             "decisione_notturna_prevista_17_15": overnight_decision_preview,
             "rsi_5m": tkr_m.get("rsi_5m", 50.0),
+            "opened_at_ts": intel.position_open_time.get(tkr, time.time()),
         })
         slot_idx += 1
 
@@ -1085,17 +1083,22 @@ def run_cycle(
                 continue
             cand_squad = cand["squad"]
             cand_sector = cand["sector"]
-            if cand_squad == "SQUADRA_1_CECCHINO_GIORNALIERO" and sq1_count >= 2:
-                continue
-            if cand_squad == "SQUADRA_2_CAVALCA_ONDA" and sq2_count >= 2:
-                continue
-            # BLINDATURA #7: Vincolo di Markowitz (Mai 2 cartucce nello stesso settore industriale, es. mai ASML + Infineon insieme!)
-            if cand_sector in active_sectors:
-                continue
-
             live_px = float(cand["live_price_eur"])
             score = float(cand["quant_buy_score"])
             rsi_5m = float(cand["rsi_5m"])
+            cand_phase = cand.get("fase_onda_sinusoidale", "")
+
+            # Su occasioni estreme (Score >= 75) o in modalità difensiva DAX (<= -0,50%),
+            # consenti lo switch dinamico tra Squadra 1 e Squadra 2 mantenendo sempre il Vincolo di Markowitz (4 settori diversi)!
+            if score < 75.0 and dax_live_pct > -0.50:
+                if cand_squad == "SQUADRA_1_CECCHINO_GIORNALIERO" and sq1_count >= 2:
+                    continue
+                if cand_squad == "SQUADRA_2_CAVALCA_ONDA" and sq2_count >= 2:
+                    continue
+
+            # BLINDATURA #7: Vincolo di Markowitz (Mai 2 cartucce nello stesso settore industriale, es. mai ASML + Infineon insieme!)
+            if cand_sector in active_sectors:
+                continue
 
             if not intel.can_buy_ticker(tkr, live_px):
                 continue
@@ -1106,26 +1109,44 @@ def run_cycle(
                     continue
             else:
                 # BLINDATURA #14 (Stadio Ingresso - Veto Anti-Crollo Intraday):
-                # Se lo Scudo Anti-Crollo è attivo (Nasdaq <= -1,20%, S&P <= -1,00%, DAX <= -1,00% o VIX >= +12%),
-                # NON prendere mai in considerazione titoli deboli o sotto il VWAP (come ASML o DTE in discesa)!
+                # Esclude sempre COLTELLO_IN_CADUTA e ONDA_DISCENDENTE_O_DEBOLE,
+                # ma consente SIA le Valli con Uncino Verde confermato (Score >= 65) SIA le Onde Ascendenti Sane sopra VWAP!
                 nasdaq_c = float(overnight_status.get("nasdaq_change_pct", 0.0))
                 sp500_c = float(overnight_status.get("sp500_change_pct", 0.0))
                 dax_c = float(overnight_status.get("dax_change_pct", 0.0))
                 vix_c = float(overnight_status.get("vix_fear_change_pct", 0.0))
-                intraday_crash_shield = (
-                    nasdaq_c <= -1.20 or sp500_c <= -1.00 or dax_c <= -1.00 or vix_c >= 12.0
-                )
+                us_live = (now.hour > 15) or (now.hour == 15 and now.minute >= 30)
+                if us_live:
+                    intraday_crash_shield = (
+                        nasdaq_c <= -1.20 or sp500_c <= -1.00 or dax_c <= -1.00 or vix_c >= 12.0
+                    )
+                else:
+                    intraday_crash_shield = (dax_c <= -1.00 or vix_c >= 12.0)
                 if intraday_crash_shield:
-                    if not (
+                    is_valid_valley_rebound = (
+                        cand_phase == "VALLE_CON_UNCINO_VERDE_PRONTO_ACQUISTO"
+                        and cand.get("green_hook_confirmed", False)
+                        and score >= 65.0
+                    )
+                    is_valid_rising_wave = (
                         cand.get("strong_for_overnight", False)
                         and cand.get("green_hook_confirmed", False)
-                        and score >= 75.0
-                    ):
+                        and score >= 30.0
+                    )
+                    if not (is_valid_valley_rebound or is_valid_rising_wave):
                         continue
 
                 # BLINDATURA #2 (Uncino Verde) + BLINDATURA #10 (Cassaforte Giornaliera)
-                min_required_score = 55.0 if daily_vault_active else 30.0
-                if rsi_5m > 58.0 or score < min_required_score or not cand.get("green_hook_confirmed", True):
+                min_required_score = 55.0 if daily_vault_active else 28.0
+                max_allowed_rsi = (
+                    68.0
+                    if (
+                        cand_phase == "SUPER_TREND_VERO_POSITIVO_BREAKOUT"
+                        and float(cand.get("kaufman_efficiency_ratio", 0.0)) >= 0.45
+                    )
+                    else 62.0
+                )
+                if rsi_5m > max_allowed_rsi or score < min_required_score or not cand.get("green_hook_confirmed", True):
                     continue
 
             remaining_budget = round(compounded_budget_eur - invested_100e, 2)
@@ -1205,12 +1226,13 @@ def run_cycle(
             f"6. Interesse Composto di Kelly (Budget Composto: {compounded_budget_eur:.2f} EUR -> Taglia Cartuccia: {dynamic_cartridge_eur:.2f} EUR)",
             "7. Vincolo di Markowitz su 10 Settori Industriali (4 cartucce su 4 settori diversi)",
             "8. Scudo Elastico sulla Volatilità Reale ATR a 5m (si stringe su mercato piatto, si allarga su mercato esplosivo)",
-            "9. Sblocco Titolo Immobile (>4h sotto VWAP) + Scarico Fiscale Modello 730 su occasione estrema",
-            f"10. Cassaforte Giornaliera High-Water Mark (>= +1,80 EUR in cassa -> Attiva ora: {daily_vault_active})",
+            "9. Rotazione Dinamica Costo-Opportunità SOLO IN UTILE (>= 45m a +0,18%..scudo se in panchina c'è Score >= 82 con Uncino Verde)",
+            f"10. Cassaforte Giornaliera High-Water Mark (>= +1,60 EUR in cassa -> Attiva ora: {daily_vault_active})",
             "11. Fusione Zero-Latency 0ms (Incolla i prezzi in tempo reale di Trading 212 sulle candele 5m eliminando i 15m di ritardo di Yahoo su XETRA)",
             "12. Scudo Anti-Shock Dati Macro USA 14:28-14:35 (Blocca nuovi acquisti nei 7 minuti di caccia agli stop sui dati CPI/NFP delle 14:30)",
-            "13. Selettore Dinamico High-Beta 'Profit-Velocity Ranker' (12 Titoli EUR: ATR Wave Power + Kaufman Efficiency Ratio + Volume Surge + Auto-Apprendimento 730)",
-            "14. Scudo Anti-Crollo Intraday Macro & VIX (Veto immediato sugli acquisti di titoli deboli/tech se Nasdaq <= -1,2% o VIX >= +12%, e taglio rapido a -0,30% senza attendere 4h)",
+            "13. Selettore Dinamico Regime-Adaptive Beta (Cambio Marcia automatico sui 6 colossi sicuri quando DAX <= -0,50%)",
+            "14. Scudo Anti-Crollo Intraday Macro & VIX (Veto sugli acquisti in caduta e incasso rapido degli utili >= +0,15%)",
+            "15. REGOLA AUREA ZERO VENDITE IN PERDITA (Vietato vendere sotto il prezzo di carico: ogni cartuccia viene venduta SOLO con utile >= +0,08%)",
         ],
         "regime_mercato_attivo": regime,
         "radar_onda_notturna_wall_street": overnight_status,
@@ -1269,8 +1291,23 @@ def main():
         except Exception:
             cycle = 1
 
+    pid_lock_path = os.path.join(BASE_DIR, "daemon_pid.lock")
+    my_pid = str(os.getpid())
+    if args.cycles == 0:
+        with open(pid_lock_path, "w", encoding="utf-8") as f:
+            f.write(my_pid)
+
     executed = 0
     while True:
+        if args.cycles == 0 and os.path.exists(pid_lock_path):
+            try:
+                with open(pid_lock_path, "r", encoding="utf-8") as f:
+                    active_pid = f.read().strip()
+                if active_pid and active_pid != my_pid:
+                    print(f"[INFO] Nuovo demone rilevato (PID {active_pid}), arresto pulito di PID {my_pid}.", flush=True)
+                    break
+            except Exception:
+                pass
         try:
             state = run_cycle(bot, intel, scanner, radar, cycle)
             ov = state["radar_onda_notturna_wall_street"]

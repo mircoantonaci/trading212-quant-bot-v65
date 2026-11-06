@@ -554,8 +554,13 @@ def cmd_dashboard() -> None:
 def cmd_start() -> None:
     pids = get_daemon_pids()
     if pids:
-        print(f"🟢 Il demone è già in esecuzione (PID: {', '.join(map(str, pids))}).")
-        return
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except Exception:
+                pass
+        import time
+        time.sleep(1.0)
     with open(DAEMON_LOG, "a", encoding="utf-8") as log_f:
         proc = subprocess.Popen(
             [sys.executable, "-u", str(DAEMON_SCRIPT)],
