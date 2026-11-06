@@ -852,7 +852,7 @@ class HybridUncappedIntelligence:
             )
         if (
             minutes_open >= 30.0
-            and -0.0020 <= pnl_pct < 0.0022
+            and 0.0008 <= pnl_pct < 0.0022
             and own_score < 28.0
             and not stock_is_strong
             and not green_hook_ok
@@ -860,8 +860,8 @@ class HybridUncappedIntelligence:
             and best_bench_score >= 86.0
         ):
             return (
-                f"BLINDATURA #9 - SWITCH DIFFERENZIALE DI VELOCITÀ ({pnl_pct*100:+.2f}%, Score titolo {own_score:.0f} -> Leader {best_bench_score:.0f}/100): "
-                f"sblocco cartuccia ferma sotto VWAP per salire subito sul razzo in Super-Trend!"
+                f"BLINDATURA #9 - SWITCH DIFFERENZIALE DI VELOCITÀ IN VERDE (+{pnl_pct*100:.2f}%, Score titolo {own_score:.0f} -> Leader {best_bench_score:.0f}/100): "
+                f"sblocco cartuccia ferma solo in positivo per salire subito sul razzo in Super-Trend!"
             )
 
         # BLINDATURA #15: Taglio Strutturale Anti-Discesa Calibrato su ATR (Breakdown Stop -0,60%..-0,85% / Max -1,10%)
