@@ -810,7 +810,7 @@ class HybridUncappedIntelligence:
             # B) BLINDATURA #5: Scudo Weekend del Venerdì (63 ore di mercati chiusi) - SOLO IN UTILE
             if regime.get("is_friday_pre_weekend") and pnl_pct >= 0.0010:
                 super_friday_ok = (
-                    sine_phase == "SUPER_TREND_VERO_POSITIVO_BREAKOUT"
+                    stock_is_strong
                     and nasdaq_chg >= 0.50
                     and vix_chg <= 0.0
                 )
