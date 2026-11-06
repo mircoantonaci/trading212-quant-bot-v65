@@ -37,16 +37,7 @@
     ],
     "DTEd_EQ": [],
     "ALVd_EQ": [],
-    "ASMLa_EQ": [
-      {
-        "timestamp": "2026-11-06T16:31:28",
-        "ticker": "ASMLa_EQ",
-        "isin": "NL0010273215",
-        "quantity": 0.02,
-        "price_eur": 1278.0,
-        "total_eur": 25.56
-      }
-    ],
+    "ASMLa_EQ": [],
     "ZALd_EQ": [
       {
         "timestamp": "2026-11-06T16:52:16",
@@ -55,6 +46,14 @@
         "quantity": 0.84,
         "price_eur": 27.5357,
         "total_eur": 23.13
+      },
+      {
+        "timestamp": "2026-11-06T17:15:44",
+        "ticker": "ZALd_EQ",
+        "isin": "DE000ZAL1111",
+        "quantity": 0.86,
+        "price_eur": 27.59,
+        "total_eur": 23.7274
       }
     ],
     "ADYENa_EQ": [
@@ -65,18 +64,17 @@
         "quantity": 0.03,
         "price_eur": 901.7,
         "total_eur": 27.051
-      }
-    ],
-    "CBKd_EQ": [
+      },
       {
-        "timestamp": "2026-11-06T16:11:41",
-        "ticker": "CBKd_EQ",
-        "isin": "DE000CBK1001",
-        "quantity": 0.62,
-        "price_eur": 38.65,
-        "total_eur": 23.963
+        "timestamp": "2026-11-06T17:14:51",
+        "ticker": "ADYENa_EQ",
+        "isin": "NL0012969182",
+        "quantity": 0.03,
+        "price_eur": 904.1,
+        "total_eur": 27.123
       }
     ],
+    "CBKd_EQ": [],
     "ENRd_EQ": [
       {
         "timestamp": "2026-11-06T14:41:11",
@@ -97,24 +95,7 @@
         "total_eur": 24.519
       }
     ],
-    "BESIa_EQ": [
-      {
-        "timestamp": "2026-11-06T16:44:30",
-        "ticker": "BESIa_EQ",
-        "isin": "NL0012866412",
-        "quantity": 0.18,
-        "price_eur": 142.6111,
-        "total_eur": 25.67
-      },
-      {
-        "timestamp": "2026-11-06T16:49:27",
-        "ticker": "BESIa_EQ",
-        "isin": "NL0012866412",
-        "quantity": 0.16,
-        "price_eur": 142.87,
-        "total_eur": 22.8592
-      }
-    ]
+    "BESIa_EQ": []
   },
   "operazioni_chiuse": [
     {
@@ -449,11 +430,38 @@
       "corrispettivo_eur": 24.41,
       "costo_lifo_eur": 24.38,
       "risultato_fiscale_eur": 0.03
+    },
+    {
+      "timestamp": "2026-11-06T17:14:48",
+      "ticker": "CBKd_EQ",
+      "quantity": 0.65,
+      "sell_price_eur": 38.34,
+      "corrispettivo_eur": 24.92,
+      "costo_lifo_eur": 24.9,
+      "risultato_fiscale_eur": 0.02
+    },
+    {
+      "timestamp": "2026-11-06T17:15:15",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.02,
+      "sell_price_eur": 1272.9,
+      "corrispettivo_eur": 25.46,
+      "costo_lifo_eur": 25.43,
+      "risultato_fiscale_eur": 0.03
+    },
+    {
+      "timestamp": "2026-11-06T17:15:41",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.17,
+      "sell_price_eur": 142.86,
+      "corrispettivo_eur": 24.29,
+      "costo_lifo_eur": 24.26,
+      "risultato_fiscale_eur": 0.03
     }
   ],
-  "totale_corrispettivi_vendita_eur": 905.46,
-  "totale_costi_carico_lifo_eur": 906.29,
-  "plusvalenze_lorde_eur": 2.97,
+  "totale_corrispettivi_vendita_eur": 980.13,
+  "totale_costi_carico_lifo_eur": 980.88,
+  "plusvalenze_lorde_eur": 3.05,
   "minusvalenze_lorde_eur": 3.8,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
