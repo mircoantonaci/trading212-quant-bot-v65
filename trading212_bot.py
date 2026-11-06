@@ -205,12 +205,10 @@ class ItalianTaxTracker730:
         remaining_to_sell = sell_qty
         cost_basis_eur = 0.0
 
-        # Se Trading 212 ci fornisce il prezzo medio reale certificato della posizione (fallback_avg_price_eur),
-        # verifichiamo che eventuali lotti locali non siano disallineati (>0.5% di scarto da istanza Cloud):
+        # Usa SEMPRE il prezzo medio reale certificato da Trading 212 (fallback_avg_price_eur)
+        # per evitare disallineamenti tra la stima Yahoo al momento del buy e il vero prezzo eseguito su T212:
         if fallback_avg_price_eur and fallback_avg_price_eur > 0 and lots:
-            last_lot_px = float(lots[-1].get("price_eur", 0.0))
-            if last_lot_px > 0 and abs(last_lot_px - fallback_avg_price_eur) / fallback_avg_price_eur > 0.005:
-                lots.clear()
+            lots.clear()
 
         while remaining_to_sell > 1e-7 and lots:
             last_lot = lots[-1]

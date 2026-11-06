@@ -374,16 +374,15 @@ class QuantMarketScanner:
             day_range_pct = 1.50
             vwap_dist_pct = -0.15
 
-        rsi_score = max(0.0, min(45.0, (65.0 - rsi_14) * 1.15))
-        dip_score = max(0.0, min(30.0, abs(min(0.0, dip_from_high_pct)) * 15.0))
-        vwap_score = max(0.0, min(12.0, -vwap_dist_pct * 9.0)) if vwap_dist_pct < 0 else 0.0
-        base_opp_score = rsi_score + dip_score + vwap_score
-
         if len(closes) >= 6:
             price_turning_down = (closes[-1] < closes[-2])
             falling_knife = (closes[-1] < closes[-2] and closes[-2] < closes[-3])
-            green_hook_confirmed = not falling_knife and (closes[-1] >= closes[-2] or lows[-1] >= lows[-2])
+            breakout_candle = (closes[-1] > highs[-2]) if len(highs) >= 2 else False
+            higher_low = (lows[-1] >= lows[-2]) if len(lows) >= 2 else True
+            green_hook_confirmed = not falling_knife and (closes[-1] >= closes[-2] or higher_low)
             slope_rising = (closes[-1] >= closes[-3])
+            slope_15m_pct = ((closes[-1] - closes[-4]) / closes[-4] * 100.0) if (len(closes) >= 4 and closes[-4] > 0) else 0.0
+            slope_30m_pct = ((closes[-1] - closes[-7]) / closes[-7] * 100.0) if (len(closes) >= 7 and closes[-7] > 0) else slope_15m_pct
             avg_recent_vol = sum(vols[-6:-1]) / 5.0 if sum(vols[-6:-1]) > 0 else 1.0
             volume_drying_up = (vols[-1] < avg_recent_vol * 0.90)
             rvol_ratio = round(vols[-1] / avg_recent_vol, 2) if avg_recent_vol > 0 else 1.0
@@ -408,12 +407,53 @@ class QuantMarketScanner:
             kaufman_er = round(net_move / path_move, 2) if path_move > 0 else 0.35
         else:
             price_turning_down = False
+            breakout_candle = False
+            higher_low = True
             green_hook_confirmed = True
             slope_rising = True
+            slope_15m_pct = 0.10
+            slope_30m_pct = 0.15
             volume_drying_up = False
             rvol_ratio = 1.0
             atr_5m_pct = 0.0018
             kaufman_er = 0.35
+
+        # MOTORE V8.0 MULTI-STRATEGIA AUTO-ADATTIVO (3 Strategie Quantitative in Parallelo):
+        # 1) STRATEGIA A - MOMENTUM BREAKOUT (Cavalca i Leader sopra il VWAP con spinta direzionale istituzionale):
+        if vwap_dist_pct >= -0.05 and slope_15m_pct >= 0.0 and 44.0 <= rsi_14 <= 72.0 and not price_turning_down:
+            score_momentum = (
+                58.0
+                + min(20.0, max(0.0, vwap_dist_pct * 16.0))
+                + min(18.0, max(0.0, slope_15m_pct * 32.0))
+                + (kaufman_er * 14.0)
+                + (6.0 if breakout_candle else 0.0)
+            )
+        else:
+            score_momentum = 0.0
+
+        # 2) STRATEGIA B - INSTITUTIONAL VWAP PULLBACK (Ritracciamento sano di un titolo forte vicino/sopra VWAP):
+        if vwap_dist_pct >= -0.45 and 34.0 <= rsi_14 <= 56.0 and green_hook_confirmed and slope_30m_pct >= -0.35:
+            score_pullback = (
+                52.0
+                + min(24.0, max(0.0, (58.0 - rsi_14) * 1.15))
+                + (12.0 if breakout_candle else 4.0)
+                + (kaufman_er * 12.0)
+            )
+        else:
+            score_pullback = 0.0
+
+        # 3) STRATEGIA C - V-BOTTOM SPRING REVERSAL (Ipervenduto sotto VWAP: ammesso SOLO con Breakout Candle > High[-2]):
+        if rsi_14 < 38.0 and green_hook_confirmed and breakout_candle and higher_low:
+            score_reversal = (
+                50.0
+                + min(25.0, (40.0 - rsi_14) * 1.25)
+                + min(15.0, abs(min(0.0, dip_from_high_pct)) * 6.0)
+            )
+        else:
+            # Se un titolo è sotto il VWAP in trend discendente senza Breakout Candle reale, VETO sui falsi rimbalzi!
+            score_reversal = max(0.0, min(22.0, (55.0 - rsi_14) * 0.4)) if vwap_dist_pct < -0.45 else 25.0
+
+        base_opp_score = max(score_momentum, score_pullback, score_reversal)
 
         # BLINDATURA #13: Selettore Dinamico High-Beta "Profit-Velocity Ranker" (4 Pilastri + Cambio Marcia DAX)
         # 1) Potenziale di Velocità di Profitto:
@@ -674,42 +714,39 @@ class HybridUncappedIntelligence:
     ) -> Optional[str]:
         prof = ASSET_PROFILES.get(ticker, ASSET_PROFILES["SAPd_EQ"])
         # BLINDATURA #8: Usa lo Scudo Elastico adattato alla volatilità ATR a 5m
-        shield_act = float(ticker_metrics.get("elastic_shield_act_raw", prof["shield_activation_pct"]))
-        shield_pull = float(ticker_metrics.get("elastic_shield_pull_raw", prof["shield_pullback_pct"]))
+        atr_raw = float(ticker_metrics.get("atr_5m_volatility_pct", 0.18)) / 100.0
+        shield_act = max(0.0072, float(ticker_metrics.get("elastic_shield_act_raw", prof["shield_activation_pct"])))
+        shield_pull = max(0.0018, float(ticker_metrics.get("elastic_shield_pull_raw", prof["shield_pullback_pct"])))
 
-        # BLINDATURA #10: Cassaforte Giornaliera (High-Water Mark Profit Lock >= +1,60 EUR/giorno)
+        # BLINDATURA #10 + Calibrazione ATR V8.0: Pre-Scudo proporzionale al respiro ATR reale del titolo
+        # (evita di soffocare i titoli volatili a +0,04 EUR sulla prima candela di respiro!)
         daily_vault_active = (realized_net_eur >= 1.60)
-        breakeven_trigger = 0.0040 if daily_vault_active else 0.0048
-        breakeven_floor = 0.0018 if daily_vault_active else 0.0022
+        breakeven_trigger = max(0.0058 if daily_vault_active else 0.0068, round(atr_raw * 3.0, 4))
+        breakeven_floor = max(0.0030, round(breakeven_trigger * 0.48, 4))
 
         prev_peak = self.peak_pnl_pct.get(ticker, pnl_pct)
         new_peak = max(prev_peak, pnl_pct)
         self.peak_pnl_pct[ticker] = new_peak
 
         # BLINDATURA #3: Raccolto del Salto Mattutino 09:00-09:30 (Anti-Gap-Fill)
-        # Se un titolo portato dalla notte apre col botto (>= +0.50%), lo scudo si stringe a 0.14%:
-        # finché sale lo lascia correre, ma appena accenna a sgonfiarsi incassa subito il salto!
         if regime.get("is_morning_gap_harvest"):
-            if new_peak >= 0.0050 and (new_peak - pnl_pct) >= 0.0014 and pnl_pct >= 0.0030:
+            if new_peak >= 0.0055 and (new_peak - pnl_pct) >= 0.0015 and pnl_pct >= 0.0035:
                 return (
                     f"BLINDATURA #3 - RACCOLTO GAP MATTUTINO (09:00-09:30): blindato salto notturno "
                     f"dal picco +{new_peak*100:.2f}% a +{pnl_pct*100:.2f}% prima del Gap-Fill!"
                 )
 
         # BLINDATURA #1 (Stadio 2) + BLINDATURA #8 (ATR Elastico): Scudo Mobile Senza Tetto
-        # Pavimento a +0,22% per eliminare qualsiasi zona cieca tra Pre-Scudo (+0,22%) e Scudo Mobile!
-        if new_peak >= shield_act and (new_peak - pnl_pct) >= shield_pull and pnl_pct >= 0.0022:
+        if new_peak >= shield_act and (new_peak - pnl_pct) >= shield_pull and pnl_pct >= 0.0035:
             return (
                 f"SCUDO MOBILE ELASTICO SENZA TETTO ({prof['squad']}): cavalcato rialzo fino al picco "
                 f"di +{new_peak*100:.2f}% e incassato su inversione a +{pnl_pct*100:.2f}%"
             )
 
-        # BLINDATURA #1 (Stadio 1): Pre-Scudo "Salva-Utile" (Break-Even Lock)
-        # Appena un titolo tocca >= +0.48% (o +0.40% in modalità Cassaforte Giornaliera), alza una sbarra protettiva
-        # che incassa SEMPRE E SOLO in positivo (tra +0.08% e +0.22%)!
-        if new_peak >= breakeven_trigger and 0.0008 <= pnl_pct <= breakeven_floor:
+        # BLINDATURA #1 (Stadio 1): Pre-Scudo "Salva-Utile" ATR-Proporzionale (Break-Even Lock)
+        if new_peak >= breakeven_trigger and 0.0020 <= pnl_pct <= breakeven_floor:
             return (
-                f"BLINDATURA #1 - PRE-SCUDO SALVA-UTILE (Break-Even Lock): {ticker} aveva toccato "
+                f"BLINDATURA #1 - PRE-SCUDO SALVA-UTILE ATR (Break-Even Lock): {ticker} aveva toccato "
                 f"il picco di +{new_peak*100:.2f}% e ha ritracciato al pavimento garantito di +{pnl_pct*100:.2f}%!"
             )
 
@@ -782,35 +819,37 @@ class HybridUncappedIntelligence:
                     f"incasso +{pnl_pct*100:.2f}% prima della chiusura!"
                 )
 
-        # BLINDATURA #9: Rotazione Dinamica Costo-Opportunità in Utile (>= 45 min)
+        # BLINDATURA #9: Switch Dinamico Costo-Opportunità in Utile (>= 25 min)
         opened_at = self.position_open_time.setdefault(ticker, time.time())
         hours_open = (time.time() - opened_at) / 3600.0
         minutes_open = hours_open * 60.0
+        vwap_dist = float(ticker_metrics.get("vwap_dist_pct", 0.0))
         if (
-            hours_open >= 0.75
-            and 0.0018 <= pnl_pct < shield_act
+            minutes_open >= 25.0
+            and 0.0025 <= pnl_pct < shield_act
             and (not green_hook_ok or not stock_is_strong)
             and has_green_hook_bench
-            and best_bench_score >= 82.0
+            and best_bench_score >= 80.0
         ):
             return (
-                f"BLINDATURA #9 - ROTAZIONE DINAMICA IN UTILE: incasso +{pnl_pct*100:.2f}% per spostare cartuccia "
-                f"su occasione estrema con Uncino Verde (Quant Score {best_bench_score:.0f}/100)"
+                f"BLINDATURA #9 - SWITCH DINAMICO IN UTILE: incasso +{pnl_pct*100:.2f}% per spostare cartuccia "
+                f"su leader in spinta (Quant Score {best_bench_score:.0f}/100)"
             )
 
-        # BLINDATURA #15: Taglio Rapido Anti-Discesa (Micro-Stop Asimmetrico -0,45% / Stop Emergenza -0,75%)
-        # Se dopo i primi 3 minuti (filtro anti-spread) un titolo perde l'Uncino Verde ed entra in discesa (<= -0,45%, ~ -0,11 €),
-        # lo taglia SUBITO sul nascere per non farlo mai scivolare a -2,5% (-0,60 €) e ricomprare più in basso o ruotare!
-        if minutes_open >= 3.0:
-            if pnl_pct <= -0.0045 and not green_hook_ok and not stock_is_strong:
+        # BLINDATURA #15: Taglio Strutturale Anti-Discesa Calibrato su ATR (Breakdown Stop -0,60%..-0,85% / Max -1,10%)
+        # Scatta dopo >= 5 minuti (oltre il rumore dello spread) SOLO se il titolo rompe sotto il VWAP perdendo l'Uncino Verde
+        # e superando 2.8x l'ATR a 5m (evita falsi stop sul normale respiro, ma blocca subito le vere discese!).
+        breakdown_stop_pct = -max(0.0060, min(0.0085, round(atr_raw * 2.8, 4)))
+        if minutes_open >= 5.0:
+            if pnl_pct <= breakdown_stop_pct and vwap_dist < -0.20 and not green_hook_ok and not stock_is_strong:
                 return (
-                    f"BLINDATURA #15 - TAGLIO RAPIDO ANTI-DISCESA ({pnl_pct*100:+.2f}%): il titolo ha perso "
-                    f"l'Uncino Verde e sta scendendo -> esco subito a micro-costo per rientrare più in basso o ruotare!"
+                    f"BLINDATURA #15 - TAGLIO STRUTTURALE ANTI-DISCESA ATR ({pnl_pct*100:+.2f}% <= {breakdown_stop_pct*100:+.2f}%): "
+                    f"rottura ribassista confermata sotto VWAP -> taglio la discesa e ruoto sul leader!"
                 )
-            if pnl_pct <= -0.0075:
+            if pnl_pct <= -0.0110:
                 return (
-                    f"BLINDATURA #15 - STOP-LOSS STRETTO INVALICABILE ({pnl_pct*100:+.2f}%): "
-                    f"blocco immediatamente la discesa (max ~0,18 EUR) per proteggere il capitale!"
+                    f"BLINDATURA #15 - STOP DI EMERGENZA INVALICABILE ({pnl_pct*100:+.2f}%): "
+                    f"taglio netto di sicurezza (max ~0,27 EUR) per proteggere il capitale!"
                 )
 
         return None
@@ -1147,15 +1186,12 @@ def run_cycle(
                     if not (is_valid_valley_rebound or is_valid_rising_wave):
                         continue
 
-                # BLINDATURA #2 (Uncino Verde) + BLINDATURA #10 (Cassaforte Giornaliera)
-                min_required_score = 55.0 if daily_vault_active else 28.0
+                # BLINDATURA #2 (Uncino Verde + Soglia Selettiva V8.0 Multi-Strategia) + BLINDATURA #10 (Cassaforte Giornaliera)
+                min_required_score = 62.0 if daily_vault_active else 52.0
                 max_allowed_rsi = (
-                    68.0
-                    if (
-                        cand_phase == "SUPER_TREND_VERO_POSITIVO_BREAKOUT"
-                        and float(cand.get("kaufman_efficiency_ratio", 0.0)) >= 0.45
-                    )
-                    else 62.0
+                    70.0
+                    if cand_phase == "SUPER_TREND_VERO_POSITIVO_BREAKOUT"
+                    else 64.0
                 )
                 if rsi_5m > max_allowed_rsi or score < min_required_score or not cand.get("green_hook_confirmed", True):
                     continue
