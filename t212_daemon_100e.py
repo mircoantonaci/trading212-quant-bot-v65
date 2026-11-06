@@ -782,11 +782,10 @@ class HybridUncappedIntelligence:
                     f"incasso +{pnl_pct*100:.2f}% prima della chiusura!"
                 )
 
-        # BLINDATURA #9 (Ricalibrata ZERO-PERDITE): Rotazione Dinamica Costo-Opportunità SOLO IN UTILE (>= 45 min)
-        # Se una cartuccia è in utile (+0,18% .. shield_act) da >= 45 min ma ha perso spinta,
-        # mentre in panchina c'è un razzo con Uncino Verde (Score >= 82), incassa l'utile e ruota senza MAI chiudere in rosso!
+        # BLINDATURA #9: Rotazione Dinamica Costo-Opportunità in Utile (>= 45 min)
         opened_at = self.position_open_time.setdefault(ticker, time.time())
         hours_open = (time.time() - opened_at) / 3600.0
+        minutes_open = hours_open * 60.0
         if (
             hours_open >= 0.75
             and 0.0018 <= pnl_pct < shield_act
@@ -795,9 +794,24 @@ class HybridUncappedIntelligence:
             and best_bench_score >= 82.0
         ):
             return (
-                f"BLINDATURA #9 - ROTAZIONE DINAMICA SOLO IN UTILE: incasso +{pnl_pct*100:.2f}% per spostare cartuccia "
+                f"BLINDATURA #9 - ROTAZIONE DINAMICA IN UTILE: incasso +{pnl_pct*100:.2f}% per spostare cartuccia "
                 f"su occasione estrema con Uncino Verde (Quant Score {best_bench_score:.0f}/100)"
             )
+
+        # BLINDATURA #15: Taglio Rapido Anti-Discesa (Micro-Stop Asimmetrico -0,45% / Stop Emergenza -0,75%)
+        # Se dopo i primi 3 minuti (filtro anti-spread) un titolo perde l'Uncino Verde ed entra in discesa (<= -0,45%, ~ -0,11 €),
+        # lo taglia SUBITO sul nascere per non farlo mai scivolare a -2,5% (-0,60 €) e ricomprare più in basso o ruotare!
+        if minutes_open >= 3.0:
+            if pnl_pct <= -0.0045 and not green_hook_ok and not stock_is_strong:
+                return (
+                    f"BLINDATURA #15 - TAGLIO RAPIDO ANTI-DISCESA ({pnl_pct*100:+.2f}%): il titolo ha perso "
+                    f"l'Uncino Verde e sta scendendo -> esco subito a micro-costo per rientrare più in basso o ruotare!"
+                )
+            if pnl_pct <= -0.0075:
+                return (
+                    f"BLINDATURA #15 - STOP-LOSS STRETTO INVALICABILE ({pnl_pct*100:+.2f}%): "
+                    f"blocco immediatamente la discesa (max ~0,18 EUR) per proteggere il capitale!"
+                )
 
         return None
 
@@ -964,10 +978,7 @@ def run_cycle(
             realized_net_eur=today_realized_net_eur,
             has_green_hook_bench=has_green_hook_bench,
         )
-        # BLINDATURA #15 (REGOLA AUREA "ZERO VENDITE IN PERDITA"):
-        # Essendo azioni reali EUR senza leva e a 0,00 € di costo overnight, è VIETATO vendere una cartuccia
-        # sotto il prezzo di carico (cur_price <= avg_price o pnl_pct < +0,08%), evitando di cristallizzare perdite sui cali!
-        if exit_reason and regime["market_open"] and cur_price > avg_price and pnl_pct >= 0.0008:
+        if exit_reason and regime["market_open"]:
             order_res = client.place_market_order(ticker=tkr, quantity=-qty_open)
             closed_op = bot.tax_tracker.record_sell(
                 ticker=tkr,
@@ -1232,7 +1243,7 @@ def run_cycle(
             "12. Scudo Anti-Shock Dati Macro USA 14:28-14:35 (Blocca nuovi acquisti nei 7 minuti di caccia agli stop sui dati CPI/NFP delle 14:30)",
             "13. Selettore Dinamico Regime-Adaptive Beta (Cambio Marcia automatico sui 6 colossi sicuri quando DAX <= -0,50%)",
             "14. Scudo Anti-Crollo Intraday Macro & VIX (Veto sugli acquisti in caduta e incasso rapido degli utili >= +0,15%)",
-            "15. REGOLA AUREA ZERO VENDITE IN PERDITA (Vietato vendere sotto il prezzo di carico: ogni cartuccia viene venduta SOLO con utile >= +0,08%)",
+            "15. Taglio Rapido Anti-Discesa Micro-Stop Asimmetrico (-0,45% / ~0,11 EUR se perde Uncino Verde, max -0,75% / ~0,18 EUR invalicabile)",
         ],
         "regime_mercato_attivo": regime,
         "radar_onda_notturna_wall_street": overnight_status,
