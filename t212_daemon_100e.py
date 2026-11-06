@@ -776,20 +776,24 @@ class HybridUncappedIntelligence:
         us_market_live = (now_rome_dt.hour > 15) or (now_rome_dt.hour == 15 and now_rome_dt.minute >= 30)
         if us_market_live:
             macro_crash_shield_active = (
-                nasdaq_chg <= -1.20 or sp500_chg <= -1.00 or dax_chg <= -1.00 or vix_chg >= 12.0
+                nasdaq_chg <= -1.20
+                or sp500_chg <= -1.00
+                or (dax_chg <= -1.00 and vix_chg >= 5.0 and nasdaq_chg < 0.0)
+                or vix_chg >= 12.0
             )
             severe_macro_crash = (nasdaq_chg <= -1.50 or (dax_chg <= -1.50 and vix_chg >= 8.0) or vix_chg >= 15.0)
         else:
             macro_crash_shield_active = ((dax_chg <= -1.00 and vix_chg >= 5.0) or vix_chg >= 12.0)
             severe_macro_crash = ((dax_chg <= -1.50 and vix_chg >= 8.0) or vix_chg >= 15.0)
 
-        # BLINDATURA #14 (Stadio Uscita): Incasso Protettivo Immediato SOLO IN UTILE sotto Scudo Anti-Crollo Intraday
-        # REGOLA AUREA V7.1: MAI vendere in perdita sui cali intraday (evita di cristallizzare perdite sui minimi)!
-        if macro_crash_shield_active and not stock_is_strong:
-            if pnl_pct >= 0.0015:
+        # BLINDATURA #14 (Stadio Uscita): Incasso Protettivo Immediato SOLO IN UTILE sotto vero Scudo Anti-Crollo Intraday
+        # REGOLA AUREA V8.2: Non soffocare mai i titoli sopra VWAP o con Wall Street positiva!
+        vwap_dist = float(ticker_metrics.get("vwap_dist_pct", 0.0))
+        if macro_crash_shield_active and not stock_is_strong and vwap_dist < -0.10:
+            if pnl_pct >= 0.0018:
                 return (
-                    f"BLINDATURA #14 - SCUDO ANTI-CROLLO INTRADAY (Nasdaq {nasdaq_chg:+.2f}%, VIX {vix_chg:+.2f}%): "
-                    f"metto subito in salvo +{pnl_pct*100:.2f}% prima dell'onda ribassista USA!"
+                    f"BLINDATURA #14 - SCUDO ANTI-CROLLO INTRADAY (Nasdaq {nasdaq_chg:+.2f}%, DAX {dax_chg:+.2f}%, VIX {vix_chg:+.2f}%): "
+                    f"metto subito in salvo +{pnl_pct*100:.2f}% prima dell'onda ribassista!"
                 )
 
         if regime.get("is_pre_close_window"):
@@ -1190,10 +1194,13 @@ def run_cycle(
                 us_live = (now.hour > 15) or (now.hour == 15 and now.minute >= 30)
                 if us_live:
                     intraday_crash_shield = (
-                        nasdaq_c <= -1.20 or sp500_c <= -1.00 or dax_c <= -1.00 or vix_c >= 12.0
+                        nasdaq_c <= -1.20
+                        or sp500_c <= -1.00
+                        or (dax_c <= -1.00 and vix_c >= 5.0 and nasdaq_c < 0.0)
+                        or vix_c >= 12.0
                     )
                 else:
-                    intraday_crash_shield = (dax_c <= -1.00 or vix_c >= 12.0)
+                    intraday_crash_shield = ((dax_c <= -1.00 and vix_c >= 5.0) or vix_c >= 12.0)
                 if intraday_crash_shield:
                     is_valid_valley_rebound = (
                         cand_phase == "VALLE_CON_UNCINO_VERDE_PRONTO_ACQUISTO"
