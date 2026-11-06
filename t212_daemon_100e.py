@@ -684,13 +684,34 @@ class HybridUncappedIntelligence:
                 f"il picco di +{new_peak*100:.2f}% e ha ritracciato al pavimento garantito di +{pnl_pct*100:.2f}%!"
             )
 
-        # BLINDATURE #4 e #5: Finestra Pre-Chiusura 17:15-17:30 (Notte & Weekend)
+        # BLINDATURE #4, #5 e #14: Radar Macro / VIX (Intraday H24 + Finestra Pre-Chiusura 17:15-17:30)
         sine_phase = ticker_metrics.get("fase_onda_sinusoidale", "")
         stock_is_strong = bool(ticker_metrics.get("strong_for_overnight", False))
+        green_hook_ok = bool(ticker_metrics.get("green_hook_confirmed", False))
+        nasdaq_chg = float(overnight_radar.get("nasdaq_change_pct", 0.0))
+        sp500_chg = float(overnight_radar.get("sp500_change_pct", 0.0))
+        dax_chg = float(overnight_radar.get("dax_change_pct", 0.0))
+        vix_chg = float(overnight_radar.get("vix_fear_change_pct", 0.0))
+        macro_crash_shield_active = (
+            nasdaq_chg <= -1.20 or sp500_chg <= -1.00 or dax_chg <= -1.00 or vix_chg >= 12.0
+        )
+        severe_macro_crash = (nasdaq_chg <= -1.50 or vix_chg >= 15.0)
+
+        # BLINDATURA #14 (Stadio Uscita): Taglio/Incasso Immediato sotto Scudo Anti-Crollo Intraday (senza attendere 4h!)
+        if macro_crash_shield_active and not stock_is_strong:
+            if pnl_pct >= 0.0015:
+                return (
+                    f"BLINDATURA #14 - SCUDO ANTI-CROLLO INTRADAY (Nasdaq {nasdaq_chg:+.2f}%, VIX {vix_chg:+.2f}%): "
+                    f"metto subito in salvo +{pnl_pct*100:.2f}% prima dell'onda ribassista USA!"
+                )
+            if severe_macro_crash and pnl_pct <= -0.0030 and not green_hook_ok:
+                return (
+                    f"BLINDATURA #14 - EVACUAZIONE RAPIDA ANTI-CROLLO ({pnl_pct*100:+.2f}% con Nasdaq {nasdaq_chg:+.2f}%, VIX {vix_chg:+.2f}%): "
+                    f"taglio subito il titolo debole senza aspettare 4 ore per proteggere la cassa!"
+                )
+
         if regime.get("is_pre_close_window"):
             wall_street_positive = bool(overnight_radar.get("allow_overnight_hold", False))
-            nasdaq_chg = float(overnight_radar.get("nasdaq_change_pct", 0.0))
-            vix_chg = float(overnight_radar.get("vix_fear_change_pct", 0.0))
 
             # A) Blocco Falso Positivo (Tripla prova di inversione dalla cresta)
             if sine_phase == "CRESTA_IN_INVERSIONE_FALSO_POSITIVO" and pnl_pct >= 0.0010:
@@ -833,6 +854,7 @@ def run_cycle(
         scanner.update_t212_live_price(tkr, cur_px)
 
     # 2. Scansione quantitativa 5m + Selettore Dinamico High-Beta V7.0 + Radar Onda Notturna
+    bot.tax_tracker.data = bot.tax_tracker._load_or_init()
     quant_metrics = scanner.scan_all(tax_data=bot.tax_tracker.data)
     overnight_status = radar.evaluate_overnight_wave()
 
@@ -888,6 +910,12 @@ def run_cycle(
         cost_eur = round(qty_open * avg_price, 2)
         pnl_pct = (cur_price - avg_price) / avg_price if avg_price > 0 else 0.0
 
+        # Auto-Sync LIFO lot se la posizione è stata aperta dall'istanza Cloud (o viceversa)
+        if qty_open > 0 and avg_price > 0:
+            open_lots = bot.tax_tracker.data.get("lotti_aperti_lifo", {}).get(tkr, [])
+            if not open_lots:
+                bot.tax_tracker.record_buy(tkr, qty_open, avg_price)
+
         # Ribilanciamento automatico se una cartuccia supera 1.24x la taglia composta
         max_allowed_cartridge = max(31.00, round(dynamic_cartridge_eur * 1.24, 2))
         if cost_eur > max_allowed_cartridge and regime["market_open"]:
@@ -901,6 +929,7 @@ def run_cycle(
                     ticker=tkr,
                     sell_qty=excess_qty,
                     sell_price_eur=cur_price,
+                    fallback_avg_price_eur=avg_price,
                 )
                 qty_open = round(qty_open - excess_qty, 2)
                 cost_eur = round(qty_open * avg_price, 2)
@@ -928,6 +957,7 @@ def run_cycle(
                 ticker=tkr,
                 sell_qty=qty_open,
                 sell_price_eur=cur_price,
+                fallback_avg_price_eur=avg_price,
             )
             intel.register_sell(tkr, cur_price)
             msg = (
@@ -946,6 +976,7 @@ def run_cycle(
                 ticker=tkr,
                 sell_qty=qty_open,
                 sell_price_eur=cur_price,
+                fallback_avg_price_eur=avg_price,
             )
             intel.register_sell(tkr, cur_price)
             msg = (
@@ -1074,6 +1105,24 @@ def run_cycle(
                 if not (overnight_status.get("allow_overnight_hold") and cand.get("strong_for_overnight")):
                     continue
             else:
+                # BLINDATURA #14 (Stadio Ingresso - Veto Anti-Crollo Intraday):
+                # Se lo Scudo Anti-Crollo è attivo (Nasdaq <= -1,20%, S&P <= -1,00%, DAX <= -1,00% o VIX >= +12%),
+                # NON prendere mai in considerazione titoli deboli o sotto il VWAP (come ASML o DTE in discesa)!
+                nasdaq_c = float(overnight_status.get("nasdaq_change_pct", 0.0))
+                sp500_c = float(overnight_status.get("sp500_change_pct", 0.0))
+                dax_c = float(overnight_status.get("dax_change_pct", 0.0))
+                vix_c = float(overnight_status.get("vix_fear_change_pct", 0.0))
+                intraday_crash_shield = (
+                    nasdaq_c <= -1.20 or sp500_c <= -1.00 or dax_c <= -1.00 or vix_c >= 12.0
+                )
+                if intraday_crash_shield:
+                    if not (
+                        cand.get("strong_for_overnight", False)
+                        and cand.get("green_hook_confirmed", False)
+                        and score >= 75.0
+                    ):
+                        continue
+
                 # BLINDATURA #2 (Uncino Verde) + BLINDATURA #10 (Cassaforte Giornaliera)
                 min_required_score = 55.0 if daily_vault_active else 30.0
                 if rsi_5m > 58.0 or score < min_required_score or not cand.get("green_hook_confirmed", True):
@@ -1161,6 +1210,7 @@ def run_cycle(
             "11. Fusione Zero-Latency 0ms (Incolla i prezzi in tempo reale di Trading 212 sulle candele 5m eliminando i 15m di ritardo di Yahoo su XETRA)",
             "12. Scudo Anti-Shock Dati Macro USA 14:28-14:35 (Blocca nuovi acquisti nei 7 minuti di caccia agli stop sui dati CPI/NFP delle 14:30)",
             "13. Selettore Dinamico High-Beta 'Profit-Velocity Ranker' (12 Titoli EUR: ATR Wave Power + Kaufman Efficiency Ratio + Volume Surge + Auto-Apprendimento 730)",
+            "14. Scudo Anti-Crollo Intraday Macro & VIX (Veto immediato sugli acquisti di titoli deboli/tech se Nasdaq <= -1,2% o VIX >= +12%, e taglio rapido a -0,30% senza attendere 4h)",
         ],
         "regime_mercato_attivo": regime,
         "radar_onda_notturna_wall_street": overnight_status,

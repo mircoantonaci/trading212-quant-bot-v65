@@ -189,14 +189,28 @@ class ItalianTaxTracker730:
         lots.append(asdict(lot))
         self.save()
 
-    def record_sell(self, ticker: str, sell_qty: float, sell_price_eur: float) -> Dict[str, float]:
+    def record_sell(
+        self,
+        ticker: str,
+        sell_qty: float,
+        sell_price_eur: float,
+        fallback_avg_price_eur: Optional[float] = None,
+    ) -> Dict[str, float]:
         """
         Scarica i lotti partendo dall'ULTIMO acquistato (LIFO) e calcola
         esattamente plusvalenza o minusvalenza fiscale per il Quadro T.
+        Se un lotto è stato aperto da un runner diverso (Cloud vs Locale), usa il prezzo medio reale T212.
         """
         lots = self.data["lotti_aperti_lifo"].get(ticker, [])
         remaining_to_sell = sell_qty
         cost_basis_eur = 0.0
+
+        # Se Trading 212 ci fornisce il prezzo medio reale certificato della posizione (fallback_avg_price_eur),
+        # verifichiamo che eventuali lotti locali non siano disallineati (>0.5% di scarto da istanza Cloud):
+        if fallback_avg_price_eur and fallback_avg_price_eur > 0 and lots:
+            last_lot_px = float(lots[-1].get("price_eur", 0.0))
+            if last_lot_px > 0 and abs(last_lot_px - fallback_avg_price_eur) / fallback_avg_price_eur > 0.005:
+                lots.clear()
 
         while remaining_to_sell > 1e-7 and lots:
             last_lot = lots[-1]
@@ -212,6 +226,11 @@ class ItalianTaxTracker730:
                 last_lot["quantity"] = round(lot_qty - remaining_to_sell, 6)
                 last_lot["total_eur"] = round(last_lot["quantity"] * lot_price, 4)
                 remaining_to_sell = 0.0
+
+        if remaining_to_sell > 1e-7:
+            ref_avg = fallback_avg_price_eur if (fallback_avg_price_eur and fallback_avg_price_eur > 0) else sell_price_eur
+            cost_basis_eur += remaining_to_sell * ref_avg
+            remaining_to_sell = 0.0
 
         proceeds_eur = sell_qty * sell_price_eur
         pnl_eur = proceeds_eur - cost_basis_eur
