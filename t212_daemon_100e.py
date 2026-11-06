@@ -22,6 +22,7 @@ Decisione Automatica alle 17:15-17:28 per ciascuna cartuccia:
 """
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
 import datetime
 import json
 import os
@@ -418,40 +419,40 @@ class QuantMarketScanner:
             atr_5m_pct = 0.0018
             kaufman_er = 0.35
 
-        # MOTORE V8.0 MULTI-STRATEGIA AUTO-ADATTIVO (3 Strategie Quantitative in Parallelo):
-        # 1) STRATEGIA A - MOMENTUM BREAKOUT (Cavalca i Leader sopra il VWAP con spinta direzionale istituzionale):
-        if vwap_dist_pct >= -0.05 and slope_15m_pct >= 0.0 and 44.0 <= rsi_14 <= 72.0 and not price_turning_down:
+        # MOTORE V8.1 MULTI-STRATEGIA AUTO-ADATTIVO CONTINUO (Zero Zone Cieche tra le 3 Strategie):
+        # 1) STRATEGIA A - MOMENTUM BREAKOUT (Cavalca i Leader sopra il VWAP senza azzerarsi per micro-tick intra-barra):
+        if vwap_dist_pct >= -0.15 and (slope_15m_pct >= -0.10 or slope_rising) and 42.0 <= rsi_14 <= 74.0 and green_hook_confirmed:
             score_momentum = (
                 58.0
-                + min(20.0, max(0.0, vwap_dist_pct * 16.0))
-                + min(18.0, max(0.0, slope_15m_pct * 32.0))
+                + min(20.0, max(0.0, (vwap_dist_pct + 0.15) * 15.0))
+                + min(18.0, max(0.0, (slope_15m_pct + 0.10) * 28.0))
                 + (kaufman_er * 14.0)
                 + (6.0 if breakout_candle else 0.0)
             )
         else:
             score_momentum = 0.0
 
-        # 2) STRATEGIA B - INSTITUTIONAL VWAP PULLBACK (Ritracciamento sano di un titolo forte vicino/sopra VWAP):
-        if vwap_dist_pct >= -0.45 and 34.0 <= rsi_14 <= 56.0 and green_hook_confirmed and slope_30m_pct >= -0.35:
+        # 2) STRATEGIA B - INSTITUTIONAL VWAP PULLBACK (Copre senza buchi RSI 32..64 vicino/sopra VWAP):
+        if vwap_dist_pct >= -0.55 and 32.0 <= rsi_14 <= 64.0 and green_hook_confirmed and slope_30m_pct >= -0.45:
             score_pullback = (
-                52.0
-                + min(24.0, max(0.0, (58.0 - rsi_14) * 1.15))
+                54.0
+                + min(24.0, max(0.0, (64.0 - rsi_14) * 0.95))
                 + (12.0 if breakout_candle else 4.0)
                 + (kaufman_er * 12.0)
             )
         else:
             score_pullback = 0.0
 
-        # 3) STRATEGIA C - V-BOTTOM SPRING REVERSAL (Ipervenduto sotto VWAP: ammesso SOLO con Breakout Candle > High[-2]):
-        if rsi_14 < 38.0 and green_hook_confirmed and breakout_candle and higher_low:
+        # 3) STRATEGIA C - V-BOTTOM SPRING REVERSAL (Ipervenduto sotto VWAP con Breakout Candle o minimo crescente):
+        if rsi_14 < 40.0 and green_hook_confirmed and (breakout_candle or (closes[-1] > closes[-2] and higher_low and rsi_14 < 30.0)):
             score_reversal = (
-                50.0
+                52.0
                 + min(25.0, (40.0 - rsi_14) * 1.25)
                 + min(15.0, abs(min(0.0, dip_from_high_pct)) * 6.0)
             )
         else:
-            # Se un titolo è sotto il VWAP in trend discendente senza Breakout Candle reale, VETO sui falsi rimbalzi!
-            score_reversal = max(0.0, min(22.0, (55.0 - rsi_14) * 0.4)) if vwap_dist_pct < -0.45 else 25.0
+            # Se un titolo è sotto il VWAP in trend discendente senza inversione reale, VETO sui falsi rimbalzi!
+            score_reversal = max(0.0, min(22.0, (55.0 - rsi_14) * 0.4)) if vwap_dist_pct < -0.55 else 25.0
 
         base_opp_score = max(score_momentum, score_pullback, score_reversal)
 
@@ -505,21 +506,20 @@ class QuantMarketScanner:
         elastic_shield_act = round(base_act * vol_scale, 4)
         elastic_shield_pull = round(base_pull * vol_scale, 4)
 
-        if rsi_14 > 66.0 and price_turning_down and volume_drying_up:
+        if rsi_14 > 68.0 and price_turning_down and volume_drying_up:
             sine_phase = "CRESTA_IN_INVERSIONE_FALSO_POSITIVO"
             strong_for_overnight = False
-        elif rsi_14 > 62.0 and (not price_turning_down or slope_rising or vwap_dist_pct >= 0.0):
+        elif score_momentum >= 55.0 or (rsi_14 > 60.0 and (not price_turning_down or slope_rising or vwap_dist_pct >= 0.0)):
             sine_phase = "SUPER_TREND_VERO_POSITIVO_BREAKOUT"
             strong_for_overnight = True
-        elif 38.0 <= rsi_14 <= 62.0 and slope_rising and vwap_dist_pct >= -0.20:
+        elif score_pullback >= 52.0 or (36.0 <= rsi_14 <= 64.0 and (slope_rising or green_hook_confirmed) and vwap_dist_pct >= -0.55):
             sine_phase = "ONDA_ASCENDENTE_SANA_VERO_POSITIVO"
             strong_for_overnight = True
+        elif score_reversal >= 50.0 or (rsi_14 < 38.0 and green_hook_confirmed):
+            sine_phase = "VALLE_CON_UNCINO_VERDE_PRONTO_ACQUISTO"
+            strong_for_overnight = False
         elif rsi_14 < 38.0:
-            sine_phase = (
-                "VALLE_CON_UNCINO_VERDE_PRONTO_ACQUISTO"
-                if green_hook_confirmed
-                else "COLTELLO_IN_CADUTA_ATTENDERE_UNCINO_VERDE"
-            )
+            sine_phase = "COLTELLO_IN_CADUTA_ATTENDERE_UNCINO_VERDE"
             strong_for_overnight = False
         else:
             sine_phase = "ONDA_DISCENDENTE_O_DEBOLE"
@@ -564,8 +564,14 @@ class QuantMarketScanner:
     ) -> Dict[str, Dict[str, Any]]:
         now_ts = time.time()
         results: Dict[str, Dict[str, Any]] = {}
-        for tkr in ASSET_PROFILES:
-            results[tkr] = self.fetch_5m_metrics(tkr, tax_data=tax_data, dax_change_pct=dax_change_pct)
+        tickers = list(ASSET_PROFILES.keys())
+        with ThreadPoolExecutor(max_workers=12) as pool:
+            futures = {
+                tkr: pool.submit(self.fetch_5m_metrics, tkr, tax_data, dax_change_pct)
+                for tkr in tickers
+            }
+            for tkr, fut in futures.items():
+                results[tkr] = fut.result()
         self.cached_metrics = results
         self.last_scan_ts = now_ts
         return results
@@ -1138,15 +1144,9 @@ def run_cycle(
             rsi_5m = float(cand["rsi_5m"])
             cand_phase = cand.get("fase_onda_sinusoidale", "")
 
-            # Su occasioni estreme (Score >= 75) o in modalità difensiva DAX (<= -0,50%),
-            # consenti lo switch dinamico tra Squadra 1 e Squadra 2 mantenendo sempre il Vincolo di Markowitz (4 settori diversi)!
-            if score < 75.0 and dax_live_pct > -0.50:
-                if cand_squad == "SQUADRA_1_CECCHINO_GIORNALIERO" and sq1_count >= 2:
-                    continue
-                if cand_squad == "SQUADRA_2_CAVALCA_ONDA" and sq2_count >= 2:
-                    continue
-
-            # BLINDATURA #7: Vincolo di Markowitz (Mai 2 cartucce nello stesso settore industriale, es. mai ASML + Infineon insieme!)
+            # V8.1 Zero-Bottleneck: nessuna gabbia artificiale 2+2 tra Squadra 1 e Squadra 2!
+            # Qualsiasi candidato valido delle 3 Strategie può occupare subito lo slot libero,
+            # garantendo la diversificazione reale tramite il Vincolo di Markowitz (4 settori industriali diversi).
             if cand_sector in active_sectors:
                 continue
 
@@ -1377,7 +1377,7 @@ def main():
         if args.cycles > 0 and executed >= args.cycles:
             print(f"=== SESSIONE CLOUD COMPLETATA ({executed}/{args.cycles} cicli eseguiti) ===", flush=True)
             break
-        time.sleep(30)
+        time.sleep(15)
 
 
 if __name__ == "__main__":
