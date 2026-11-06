@@ -463,17 +463,25 @@ class QuantMarketScanner:
         #      CORE_BLUE_CHIP / DEFENSIVE_LOW_BETA di ieri (1.18x) che hanno scudi stretti e incassano subito!
         wave_power_pct = (atr_5m_pct * 100.0 * 3.5) + (day_range_pct * 0.45)
         beta_tier = prof.get("beta_tier", "CORE_BLUE_CHIP")
-        if dax_change_pct <= -0.50:
+        # Selettore Intelligente Lento/Sicuro vs Veloce/Turbo basato sulla Forza Relativa Reale (Alpha vs VWAP):
+        # - Se un titolo TURBO_HIGH_BETA è SOPRA il suo VWAP in spinta (score_momentum >= 55 o score_pullback >= 54),
+        #   ha Forza Relativa Istituzionale (Alpha > 0) anche a DAX rosso -> riceve il massimo boost 1.18x!
+        # - Se invece il mercato è debole (DAX <= -0,50%) e il titolo Turbo è SOTTO il VWAP, viene frenato (0.78x)
+        #   e il bot premia automaticamente i colossi sicuri (CORE_BLUE_CHIP / DEFENSIVE_LOW_BETA = 1.18x)!
+        has_institutional_alpha = (vwap_dist_pct >= -0.05 and (score_momentum >= 55.0 or score_pullback >= 54.0))
+        if beta_tier == "TURBO_HIGH_BETA" and has_institutional_alpha:
+            tier_boost = 1.18
+        elif dax_change_pct <= -0.50:
             tier_boost = (
                 1.18
                 if beta_tier in ("CORE_BLUE_CHIP", "DEFENSIVE_LOW_BETA")
-                else 0.82
+                else 0.78
             )
         else:
             tier_boost = (
-                1.12
+                1.14
                 if beta_tier == "TURBO_HIGH_BETA"
-                else (0.85 if beta_tier == "DEFENSIVE_LOW_BETA" else 1.0)
+                else (0.88 if beta_tier == "DEFENSIVE_LOW_BETA" else 1.02)
             )
         profit_velocity_mult = round(max(0.75, min(1.55, (0.75 + wave_power_pct * 0.25) * tier_boost)), 2)
 
@@ -825,14 +833,15 @@ class HybridUncappedIntelligence:
                     f"incasso +{pnl_pct*100:.2f}% prima della chiusura!"
                 )
 
-        # BLINDATURA #9: Switch Dinamico Costo-Opportunità in Utile (>= 25 min)
+        # BLINDATURA #9: Switch Dinamico Costo-Opportunità (In Utile >= 20m oppure Quasi-Pari Stagnante >= 30m su Razzo Score >= 86)
         opened_at = self.position_open_time.setdefault(ticker, time.time())
         hours_open = (time.time() - opened_at) / 3600.0
         minutes_open = hours_open * 60.0
         vwap_dist = float(ticker_metrics.get("vwap_dist_pct", 0.0))
+        own_score = float(ticker_metrics.get("quant_buy_score", 50.0))
         if (
-            minutes_open >= 25.0
-            and 0.0025 <= pnl_pct < shield_act
+            minutes_open >= 20.0
+            and 0.0022 <= pnl_pct < shield_act
             and (not green_hook_ok or not stock_is_strong)
             and has_green_hook_bench
             and best_bench_score >= 80.0
@@ -840,6 +849,19 @@ class HybridUncappedIntelligence:
             return (
                 f"BLINDATURA #9 - SWITCH DINAMICO IN UTILE: incasso +{pnl_pct*100:.2f}% per spostare cartuccia "
                 f"su leader in spinta (Quant Score {best_bench_score:.0f}/100)"
+            )
+        if (
+            minutes_open >= 30.0
+            and -0.0020 <= pnl_pct < 0.0022
+            and own_score < 28.0
+            and not stock_is_strong
+            and not green_hook_ok
+            and has_green_hook_bench
+            and best_bench_score >= 86.0
+        ):
+            return (
+                f"BLINDATURA #9 - SWITCH DIFFERENZIALE DI VELOCITÀ ({pnl_pct*100:+.2f}%, Score titolo {own_score:.0f} -> Leader {best_bench_score:.0f}/100): "
+                f"sblocco cartuccia ferma sotto VWAP per salire subito sul razzo in Super-Trend!"
             )
 
         # BLINDATURA #15: Taglio Strutturale Anti-Discesa Calibrato su ATR (Breakdown Stop -0,60%..-0,85% / Max -1,10%)
