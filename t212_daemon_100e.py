@@ -165,6 +165,36 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
         "shield_pullback_pct": 0.0018,
         "beta_tier": "TURBO_HIGH_BETA",
     },
+    "BAYNd_EQ": {
+        "yahoo": "BAYN.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "PHARMA_BIOTECH",
+        "role_desc": "Turbo High-Beta Farmaceutico & Biotech DAX (Senza Tetto)",
+        "ref_price_eur": 56.60,
+        "shield_activation_pct": 0.0070,
+        "shield_pullback_pct": 0.0016,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    "VNAd_EQ": {
+        "yahoo": "VNA.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "REAL_ESTATE_TASSI",
+        "role_desc": "Cecchino High-Beta Immobiliare & Sensibile ai Tassi (Senza Tetto)",
+        "ref_price_eur": 17.25,
+        "shield_activation_pct": 0.0065,
+        "shield_pullback_pct": 0.0015,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    "AIRd_EQ": {
+        "yahoo": "AIR.DE",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "AVIAZIONE_CIVILE_GLOBALE",
+        "role_desc": "Cavalca-Onda Aviazione Civile & Aerospazio (Senza Tetto)",
+        "ref_price_eur": 206.10,
+        "shield_activation_pct": 0.0068,
+        "shield_pullback_pct": 0.0015,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
 }
 
 
@@ -615,7 +645,7 @@ class QuantMarketScanner:
         now_ts = time.time()
         results: Dict[str, Dict[str, Any]] = {}
         tickers = list(ASSET_PROFILES.keys())
-        with ThreadPoolExecutor(max_workers=12) as pool:
+        with ThreadPoolExecutor(max_workers=15) as pool:
             futures = {
                 tkr: pool.submit(self.fetch_5m_metrics, tkr, tax_data, dax_change_pct)
                 for tkr in tickers

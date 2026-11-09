@@ -121,6 +121,27 @@ EUR_ZERO_FEE_UNIVERSE: Dict[str, Dict[str, str]] = {
         "isin": "DE0005557508",
         "tobin_tax": "0.00%",
     },
+    "BAYNd_EQ": {
+        "name": "Bayer AG",
+        "exchange": "XETRA (Francoforte)",
+        "currency": "EUR",
+        "isin": "DE000BAY0017",
+        "tobin_tax": "0.00%",
+    },
+    "VNAd_EQ": {
+        "name": "Vonovia SE",
+        "exchange": "XETRA (Francoforte)",
+        "currency": "EUR",
+        "isin": "DE000A1ML7J1",
+        "tobin_tax": "0.00%",
+    },
+    "AIRd_EQ": {
+        "name": "Airbus SE",
+        "exchange": "XETRA (Francoforte)",
+        "currency": "EUR",
+        "isin": "NL0000235190",
+        "tobin_tax": "0.00%",
+    },
 }
 
 
