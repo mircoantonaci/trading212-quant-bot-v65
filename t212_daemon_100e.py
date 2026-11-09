@@ -932,6 +932,7 @@ class HybridUncappedIntelligence:
             and (not green_hook_ok or not stock_is_strong)
             and has_green_hook_bench
             and best_bench_score >= 80.0
+            and (best_bench_score - own_score) >= 25.0
         ):
             return (
                 f"BLINDATURA #9 - SWITCH DINAMICO IN UTILE: incasso +{pnl_pct*100:.2f}% per spostare cartuccia "
@@ -1371,7 +1372,10 @@ def run_cycle(
             try:
                 # Verifica atomica pre-acquisto contro collisioni Cloud/Locale (mai superare 4 cartucce / 100 EUR)
                 try:
-                    fresh_pos = [p for p in client.get_open_positions() if p.get("ticker") in EUR_ZERO_FEE_UNIVERSE]
+                    fresh_pos = [
+                        p for p in client.get_open_positions()
+                        if float(p.get("quantity", 0.0)) > 0
+                    ]
                     if len(fresh_pos) >= bot.cartridges or any(p.get("ticker") == tkr for p in fresh_pos):
                         break
                     time.sleep(1.5)
