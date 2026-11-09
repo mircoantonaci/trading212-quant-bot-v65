@@ -1272,9 +1272,13 @@ def run_cycle(
 
             try:
                 # Verifica atomica pre-acquisto contro collisioni Cloud/Locale (mai superare 4 cartucce / 100 EUR)
-                fresh_pos = [p for p in client.get_open_positions() if p.get("ticker") in EUR_ZERO_FEE_UNIVERSE]
-                if len(fresh_pos) >= bot.cartridges or any(p.get("ticker") == tkr for p in fresh_pos):
-                    break
+                try:
+                    fresh_pos = [p for p in client.get_open_positions() if p.get("ticker") in EUR_ZERO_FEE_UNIVERSE]
+                    if len(fresh_pos) >= bot.cartridges or any(p.get("ticker") == tkr for p in fresh_pos):
+                        break
+                    time.sleep(1.5)
+                except Exception:
+                    pass
                 meta = EUR_ZERO_FEE_UNIVERSE[tkr]
                 order_res = client.place_market_order(ticker=tkr, quantity=qty_to_buy)
                 est_cost = round(qty_to_buy * live_px, 2)
