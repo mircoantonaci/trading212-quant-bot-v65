@@ -521,15 +521,28 @@ class QuantMarketScanner:
         # 3) Bonus Spinta Volumi Istituzionali su Uncino Verde
         rvol_bonus = 8.0 if (green_hook_confirmed and rvol_ratio >= 1.15) else 0.0
 
-        # 4) Auto-Apprendimento dal Registro Fiscale 730 (premia i titoli che incassano di più)
+        # 4) BLINDATURA #17 - Memoria Intraday Hot Leader / Anti-Whipsaw Cold Penalty (0ms RAM)
         memory_bonus = 0.0
         if tax_data and "operazioni_chiuse" in tax_data:
-            tkr_pnl = sum(
-                float(op.get("risultato_fiscale_eur", 0.0))
-                for op in tax_data.get("operazioni_chiuse", [])
+            ops_tkr = [
+                op for op in tax_data.get("operazioni_chiuse", [])
                 if op.get("ticker") == ticker
-            )
+            ]
+            tkr_pnl = sum(float(op.get("risultato_fiscale_eur", 0.0)) for op in ops_tkr)
             memory_bonus = max(-5.0, min(8.0, round(tkr_pnl * 6.0, 1)))
+            today_prefix = datetime.date.today().isoformat()
+            today_ops = [
+                op for op in ops_tkr
+                if str(op.get("timestamp", "")).startswith(today_prefix)
+            ]
+            if today_ops:
+                last_today_pnl = float(today_ops[-1].get("risultato_fiscale_eur", 0.0))
+                today_wins = sum(1 for op in today_ops if float(op.get("risultato_fiscale_eur", 0.0)) > 0.0)
+                today_losses = sum(1 for op in today_ops if float(op.get("risultato_fiscale_eur", 0.0)) < 0.0)
+                if last_today_pnl < 0.0 and vwap_dist_pct < 0.0:
+                    memory_bonus = -18.0
+                elif today_wins >= 2 and today_losses == 0:
+                    memory_bonus = max(memory_bonus, min(10.0, round(today_wins * 3.0, 1)))
 
         quant_score = round(
             max(0.0, min(100.0, (base_opp_score * profit_velocity_mult) + er_bonus + rvol_bonus + memory_bonus)),
@@ -629,6 +642,7 @@ class HybridUncappedIntelligence:
         self.peak_pnl_pct: Dict[str, float] = {}
         self.last_sell_price: Dict[str, float] = {}
         self.last_sell_time: Dict[str, float] = {}
+        self.last_sell_was_loss: Dict[str, bool] = {}
         self.position_open_time: Dict[str, float] = {}
         self._load_persisted_peaks()
 
@@ -658,6 +672,16 @@ class HybridUncappedIntelligence:
                         if ts_str:
                             dt = datetime.datetime.fromisoformat(ts_str)
                             self.position_open_time[tkr] = dt.timestamp()
+                for op in tx.get("operazioni_chiuse", []):
+                    tkr_op = op.get("ticker")
+                    ts_op = op.get("timestamp", "")
+                    px_op = op.get("sell_price_eur")
+                    pnl_op = float(op.get("risultato_fiscale_eur", 0.0))
+                    if tkr_op and ts_op and px_op is not None:
+                        dt_op = datetime.datetime.fromisoformat(ts_op)
+                        self.last_sell_time[tkr_op] = dt_op.timestamp()
+                        self.last_sell_price[tkr_op] = float(px_op)
+                        self.last_sell_was_loss[tkr_op] = (pnl_op < 0.0)
             except Exception:
                 pass
 
@@ -915,17 +939,24 @@ class HybridUncappedIntelligence:
 
         return None
 
-    def register_sell(self, ticker: str, sell_price_eur: float) -> None:
+    def register_sell(self, ticker: str, sell_price_eur: float, was_loss: bool = False) -> None:
         self.peak_pnl_pct.pop(ticker, None)
         self.position_open_time.pop(ticker, None)
         self.last_sell_price[ticker] = sell_price_eur
         self.last_sell_time[ticker] = time.time()
+        self.last_sell_was_loss[ticker] = bool(was_loss)
 
-    def can_buy_ticker(self, ticker: str, live_price_eur: float) -> bool:
+    def can_buy_ticker(self, ticker: str, live_price_eur: float, vwap_dist_pct: float = 0.0) -> bool:
         if ticker not in self.last_sell_price:
             return True
         last_px = self.last_sell_price[ticker]
         elapsed_min = (time.time() - self.last_sell_time.get(ticker, 0.0)) / 60.0
+        # BLINDATURA #17: Se l'ultima uscita è stata uno Stop-Loss (BLINDATURA #15),
+        # vieta di ricomprare il titolo mentre continua a scendere sotto il VWAP!
+        if self.last_sell_was_loss.get(ticker, False):
+            if elapsed_min >= 30.0 and vwap_dist_pct >= 0.05:
+                return True
+            return elapsed_min >= 60.0
         if live_price_eur <= last_px * (1.0 - 0.0025):
             return True
         return elapsed_min >= 15.0
@@ -1025,7 +1056,7 @@ def run_cycle(
         for tkr, m in quant_metrics.items()
         if tkr not in pos_by_ticker
         and tkr not in pending_by_ticker
-        and intel.can_buy_ticker(tkr, float(m.get("live_price_eur", 0.0)))
+        and intel.can_buy_ticker(tkr, float(m.get("live_price_eur", 0.0)), float(m.get("vwap_dist_pct", 0.0)))
         and bool(m.get("green_hook_confirmed"))
         and float(m.get("rsi_5m", 100.0))
         <= (74.0 if m.get("fase_onda_sinusoidale") == "SUPER_TREND_VERO_POSITIVO_BREAKOUT" else 64.0)
@@ -1124,7 +1155,11 @@ def run_cycle(
                 sell_price_eur=cur_price,
                 fallback_avg_price_eur=avg_price,
             )
-            intel.register_sell(tkr, cur_price)
+            intel.register_sell(
+                tkr,
+                cur_price,
+                was_loss=(float(closed_op.get("risultato_fiscale_eur", 0.0)) < 0.0),
+            )
             msg = (
                 f"{exit_reason} su {tkr} ({meta['name']}): vendute {qty_open} azioni "
                 f"a {cur_price:.2f} EUR (Risultato fiscale: {closed_op['risultato_fiscale_eur']:+.2f} EUR, 0,00 EUR comm.)"
@@ -1243,7 +1278,7 @@ def run_cycle(
             if cand_sector in active_sectors:
                 continue
 
-            if not intel.can_buy_ticker(tkr, live_px):
+            if not intel.can_buy_ticker(tkr, live_px, float(cand.get("vwap_dist_pct", 0.0))):
                 continue
 
             # Se siamo nella finestra 17:15-17:30, compra per la notte SOLO se il Radar prevede Onda Positiva!
