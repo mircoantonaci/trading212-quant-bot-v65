@@ -26,6 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 import datetime
 import json
 import os
+import sys
 import time
 import urllib.request
 from typing import Dict, Any, List, Optional
@@ -284,15 +285,19 @@ class QuantMarketScanner:
             px = round(price_eur, 4)
             self.live_prices[ticker] = px
             self.has_t212_realtime[ticker] = True
-            bucket_5m = int(time.time() // 300) * 300
-            bars = self.realtime_5m_bars.setdefault(ticker, {})
-            if bucket_5m not in bars:
-                bars[bucket_5m] = {"open": px, "high": px, "low": px, "close": px}
-            else:
-                b = bars[bucket_5m]
-                b["high"] = max(b["high"], px)
-                b["low"] = min(b["low"], px)
-                b["close"] = px
+            now_dt = datetime.datetime.now(MARKET_TZ)
+            hm = now_dt.hour * 60 + now_dt.minute
+            # Registra candele 5m real-time SOLO a mercato aperto (evita barre piatte notturne/weekend che distorcono RSI e ATR alle 09:00!)
+            if now_dt.weekday() < 5 and (9 * 60 <= hm < 17 * 60 + 30):
+                bucket_5m = int(time.time() // 300) * 300
+                bars = self.realtime_5m_bars.setdefault(ticker, {})
+                if bucket_5m not in bars:
+                    bars[bucket_5m] = {"open": px, "high": px, "low": px, "close": px}
+                else:
+                    b = bars[bucket_5m]
+                    b["high"] = max(b["high"], px)
+                    b["low"] = min(b["low"], px)
+                    b["close"] = px
 
     def fetch_5m_metrics(
         self,
@@ -302,7 +307,8 @@ class QuantMarketScanner:
     ) -> Dict[str, Any]:
         prof = ASSET_PROFILES[ticker]
         ysymbol = prof["yahoo"]
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ysymbol}?interval=5m&range=1d"
+        # V8.3: range=5d garantisce continuità matematica 09:00-09:20 evitando il buco di 0 candele di range=1d per il delay XETRA di 15m
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ysymbol}?interval=5m&range=5d"
         req = urllib.request.Request(
             url,
             headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)"},
@@ -311,6 +317,7 @@ class QuantMarketScanner:
         highs: List[float] = []
         lows: List[float] = []
         vols: List[float] = []
+        bar_timestamps: List[int] = []
         last_yahoo_ts: int = 0
         try:
             with urllib.request.urlopen(req, timeout=6) as resp:
@@ -334,20 +341,24 @@ class QuantMarketScanner:
                         highs.append(float(h))
                         lows.append(float(l))
                         vols.append(float(v or 0.0))
+                        bar_timestamps.append(int(ts))
                         last_yahoo_ts = int(ts)
         except Exception:
             pass
 
-        # BLINDATURA #11: Fusione Zero-Latency (0ms)
+        # BLINDATURA #11: Fusione Zero-Latency (0ms) - filtra eventuali barre fuori orario di borsa
         rt_bars = self.realtime_5m_bars.get(ticker, {})
         avg_vol_est = (sum(vols[-6:]) / 6.0) if len(vols) >= 6 else 1000.0
         for b_ts in sorted(rt_bars.keys()):
-            if b_ts > last_yahoo_ts:
+            b_dt = datetime.datetime.fromtimestamp(b_ts, tz=MARKET_TZ)
+            b_hm = b_dt.hour * 60 + b_dt.minute
+            if b_dt.weekday() < 5 and (9 * 60 <= b_hm < 17 * 60 + 30) and b_ts > last_yahoo_ts:
                 b = rt_bars[b_ts]
                 closes.append(b["close"])
                 highs.append(b["high"])
                 lows.append(b["low"])
                 vols.append(avg_vol_est)
+                bar_timestamps.append(b_ts)
 
         if closes:
             last_c = self.live_prices.get(ticker, closes[-1])
@@ -356,16 +367,34 @@ class QuantMarketScanner:
                 highs.append(max(last_c, closes[-2]))
                 lows.append(min(last_c, closes[-2]))
                 vols.append(avg_vol_est)
+                bar_timestamps.append(int(time.time()))
             rsi_14 = compute_rsi(closes, 14)
-            day_high = max(max(highs), last_c) if highs else last_c
-            day_low = min(min(lows), last_c) if lows else last_c
+            # Calcola VWAP e High/Low sulla seduta odierna (o sulle ultime 24 barre reali tra le 09:00 e le 09:15)
+            today_date = datetime.datetime.now(MARKET_TZ).date()
+            today_indices = [
+                idx
+                for idx, ts_val in enumerate(bar_timestamps)
+                if datetime.datetime.fromtimestamp(ts_val, tz=MARKET_TZ).date() == today_date
+            ]
+            if len(today_indices) >= 3:
+                sess_closes = [closes[i] for i in today_indices]
+                sess_highs = [highs[i] for i in today_indices]
+                sess_lows = [lows[i] for i in today_indices]
+                sess_vols = [vols[i] for i in today_indices]
+            else:
+                sess_closes = closes[-24:]
+                sess_highs = highs[-24:]
+                sess_lows = lows[-24:]
+                sess_vols = vols[-24:]
+            day_high = max(max(sess_highs), last_c) if sess_highs else last_c
+            day_low = min(min(sess_lows), last_c) if sess_lows else last_c
             dip_from_high_pct = ((last_c - day_high) / day_high) * 100.0 if day_high > 0 else 0.0
             day_range_pct = ((day_high - day_low) / day_low) * 100.0 if day_low > 0 else 1.2
-            tot_vol = sum(vols)
+            tot_vol = sum(sess_vols)
             vwap = (
-                sum(c * v for c, v in zip(closes, vols)) / tot_vol
+                sum(c * v for c, v in zip(sess_closes, sess_vols)) / tot_vol
                 if tot_vol > 0
-                else sum(closes) / len(closes)
+                else sum(sess_closes) / len(sess_closes)
             )
             vwap_dist_pct = ((last_c - vwap) / vwap) * 100.0 if vwap > 0 else 0.0
         else:
@@ -1378,12 +1407,21 @@ def main():
 
     pid_lock_path = os.path.join(BASE_DIR, "daemon_pid.lock")
     my_pid = str(os.getpid())
+    start_mtime = os.path.getmtime(os.path.abspath(__file__))
     if args.cycles == 0:
         with open(pid_lock_path, "w", encoding="utf-8") as f:
             f.write(my_pid)
 
     executed = 0
     while True:
+        if args.cycles == 0:
+            try:
+                cur_mtime = os.path.getmtime(os.path.abspath(__file__))
+                if cur_mtime > start_mtime:
+                    print(f"[HOT-RELOAD] Aggiornamento codice rilevato su disco, ricaricamento in-place (PID {my_pid})...", flush=True)
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
+            except Exception:
+                pass
         if args.cycles == 0 and os.path.exists(pid_lock_path):
             try:
                 with open(pid_lock_path, "r", encoding="utf-8") as f:
