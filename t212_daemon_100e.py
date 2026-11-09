@@ -985,6 +985,21 @@ def run_cycle(
     dax_live_pct = float(overnight_status.get("dax_change_pct", 0.0))
     quant_metrics = scanner.scan_all(tax_data=bot.tax_tracker.data, dax_change_pct=dax_live_pct)
 
+    # Sincronizzazione automatica 100% con "Profitti/perdite realizzati" certificato da Trading 212 (/equity/account/cash -> result)
+    try:
+        cash_info = client.get_account_cash()
+        t212_realized_res = cash_info.get("result")
+        if t212_realized_res is not None:
+            t212_net = round(float(t212_realized_res), 2)
+            cur_plus = float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
+            cur_minus = float(bot.tax_tracker.data.get("minusvalenze_lorde_eur", 0.0))
+            if abs((cur_plus - cur_minus) - t212_net) >= 0.01:
+                bot.tax_tracker.data["minusvalenze_lorde_eur"] = round(cur_plus - t212_net, 2)
+                bot.tax_tracker.save()
+        time.sleep(1.5)
+    except Exception:
+        pass
+
     # BLINDATURA #6: Interesse Composto Automatico di Kelly (Auto-Compounding sul totale storico)
     realized_net_eur = round(
         float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
