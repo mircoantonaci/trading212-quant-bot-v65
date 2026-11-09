@@ -1073,15 +1073,33 @@ def run_cycle(
                 time.sleep(2.5)
 
         # A) Valuta Scudo Mobile Elastico Senza Tetto + Selettore Onda Notturna + Rotazione Solo in Utile
+        # Filtra i candidati della panchina tenendo solo quelli compatibili col Vincolo Settoriale di Markowitz!
+        other_active_sectors = {
+            ASSET_PROFILES.get(other_tkr, ASSET_PROFILES["SAPd_EQ"])["sector"]
+            for other_tkr in pos_by_ticker
+            if other_tkr != tkr and other_tkr in EUR_ZERO_FEE_UNIVERSE
+        }
+        eligible_bench_for_tkr = [
+            m for m in bench_candidates if m.get("sector") not in other_active_sectors
+        ]
+        tkr_best_bench_score = (
+            max(float(m["quant_buy_score"]) for m in eligible_bench_for_tkr)
+            if eligible_bench_for_tkr
+            else 0.0
+        )
+        tkr_has_green_hook_bench = any(
+            bool(m.get("green_hook_confirmed")) and float(m["quant_buy_score"]) >= 65.0
+            for m in eligible_bench_for_tkr
+        )
         exit_reason = intel.evaluate_uncapped_exit(
             tkr,
             pnl_pct,
             regime,
-            best_bench_score,
+            tkr_best_bench_score,
             overnight_status,
             tkr_m,
             realized_net_eur=today_realized_net_eur,
-            has_green_hook_bench=has_green_hook_bench,
+            has_green_hook_bench=tkr_has_green_hook_bench,
         )
         if exit_reason and regime["market_open"]:
             order_res = client.place_market_order(ticker=tkr, quantity=-qty_open)
