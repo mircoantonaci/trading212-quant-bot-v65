@@ -411,7 +411,7 @@ class QuantMarketScanner:
                 for idx, ts_val in enumerate(bar_timestamps)
                 if datetime.datetime.fromtimestamp(ts_val, tz=MARKET_TZ).date() == today_date
             ]
-            if len(today_indices) >= 3:
+            if len(today_indices) >= 1:
                 sess_closes = [closes[i] for i in today_indices]
                 sess_highs = [highs[i] for i in today_indices]
                 sess_lows = [lows[i] for i in today_indices]
@@ -433,6 +433,7 @@ class QuantMarketScanner:
             )
             vwap_dist_pct = ((last_c - vwap) / vwap) * 100.0 if vwap > 0 else 0.0
         else:
+            today_indices = []
             last_c = self.live_prices.get(ticker, float(prof["ref_price_eur"]))
             rsi_14 = 48.0
             dip_from_high_pct = -0.50
@@ -440,14 +441,19 @@ class QuantMarketScanner:
             vwap_dist_pct = -0.15
 
         if len(closes) >= 6:
-            price_turning_down = (closes[-1] < closes[-2])
-            falling_knife = (closes[-1] < closes[-2] and closes[-2] < closes[-3])
-            breakout_candle = (closes[-1] > highs[-2]) if len(highs) >= 2 else False
-            higher_low = (lows[-1] >= lows[-2]) if len(lows) >= 2 else True
-            green_hook_confirmed = not falling_knife and (closes[-1] >= closes[-2] or higher_low)
-            slope_rising = (closes[-1] >= closes[-3])
-            slope_15m_pct = ((closes[-1] - closes[-4]) / closes[-4] * 100.0) if (len(closes) >= 4 and closes[-4] > 0) else 0.0
-            slope_30m_pct = ((closes[-1] - closes[-7]) / closes[-7] * 100.0) if (len(closes) >= 7 and closes[-7] > 0) else slope_15m_pct
+            first_today_idx = today_indices[0] if today_indices else 0
+            ref_idx_2 = max(first_today_idx, len(closes) - 2)
+            ref_idx_3 = max(first_today_idx, len(closes) - 3)
+            ref_idx_4 = max(first_today_idx, len(closes) - 4)
+            ref_idx_7 = max(first_today_idx, len(closes) - 7)
+            price_turning_down = (closes[-1] < closes[ref_idx_2])
+            falling_knife = (closes[-1] < closes[ref_idx_2] and closes[ref_idx_2] < closes[ref_idx_3])
+            breakout_candle = (closes[-1] > highs[ref_idx_2]) if len(highs) >= 2 else False
+            higher_low = (lows[-1] >= lows[ref_idx_2]) if len(lows) >= 2 else True
+            green_hook_confirmed = not falling_knife and (closes[-1] >= closes[ref_idx_2] or higher_low)
+            slope_rising = (closes[-1] >= closes[ref_idx_3])
+            slope_15m_pct = ((closes[-1] - closes[ref_idx_4]) / closes[ref_idx_4] * 100.0) if closes[ref_idx_4] > 0 else 0.0
+            slope_30m_pct = ((closes[-1] - closes[ref_idx_7]) / closes[ref_idx_7] * 100.0) if closes[ref_idx_7] > 0 else slope_15m_pct
             avg_recent_vol = sum(vols[-6:-1]) / 5.0 if sum(vols[-6:-1]) > 0 else 1.0
             volume_drying_up = (vols[-1] < avg_recent_vol * 0.90)
             rvol_ratio = round(vols[-1] / avg_recent_vol, 2) if avg_recent_vol > 0 else 1.0
@@ -633,7 +639,7 @@ class QuantMarketScanner:
             "green_hook_confirmed": green_hook_confirmed,
             "strong_for_overnight": strong_for_overnight,
             "yahoo_today_bars": yahoo_today_bars,
-            "has_fresh_intraday_feed": (yahoo_today_bars >= 1 or bool(self.has_t212_realtime.get(ticker))),
+            "has_fresh_intraday_feed": (yahoo_today_bars >= 2 or len(today_indices) >= 2),
             "shield_activation_pct": round(elastic_shield_act * 100, 2),
             "shield_pullback_pct": round(elastic_shield_pull * 100, 2),
             "elastic_shield_act_raw": elastic_shield_act,
