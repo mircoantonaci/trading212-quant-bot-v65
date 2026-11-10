@@ -938,36 +938,28 @@ class HybridUncappedIntelligence:
                     f"incasso +{pnl_pct*100:.2f}% prima della chiusura!"
                 )
 
-        # BLINDATURA #9: Switch Dinamico Costo-Opportunità (In Utile >= 20m oppure Quasi-Pari Stagnante >= 30m su Razzo Score >= 86)
+        # BLINDATURA #9 (V8.6 Let-Winners-Run): Sblocca SOLO posizioni davvero ferme/piatte da >= 45 minuti
+        # (+0,08%..+0,24%, picco < +0,38%, sotto VWAP e Score < 28), senza MAI tagliare a +0,09 EUR i titoli
+        # che stanno salendo verso lo Scudo Mobile Senza Tetto (+0,72%..+3,00%)!
         opened_at = self.position_open_time.setdefault(ticker, time.time())
         hours_open = (time.time() - opened_at) / 3600.0
         minutes_open = hours_open * 60.0
         vwap_dist = float(ticker_metrics.get("vwap_dist_pct", 0.0))
         own_score = float(ticker_metrics.get("quant_buy_score", 50.0))
         if (
-            minutes_open >= 20.0
-            and 0.0022 <= pnl_pct < shield_act
-            and (not green_hook_ok or not stock_is_strong)
-            and has_green_hook_bench
-            and best_bench_score >= 80.0
-            and (best_bench_score - own_score) >= 25.0
-        ):
-            return (
-                f"BLINDATURA #9 - SWITCH DINAMICO IN UTILE: incasso +{pnl_pct*100:.2f}% per spostare cartuccia "
-                f"su leader in spinta (Quant Score {best_bench_score:.0f}/100)"
-            )
-        if (
-            minutes_open >= 30.0
-            and 0.0008 <= pnl_pct < 0.0022
+            minutes_open >= 45.0
+            and 0.0008 <= pnl_pct <= 0.0024
+            and new_peak < 0.0038
+            and vwap_dist < -0.05
             and own_score < 28.0
             and not stock_is_strong
             and not green_hook_ok
             and has_green_hook_bench
-            and best_bench_score >= 86.0
+            and best_bench_score >= 90.0
         ):
             return (
-                f"BLINDATURA #9 - SWITCH DIFFERENZIALE DI VELOCITÀ IN VERDE (+{pnl_pct*100:.2f}%, Score titolo {own_score:.0f} -> Leader {best_bench_score:.0f}/100): "
-                f"sblocco cartuccia ferma solo in positivo per salire subito sul razzo in Super-Trend!"
+                f"BLINDATURA #9 - SWITCH STAGNAZIONE IN VERDE (+{pnl_pct*100:.2f}%, 45m+ piatta sotto VWAP -> Leader {best_bench_score:.0f}/100): "
+                f"sblocco cartuccia ferma solo in positivo per salire sul razzo in Super-Trend!"
             )
 
         # BLINDATURA #15: Taglio Strutturale Anti-Discesa Calibrato su ATR (Breakdown Stop -0,95%..-1,15% dopo >= 25m / Max -1,35%)
