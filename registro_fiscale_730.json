@@ -39,7 +39,16 @@
       }
     ],
     "ASMLa_EQ": [],
-    "ZALd_EQ": [],
+    "ZALd_EQ": [
+      {
+        "timestamp": "2026-11-10T17:10:08",
+        "ticker": "ZALd_EQ",
+        "isin": "DE000ZAL1111",
+        "quantity": 0.88,
+        "price_eur": 28.28,
+        "total_eur": 24.8864
+      }
+    ],
     "ADYENa_EQ": [
       {
         "timestamp": "2026-11-09T10:43:10",
@@ -72,16 +81,7 @@
         "total_eur": 24.548
       }
     ],
-    "BAYNd_EQ": [
-      {
-        "timestamp": "2026-11-10T16:45:20",
-        "ticker": "BAYNd_EQ",
-        "isin": "DE000BAY0017",
-        "quantity": 0.44,
-        "price_eur": 56.7955,
-        "total_eur": 24.99
-      }
-    ],
+    "BAYNd_EQ": [],
     "AIRd_EQ": [
       {
         "timestamp": "2026-11-10T16:45:20",
@@ -588,11 +588,20 @@
       "corrispettivo_eur": 25.15,
       "costo_lifo_eur": 24.97,
       "risultato_fiscale_eur": 0.18
+    },
+    {
+      "timestamp": "2026-11-10T17:10:04",
+      "ticker": "BAYNd_EQ",
+      "quantity": 0.44,
+      "sell_price_eur": 56.95,
+      "corrispettivo_eur": 25.06,
+      "costo_lifo_eur": 24.99,
+      "risultato_fiscale_eur": 0.07
     }
   ],
-  "totale_corrispettivi_vendita_eur": 1356.23,
-  "totale_costi_carico_lifo_eur": 1356.81,
-  "plusvalenze_lorde_eur": 5.19,
+  "totale_corrispettivi_vendita_eur": 1381.29,
+  "totale_costi_carico_lifo_eur": 1381.8,
+  "plusvalenze_lorde_eur": 5.26,
   "minusvalenze_lorde_eur": 5.61,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
