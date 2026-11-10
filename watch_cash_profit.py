@@ -30,29 +30,29 @@ def main():
     )
 
     while True:
-        time.sleep(3)
+        time.sleep(1)
         ops, data = load_ops()
         if len(ops) > seen_count:
             new_ops = ops[seen_count:]
             seen_count = len(ops)
-            winning_ops = [op for op in new_ops if float(op.get("risultato_fiscale_eur", 0.0)) > 0]
-            if winning_ops:
-                plus = float(data.get("plusvalenze_lorde_eur", 0.0))
-                minus = float(data.get("minusvalenze_lorde_eur", 0.0))
-                net_cassa = round(plus - minus, 2)
-                print("\n🔔 NUOVO GUADAGNO IN CASSA RILEVATO!", flush=True)
-                for op in winning_ops:
-                    print(
-                        f"   -> [{op.get('timestamp')}] {op.get('ticker')} | Qty: {op.get('quantity')} | "
-                        f"Costo: {op.get('costo_lifo_eur'):.2f} EUR -> Ricavo: {op.get('corrispettivo_eur'):.2f} EUR | "
-                        f"Guadagno Netto: +{op.get('risultato_fiscale_eur'):.2f} EUR",
-                        flush=True,
-                    )
+            plus = float(data.get("plusvalenze_lorde_eur", 0.0))
+            minus = float(data.get("minusvalenze_lorde_eur", 0.0))
+            net_cassa = round(plus - minus, 2)
+            print("\n🔔 NUOVA OPERAZIONE CHIUSA IN TEMPO REALE!", flush=True)
+            for op in new_ops:
+                pnl = float(op.get("risultato_fiscale_eur", 0.0))
+                tag = "INCASSO UTILE" if pnl >= 0 else "TAGLIO STOP/ROTAZIONE"
                 print(
-                    f"💰 NUOVO SALDO CASSA REALIZZATO: {net_cassa:+.2f} EUR (Plusvalenze Lorde: +{plus:.2f} EUR)",
+                    f"   -> [{op.get('timestamp')}] {tag}: {op.get('ticker')} | Qty: {op.get('quantity')} | "
+                    f"Costo: {op.get('costo_lifo_eur'):.2f} EUR -> Ricavo: {op.get('corrispettivo_eur'):.2f} EUR | "
+                    f"Risultato: {pnl:+.2f} EUR",
                     flush=True,
                 )
-                sys.exit(0)
+            print(
+                f"💰 NUOVO SALDO CASSA REALIZZATO: {net_cassa:+.2f} EUR (Plusvalenze Lorde: +{plus:.2f} EUR)",
+                flush=True,
+            )
+            sys.exit(0)
 
 
 if __name__ == "__main__":
