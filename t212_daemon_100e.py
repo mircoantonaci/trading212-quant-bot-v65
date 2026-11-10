@@ -1052,6 +1052,7 @@ def run_cycle(
         o.get("ticker", ""): o for o in pending_orders if o.get("ticker")
     }
 
+    scanner.has_t212_realtime.clear()
     for tkr, p in pos_by_ticker.items():
         cur_px = float(p.get("currentPrice", 0.0))
         scanner.update_t212_live_price(tkr, cur_px)
