@@ -6,7 +6,16 @@
   "valore_finale_stimato_quadro_w_eur": 100.86,
   "giorni_detenzione_ivafe": 365,
   "lotti_aperti_lifo": {
-    "SAPd_EQ": [],
+    "SAPd_EQ": [
+      {
+        "timestamp": "2026-11-10T16:50:32",
+        "ticker": "SAPd_EQ",
+        "isin": "DE0007164600",
+        "quantity": 0.12,
+        "price_eur": 210.35,
+        "total_eur": 25.242
+      }
+    ],
     "SIEd_EQ": [],
     "IFXd_EQ": [],
     "DTEd_EQ": [
@@ -19,7 +28,16 @@
         "total_eur": 25.2154
       }
     ],
-    "ALVd_EQ": [],
+    "ALVd_EQ": [
+      {
+        "timestamp": "2026-11-10T16:45:20",
+        "ticker": "ALVd_EQ",
+        "isin": "DE0008404005",
+        "quantity": 0.05,
+        "price_eur": 466.4,
+        "total_eur": 23.32
+      }
+    ],
     "ASMLa_EQ": [],
     "ZALd_EQ": [],
     "ADYENa_EQ": [
@@ -52,6 +70,26 @@
         "quantity": 0.17,
         "price_eur": 144.4,
         "total_eur": 24.548
+      }
+    ],
+    "BAYNd_EQ": [
+      {
+        "timestamp": "2026-11-10T16:45:20",
+        "ticker": "BAYNd_EQ",
+        "isin": "DE000BAY0017",
+        "quantity": 0.44,
+        "price_eur": 56.7955,
+        "total_eur": 24.99
+      }
+    ],
+    "AIRd_EQ": [
+      {
+        "timestamp": "2026-11-10T16:45:20",
+        "ticker": "AIRd_EQ",
+        "isin": "NL0000235190",
+        "quantity": 0.12,
+        "price_eur": 210.5,
+        "total_eur": 25.26
       }
     ]
   },
@@ -541,13 +579,22 @@
       "corrispettivo_eur": 25.24,
       "costo_lifo_eur": 25.16,
       "risultato_fiscale_eur": 0.08
+    },
+    {
+      "timestamp": "2026-11-10T16:50:27",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.89,
+      "sell_price_eur": 28.26,
+      "corrispettivo_eur": 25.15,
+      "costo_lifo_eur": 24.97,
+      "risultato_fiscale_eur": 0.18
     }
   ],
-  "totale_corrispettivi_vendita_eur": 1331.08,
-  "totale_costi_carico_lifo_eur": 1331.84,
-  "plusvalenze_lorde_eur": 5.01,
-  "minusvalenze_lorde_eur": 5.77,
-  "imponibile_netto_eur": 0.68,
-  "imposta_sostitutiva_26_eur": 0.18,
+  "totale_corrispettivi_vendita_eur": 1356.23,
+  "totale_costi_carico_lifo_eur": 1356.81,
+  "plusvalenze_lorde_eur": 5.19,
+  "minusvalenze_lorde_eur": 5.61,
+  "imponibile_netto_eur": 0.0,
+  "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0
 }
