@@ -73,6 +73,17 @@
         "price_eur": 56.74,
         "total_eur": 24.9656
       }
+    ],
+    "BAYNd_EQ": [],
+    "AIRd_EQ": [
+      {
+        "timestamp": "2026-11-10T16:45:20",
+        "ticker": "AIRd_EQ",
+        "isin": "NL0000235190",
+        "quantity": 0.12,
+        "price_eur": 210.5,
+        "total_eur": 25.26
+      }
     ]
   },
   "operazioni_chiuse": [
