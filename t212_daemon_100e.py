@@ -1093,6 +1093,16 @@ def run_cycle(
     today_stops_count = sum(
         1 for op in today_ops if float(op.get("risultato_fiscale_eur", 0.0)) < 0.0
     )
+    running_today_pnl = 0.0
+    today_peak_realized_eur = 0.0
+    for op in today_ops:
+        running_today_pnl += float(op.get("risultato_fiscale_eur", 0.0))
+        if running_today_pnl > today_peak_realized_eur:
+            today_peak_realized_eur = running_today_pnl
+    morning_loot_shield_active = (
+        today_peak_realized_eur >= 0.80
+        and today_realized_net_eur <= (today_peak_realized_eur - 0.35)
+    )
     compounded_budget_eur = round(bot.total_budget_eur + max(0.0, realized_net_eur), 2)
     dynamic_cartridge_eur = round(compounded_budget_eur / bot.cartridges, 2)
     daily_vault_active = (today_realized_net_eur >= 1.60)
@@ -1372,12 +1382,16 @@ def run_cycle(
                     continue
 
                 # BLINDATURA #2 (Uncino Verde + Soglia Selettiva V8.5 Anti-Cresta RSI <= 67.5)
-                # + BLINDATURA #10 (Cassaforte Giornaliera) + BLINDATURA #19 (Filtro Sub-VWAP Anti-Trappola):
+                # + BLINDATURA #10 (Cassaforte Giornaliera)
+                # + BLINDATURA #19 (Scudo Salva-Bottino Mattutino #19A + Freno 4a Cartuccia con VIX >= 4% #19B):
                 # I titoli SOPRA il VWAP mantengono sempre soglia libera (52.0) per non perdere nessun rialzo;
-                # i titoli SOTTO il VWAP in giornate nervose (VIX >= 3.5% o >= 2 stop oggi) richiedono Score >= 66.0!
+                # i titoli SOTTO il VWAP in giornate nervose (VIX >= 3.5%, >= 2 stop o Scudo Salva-Bottino) richiedono Score >= 68.0,
+                # e con VIX >= 4.0% la 4a cartuccia entra solo su leader confermati sopra VWAP o con Score >= 70.0!
                 cand_vwap_dist = float(cand.get("vwap_dist_pct", 0.0))
-                if cand_vwap_dist < 0.0 and (vix_c >= 3.5 or today_stops_count >= 2):
-                    min_required_score = 66.0
+                if vix_c >= 4.0 and active_count >= 3 and cand_vwap_dist < 0.05 and score < 70.0:
+                    continue
+                if cand_vwap_dist < 0.0 and (vix_c >= 3.5 or today_stops_count >= 2 or morning_loot_shield_active):
+                    min_required_score = 68.0
                 else:
                     min_required_score = 62.0 if daily_vault_active else 52.0
                 max_allowed_rsi = (

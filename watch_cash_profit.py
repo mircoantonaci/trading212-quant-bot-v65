@@ -22,30 +22,43 @@ def load_ops():
 
 
 def main():
-    initial_ops, _ = load_ops()
+    initial_ops, init_data = load_ops()
     seen_count = len(initial_ops)
+    init_plus = float(init_data.get("plusvalenze_lorde_eur", 0.0))
+    init_minus = float(init_data.get("minusvalenze_lorde_eur", 0.0))
+    seen_net_cassa = round(init_plus - init_minus, 2)
     print(
-        f"[WATCHER UTILI ATTIVO] In ascolto per nuovi GUADAGNI IN CASSA (operazioni attuali: {seen_count})...",
+        f"[WATCHER UTILI ATTIVO] In ascolto 1s per operazioni/cassa (op: {seen_count}, cassa: {seen_net_cassa:+.2f} EUR)...",
         flush=True,
     )
 
     while True:
         time.sleep(1)
         ops, data = load_ops()
-        if len(ops) > seen_count:
-            new_ops = ops[seen_count:]
-            seen_count = len(ops)
-            plus = float(data.get("plusvalenze_lorde_eur", 0.0))
-            minus = float(data.get("minusvalenze_lorde_eur", 0.0))
-            net_cassa = round(plus - minus, 2)
-            print("\n🔔 NUOVA OPERAZIONE CHIUSA IN TEMPO REALE!", flush=True)
-            for op in new_ops:
-                pnl = float(op.get("risultato_fiscale_eur", 0.0))
-                tag = "INCASSO UTILE" if pnl >= 0 else "TAGLIO STOP/ROTAZIONE"
+        if not data:
+            continue
+        plus = float(data.get("plusvalenze_lorde_eur", 0.0))
+        minus = float(data.get("minusvalenze_lorde_eur", 0.0))
+        net_cassa = round(plus - minus, 2)
+        if len(ops) > seen_count or abs(net_cassa - seen_net_cassa) >= 0.01:
+            if len(ops) > seen_count:
+                new_ops = ops[seen_count:]
+                seen_count = len(ops)
+                print("\n🔔 NUOVA OPERAZIONE CHIUSA IN TEMPO REALE!", flush=True)
+                for op in new_ops:
+                    pnl = float(op.get("risultato_fiscale_eur", 0.0))
+                    tag = "INCASSO UTILE" if pnl >= 0 else "TAGLIO STOP/ROTAZIONE"
+                    print(
+                        f"   -> [{op.get('timestamp')}] {tag}: {op.get('ticker')} | Qty: {op.get('quantity')} | "
+                        f"Costo: {op.get('costo_lifo_eur'):.2f} EUR -> Ricavo: {op.get('corrispettivo_eur'):.2f} EUR | "
+                        f"Risultato: {pnl:+.2f} EUR",
+                        flush=True,
+                    )
+            else:
+                delta = round(net_cassa - seen_net_cassa, 2)
+                tag = "INCASSO UTILE CLOUD/T212" if delta >= 0 else "ROTAZIONE CLOUD/T212"
                 print(
-                    f"   -> [{op.get('timestamp')}] {tag}: {op.get('ticker')} | Qty: {op.get('quantity')} | "
-                    f"Costo: {op.get('costo_lifo_eur'):.2f} EUR -> Ricavo: {op.get('corrispettivo_eur'):.2f} EUR | "
-                    f"Risultato: {pnl:+.2f} EUR",
+                    f"\n🔔 VARIAZIONE CASSA CERTIFICATA T212 IN TEMPO REALE! ({tag}: {delta:+.2f} EUR)",
                     flush=True,
                 )
             print(
