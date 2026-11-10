@@ -1049,6 +1049,10 @@ def run_cycle(
     for tkr_all in list(scanner.realtime_5m_bars.keys()):
         if tkr_all not in pos_by_ticker:
             scanner.realtime_5m_bars[tkr_all].clear()
+    for tkr_old in list(intel.peak_pnl_pct.keys()):
+        if tkr_old not in pos_by_ticker:
+            intel.peak_pnl_pct.pop(tkr_old, None)
+            intel.position_open_time.pop(tkr_old, None)
     for tkr, p in pos_by_ticker.items():
         cur_px = float(p.get("currentPrice", 0.0))
         scanner.update_t212_live_price(tkr, cur_px)
@@ -1150,6 +1154,14 @@ def run_cycle(
             open_lots = bot.tax_tracker.data.get("lotti_aperti_lifo", {}).get(tkr, [])
             if not open_lots:
                 bot.tax_tracker.record_buy(tkr, qty_open, avg_price)
+                intel.peak_pnl_pct[tkr] = max(0.0, pnl_pct)
+                intel.position_open_time[tkr] = time.time()
+            elif abs(float(open_lots[-1].get("price_eur", avg_price)) - avg_price) / avg_price > 0.0025:
+                open_lots[-1]["price_eur"] = round(avg_price, 4)
+                open_lots[-1]["quantity"] = qty_open
+                bot.tax_tracker.save()
+                intel.peak_pnl_pct[tkr] = max(0.0, pnl_pct)
+                intel.position_open_time[tkr] = time.time()
 
         # Ribilanciamento automatico SOLO IN UTILE se una cartuccia supera 1.24x la taglia composta
         max_allowed_cartridge = max(31.00, round(dynamic_cartridge_eur * 1.24, 2))
