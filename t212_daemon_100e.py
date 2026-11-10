@@ -1082,13 +1082,16 @@ def run_cycle(
     )
     # BLINDATURA #10: Cassaforte Giornaliera ricalcolata sui soli utili chiusi OGGI (target >= +1,60 EUR/giorno)
     today_prefix = now.date().isoformat()
+    today_ops = [
+        op for op in bot.tax_tracker.data.get("operazioni_chiuse", [])
+        if str(op.get("timestamp", "")).startswith(today_prefix)
+    ]
     today_realized_net_eur = round(
-        sum(
-            float(op.get("risultato_fiscale_eur", 0.0))
-            for op in bot.tax_tracker.data.get("operazioni_chiuse", [])
-            if str(op.get("timestamp", "")).startswith(today_prefix)
-        ),
+        sum(float(op.get("risultato_fiscale_eur", 0.0)) for op in today_ops),
         2,
+    )
+    today_stops_count = sum(
+        1 for op in today_ops if float(op.get("risultato_fiscale_eur", 0.0)) < 0.0
     )
     compounded_budget_eur = round(bot.total_budget_eur + max(0.0, realized_net_eur), 2)
     dynamic_cartridge_eur = round(compounded_budget_eur / bot.cartridges, 2)
@@ -1368,8 +1371,15 @@ def run_cycle(
                 if not cand.get("has_fresh_intraday_feed", True):
                     continue
 
-                # BLINDATURA #2 (Uncino Verde + Soglia Selettiva V8.5 Anti-Cresta RSI <= 67.5) + BLINDATURA #10 (Cassaforte Giornaliera)
-                min_required_score = 62.0 if daily_vault_active else 52.0
+                # BLINDATURA #2 (Uncino Verde + Soglia Selettiva V8.5 Anti-Cresta RSI <= 67.5)
+                # + BLINDATURA #10 (Cassaforte Giornaliera) + BLINDATURA #19 (Filtro Sub-VWAP Anti-Trappola):
+                # I titoli SOPRA il VWAP mantengono sempre soglia libera (52.0) per non perdere nessun rialzo;
+                # i titoli SOTTO il VWAP in giornate nervose (VIX >= 3.5% o >= 2 stop oggi) richiedono Score >= 66.0!
+                cand_vwap_dist = float(cand.get("vwap_dist_pct", 0.0))
+                if cand_vwap_dist < 0.0 and (vix_c >= 3.5 or today_stops_count >= 2):
+                    min_required_score = 66.0
+                else:
+                    min_required_score = 62.0 if daily_vault_active else 52.0
                 max_allowed_rsi = (
                     67.5
                     if cand_phase == "SUPER_TREND_VERO_POSITIVO_BREAKOUT"
