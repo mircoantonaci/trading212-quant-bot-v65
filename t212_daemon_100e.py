@@ -349,6 +349,8 @@ class QuantMarketScanner:
         vols: List[float] = []
         bar_timestamps: List[int] = []
         last_yahoo_ts: int = 0
+        yahoo_today_bars: int = 0
+        today_date = datetime.datetime.now(MARKET_TZ).date()
         try:
             with urllib.request.urlopen(req, timeout=6) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
@@ -371,8 +373,11 @@ class QuantMarketScanner:
                         highs.append(float(h))
                         lows.append(float(l))
                         vols.append(float(v or 0.0))
-                        bar_timestamps.append(int(ts))
-                        last_yahoo_ts = int(ts)
+                        ts_int = int(ts)
+                        bar_timestamps.append(ts_int)
+                        last_yahoo_ts = ts_int
+                        if datetime.datetime.fromtimestamp(ts_int, tz=MARKET_TZ).date() == today_date:
+                            yahoo_today_bars += 1
         except Exception:
             pass
 
@@ -627,6 +632,8 @@ class QuantMarketScanner:
             "fase_onda_sinusoidale": sine_phase,
             "green_hook_confirmed": green_hook_confirmed,
             "strong_for_overnight": strong_for_overnight,
+            "yahoo_today_bars": yahoo_today_bars,
+            "has_fresh_intraday_feed": (yahoo_today_bars >= 1 or bool(self.has_t212_realtime.get(ticker))),
             "shield_activation_pct": round(elastic_shield_act * 100, 2),
             "shield_pullback_pct": round(elastic_shield_pull * 100, 2),
             "elastic_shield_act_raw": elastic_shield_act,
@@ -1087,6 +1094,7 @@ def run_cycle(
         for tkr, m in quant_metrics.items()
         if tkr not in pos_by_ticker
         and tkr not in pending_by_ticker
+        and bool(m.get("has_fresh_intraday_feed", True))
         and intel.can_buy_ticker(tkr, float(m.get("live_price_eur", 0.0)), float(m.get("vwap_dist_pct", 0.0)))
         and bool(m.get("green_hook_confirmed"))
         and float(m.get("rsi_5m", 100.0))
@@ -1347,6 +1355,13 @@ def run_cycle(
                     )
                     if not (is_valid_valley_rebound or is_valid_rising_wave):
                         continue
+
+                # BLINDATURA #18 (Anti-Stale Opening Price 09:00-09:15):
+                # Non comprare mai un titolo da panchina nei primi 15 minuti (09:00-09:15) se Yahoo Finance
+                # non ha ancora pubblicato almeno 1 candela della seduta odierna (evita di comprare sul prezzo
+                # di chiusura delle 17:30 di ieri mentre il titolo reale su XETRA ha fatto un gap-up +4%)!
+                if not cand.get("has_fresh_intraday_feed", True):
+                    continue
 
                 # BLINDATURA #2 (Uncino Verde + Soglia Selettiva V8.0 Multi-Strategia) + BLINDATURA #10 (Cassaforte Giornaliera)
                 min_required_score = 62.0 if daily_vault_active else 52.0
