@@ -1053,6 +1053,9 @@ def run_cycle(
     }
 
     scanner.has_t212_realtime.clear()
+    for tkr_all in list(scanner.realtime_5m_bars.keys()):
+        if tkr_all not in pos_by_ticker:
+            scanner.realtime_5m_bars[tkr_all].clear()
     for tkr, p in pos_by_ticker.items():
         cur_px = float(p.get("currentPrice", 0.0))
         scanner.update_t212_live_price(tkr, cur_px)
