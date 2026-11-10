@@ -490,14 +490,16 @@ class QuantMarketScanner:
             kaufman_er = 0.35
 
         # MOTORE V8.1 MULTI-STRATEGIA AUTO-ADATTIVO CONTINUO (Zero Zone Cieche tra le 3 Strategie):
-        # 1) STRATEGIA A - MOMENTUM BREAKOUT (Cavalca i Leader sopra il VWAP senza azzerarsi per micro-tick intra-barra):
-        if vwap_dist_pct >= -0.15 and (slope_15m_pct >= -0.10 or slope_rising) and 42.0 <= rsi_14 <= 74.0 and green_hook_confirmed:
+        # 1) STRATEGIA A - MOMENTUM BREAKOUT (Cavalca i Leader sopra il VWAP evitando acquisti sulla cresta RSI > 67.5):
+        if vwap_dist_pct >= -0.15 and (slope_15m_pct >= -0.10 or slope_rising) and 42.0 <= rsi_14 <= 67.5 and green_hook_confirmed:
+            rsi_crest_taper = max(0.0, (rsi_14 - 62.0) * 2.5)
             score_momentum = (
                 58.0
                 + min(20.0, max(0.0, (vwap_dist_pct + 0.15) * 15.0))
                 + min(18.0, max(0.0, (slope_15m_pct + 0.10) * 28.0))
                 + (kaufman_er * 14.0)
                 + (6.0 if breakout_candle else 0.0)
+                - rsi_crest_taper
             )
         else:
             score_momentum = 0.0
@@ -828,11 +830,11 @@ class HybridUncappedIntelligence:
         shield_act = max(0.0072, float(ticker_metrics.get("elastic_shield_act_raw", prof["shield_activation_pct"])))
         shield_pull = max(0.0018, float(ticker_metrics.get("elastic_shield_pull_raw", prof["shield_pullback_pct"])))
 
-        # BLINDATURA #10 + Calibrazione ATR V8.0: Pre-Scudo proporzionale al respiro ATR reale del titolo
-        # (evita di soffocare i titoli volatili a +0,04 EUR sulla prima candela di respiro!)
+        # BLINDATURA #10 + Calibrazione ATR V8.5: Pre-Scudo Salva-Utile sincronizzato (+0.48%..+0.56%)
+        # con pavimento allargato (0.04%..breakeven_floor) per non far mai scivolare in rosso un picco >= +0.56%!
         daily_vault_active = (realized_net_eur >= 1.60)
-        breakeven_trigger = max(0.0058 if daily_vault_active else 0.0068, round(atr_raw * 3.0, 4))
-        breakeven_floor = max(0.0030, round(breakeven_trigger * 0.48, 4))
+        breakeven_trigger = max(0.0042 if daily_vault_active else 0.0048, min(0.0056, round(atr_raw * 2.2, 4)))
+        breakeven_floor = max(0.0018 if daily_vault_active else 0.0022, round(breakeven_trigger * 0.45, 4))
 
         prev_peak = self.peak_pnl_pct.get(ticker, pnl_pct)
         new_peak = max(prev_peak, pnl_pct)
@@ -854,7 +856,7 @@ class HybridUncappedIntelligence:
             )
 
         # BLINDATURA #1 (Stadio 1): Pre-Scudo "Salva-Utile" ATR-Proporzionale (Break-Even Lock)
-        if new_peak >= breakeven_trigger and 0.0020 <= pnl_pct <= breakeven_floor:
+        if new_peak >= breakeven_trigger and 0.0004 <= pnl_pct <= breakeven_floor:
             return (
                 f"BLINDATURA #1 - PRE-SCUDO SALVA-UTILE ATR (Break-Even Lock): {ticker} aveva toccato "
                 f"il picco di +{new_peak*100:.2f}% e ha ritracciato al pavimento garantito di +{pnl_pct*100:.2f}%!"
@@ -1104,7 +1106,7 @@ def run_cycle(
         and intel.can_buy_ticker(tkr, float(m.get("live_price_eur", 0.0)), float(m.get("vwap_dist_pct", 0.0)))
         and bool(m.get("green_hook_confirmed"))
         and float(m.get("rsi_5m", 100.0))
-        <= (74.0 if m.get("fase_onda_sinusoidale") == "SUPER_TREND_VERO_POSITIVO_BREAKOUT" else 64.0)
+        <= (67.5 if m.get("fase_onda_sinusoidale") == "SUPER_TREND_VERO_POSITIVO_BREAKOUT" else 64.0)
     ]
     bench_scores = [float(m["quant_buy_score"]) for m in bench_candidates]
     best_bench_score = max(bench_scores) if bench_scores else 0.0
@@ -1369,10 +1371,10 @@ def run_cycle(
                 if not cand.get("has_fresh_intraday_feed", True):
                     continue
 
-                # BLINDATURA #2 (Uncino Verde + Soglia Selettiva V8.0 Multi-Strategia) + BLINDATURA #10 (Cassaforte Giornaliera)
+                # BLINDATURA #2 (Uncino Verde + Soglia Selettiva V8.5 Anti-Cresta RSI <= 67.5) + BLINDATURA #10 (Cassaforte Giornaliera)
                 min_required_score = 62.0 if daily_vault_active else 52.0
                 max_allowed_rsi = (
-                    74.0
+                    67.5
                     if cand_phase == "SUPER_TREND_VERO_POSITIVO_BREAKOUT"
                     else 64.0
                 )
