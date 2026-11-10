@@ -582,8 +582,11 @@ class QuantMarketScanner:
                 last_today_pnl = float(today_ops[-1].get("risultato_fiscale_eur", 0.0))
                 today_wins = sum(1 for op in today_ops if float(op.get("risultato_fiscale_eur", 0.0)) > 0.0)
                 today_losses = sum(1 for op in today_ops if float(op.get("risultato_fiscale_eur", 0.0)) < 0.0)
-                if last_today_pnl < 0.0 and vwap_dist_pct < 0.0:
-                    memory_bonus = -18.0
+                if today_losses >= 2 and today_wins < today_losses:
+                    # Two-Strikes-Out Intraday Ban: con 15 titoli in paniere, vieta il 3° tentativo sui titoli freddi di oggi
+                    memory_bonus = -55.0
+                elif last_today_pnl < 0.0:
+                    memory_bonus = -22.0
                 elif today_wins >= 2 and today_losses == 0:
                     memory_bonus = max(memory_bonus, min(10.0, round(today_wins * 3.0, 1)))
 
@@ -967,21 +970,21 @@ class HybridUncappedIntelligence:
                 f"sblocco cartuccia ferma solo in positivo per salire subito sul razzo in Super-Trend!"
             )
 
-        # BLINDATURA #15: Taglio Strutturale Anti-Discesa Calibrato su ATR (Breakdown Stop -0,60%..-0,85% / Max -1,10%)
-        # Scatta dopo >= 5 minuti (oltre il rumore dello spread) SOLO se il titolo rompe sotto il VWAP perdendo l'Uncino Verde
-        # e superando 2.8x l'ATR a 5m (evita falsi stop sul normale respiro, ma blocca subito le vere discese!).
-        breakdown_stop_pct = -max(0.0060, min(0.0085, round(atr_raw * 2.8, 4)))
-        if minutes_open >= 5.0:
-            if pnl_pct <= breakdown_stop_pct and vwap_dist < -0.20 and not green_hook_ok and not stock_is_strong:
+        # BLINDATURA #15: Taglio Strutturale Anti-Discesa Calibrato su ATR (Breakdown Stop -0,95%..-1,15% dopo >= 25m / Max -1,35%)
+        # Lascia respirare le oscillazioni fisiologiche (-0,60%..-0,85%) dei primi 25 minuti senza vendere sui minimi di candela!
+        breakdown_stop_pct = -max(0.0095, min(0.0115, round(atr_raw * 3.8, 4)))
+        cur_rsi_5m = float(ticker_metrics.get("rsi_5m", 50.0))
+        if minutes_open >= 25.0:
+            if pnl_pct <= breakdown_stop_pct and vwap_dist < -0.35 and cur_rsi_5m < 44.0 and not green_hook_ok and not stock_is_strong:
                 return (
                     f"BLINDATURA #15 - TAGLIO STRUTTURALE ANTI-DISCESA ATR ({pnl_pct*100:+.2f}% <= {breakdown_stop_pct*100:+.2f}%): "
                     f"rottura ribassista confermata sotto VWAP -> taglio la discesa e ruoto sul leader!"
                 )
-            if pnl_pct <= -0.0110:
-                return (
-                    f"BLINDATURA #15 - STOP DI EMERGENZA INVALICABILE ({pnl_pct*100:+.2f}%): "
-                    f"taglio netto di sicurezza (max ~0,27 EUR) per proteggere il capitale!"
-                )
+        if minutes_open >= 15.0 and pnl_pct <= -0.0135:
+            return (
+                f"BLINDATURA #15 - STOP DI EMERGENZA INVALICABILE ({pnl_pct*100:+.2f}%): "
+                f"taglio netto di sicurezza (max ~0,34 EUR) per proteggere il capitale!"
+            )
 
         return None
 
@@ -998,11 +1001,9 @@ class HybridUncappedIntelligence:
         last_px = self.last_sell_price[ticker]
         elapsed_min = (time.time() - self.last_sell_time.get(ticker, 0.0)) / 60.0
         # BLINDATURA #17: Se l'ultima uscita è stata uno Stop-Loss (BLINDATURA #15),
-        # vieta di ricomprare il titolo mentre continua a scendere sotto il VWAP!
+        # impone almeno 60 minuti di cooldown E il recupero sopra il VWAP (>= +0,05%)!
         if self.last_sell_was_loss.get(ticker, False):
-            if elapsed_min >= 30.0 and vwap_dist_pct >= 0.05:
-                return True
-            return elapsed_min >= 60.0
+            return elapsed_min >= 60.0 and vwap_dist_pct >= 0.05
         if live_price_eur <= last_px * (1.0 - 0.0025):
             return True
         return elapsed_min >= 15.0
