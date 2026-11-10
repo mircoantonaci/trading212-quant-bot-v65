@@ -55,28 +55,6 @@
     "BESIa_EQ": [],
     "AIRd_EQ": [
       {
-        "timestamp": "2026-11-10T15:32:52",
-        "ticker": "AIRd_EQ",
-        "isin": "NL0000235190",
-        "quantity": 0.12,
-        "price_eur": 210.5,
-        "total_eur": 25.404
-      }
-    ],
-    "VNAd_EQ": [],
-    "BAYNd_EQ": [
-      {
-        "timestamp": "2026-11-10T15:37:34",
-        "ticker": "BAYNd_EQ",
-        "isin": "DE000BAY0017",
-        "quantity": 0.44,
-        "price_eur": 56.74,
-        "total_eur": 24.9656
-      }
-    ],
-    "BAYNd_EQ": [],
-    "AIRd_EQ": [
-      {
         "timestamp": "2026-11-10T16:45:20",
         "ticker": "AIRd_EQ",
         "isin": "NL0000235190",
@@ -84,7 +62,9 @@
         "price_eur": 210.5,
         "total_eur": 25.26
       }
-    ]
+    ],
+    "VNAd_EQ": [],
+    "BAYNd_EQ": []
   },
   "operazioni_chiuse": [
     {
@@ -1031,12 +1011,30 @@
       "corrispettivo_eur": 25.71,
       "costo_lifo_eur": 25.69,
       "risultato_fiscale_eur": 0.02
+    },
+    {
+      "timestamp": "2026-11-10T16:50:27",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.89,
+      "sell_price_eur": 28.26,
+      "corrispettivo_eur": 25.15,
+      "costo_lifo_eur": 24.97,
+      "risultato_fiscale_eur": 0.18
+    },
+    {
+      "timestamp": "2026-11-10T17:10:04",
+      "ticker": "BAYNd_EQ",
+      "quantity": 0.44,
+      "sell_price_eur": 56.95,
+      "corrispettivo_eur": 25.06,
+      "costo_lifo_eur": 24.99,
+      "risultato_fiscale_eur": 0.07
     }
   ],
   "totale_corrispettivi_vendita_eur": 2612.27,
   "totale_costi_carico_lifo_eur": 2613.55,
-  "plusvalenze_lorde_eur": 9.1,
-  "minusvalenze_lorde_eur": 9.45,
+  "plusvalenze_lorde_eur": 9.35,
+  "minusvalenze_lorde_eur": 9.7,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0
