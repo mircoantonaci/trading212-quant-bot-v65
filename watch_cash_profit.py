@@ -40,7 +40,7 @@ def main():
         plus = float(data.get("plusvalenze_lorde_eur", 0.0))
         minus = float(data.get("minusvalenze_lorde_eur", 0.0))
         net_cassa = round(plus - minus, 2)
-        if len(ops) > seen_count or abs(net_cassa - seen_net_cassa) >= 0.01:
+        if len(ops) > seen_count or abs(net_cassa - seen_net_cassa) >= 0.02:
             if len(ops) > seen_count:
                 new_ops = ops[seen_count:]
                 seen_count = len(ops)

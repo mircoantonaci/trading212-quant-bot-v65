@@ -836,8 +836,8 @@ class HybridUncappedIntelligence:
         # BLINDATURA #10 + Calibrazione ATR V8.5: Pre-Scudo Salva-Utile sincronizzato (+0.48%..+0.56%)
         # con pavimento allargato (0.04%..breakeven_floor) per non far mai scivolare in rosso un picco >= +0.56%!
         daily_vault_active = (realized_net_eur >= 1.60)
-        breakeven_trigger = max(0.0042 if daily_vault_active else 0.0048, min(0.0056, round(atr_raw * 2.2, 4)))
-        breakeven_floor = max(0.0018 if daily_vault_active else 0.0022, round(breakeven_trigger * 0.45, 4))
+        breakeven_trigger = max(0.0036 if daily_vault_active else 0.0038, min(0.0046, round(atr_raw * 2.0, 4)))
+        breakeven_floor = max(0.0016 if daily_vault_active else 0.0018, round(breakeven_trigger * 0.45, 4))
 
         prev_peak = self.peak_pnl_pct.get(ticker, pnl_pct)
         new_peak = max(prev_peak, pnl_pct)
@@ -1242,8 +1242,8 @@ def run_cycle(
         shield_act = float(tkr_m.get("elastic_shield_act_raw", prof["shield_activation_pct"]))
         shield_pull = float(tkr_m.get("elastic_shield_pull_raw", prof["shield_pullback_pct"]))
         shield_is_armed = peak_now >= shield_act
-        breakeven_trigger = 0.0040 if daily_vault_active else 0.0048
-        breakeven_floor_pct = 0.18 if daily_vault_active else 0.22
+        breakeven_trigger = 0.0036 if daily_vault_active else 0.0038
+        breakeven_floor_pct = 0.16 if daily_vault_active else 0.18
         pre_shield_breakeven_armed = peak_now >= breakeven_trigger
         if shield_is_armed:
             current_floor_pct = round((peak_now - shield_pull) * 100, 2)
