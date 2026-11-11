@@ -79,6 +79,16 @@
         "price_eur": 33.48,
         "total_eur": 25.11
       }
+    ],
+    "PRXa_EQ": [
+      {
+        "timestamp": "2026-11-11T16:53:22",
+        "ticker": "PRXa_EQ",
+        "isin": "NL0013654783",
+        "quantity": 0.67,
+        "price_eur": 37.0448,
+        "total_eur": 24.82
+      }
     ]
   },
   "operazioni_chiuse": [
@@ -1211,7 +1221,7 @@
   "totale_corrispettivi_vendita_eur": 3057.42,
   "totale_costi_carico_lifo_eur": 3060.59,
   "plusvalenze_lorde_eur": 9.89,
-  "minusvalenze_lorde_eur": 12.16,
+  "minusvalenze_lorde_eur": 12.06,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0
