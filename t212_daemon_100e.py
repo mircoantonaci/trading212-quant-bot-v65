@@ -197,6 +197,291 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
 }
 
+VERIFIED_UNIVERSE_CACHE_PATH = os.path.join(BASE_DIR, "t212_verified_universe.json")
+
+# BLINDATURA #20 (V8.8 Dynamic Radar "Stocks-In-Play" DAX 40 + AEX 25 in EUR a 0,00 EUR commissioni):
+# Candidati aggiuntivi certificati per ISIN su XETRA (Germania) ed Euronext Amsterdam (Olanda).
+CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
+    {
+        "fallback_ticker": "MTXd_EQ",
+        "name": "MTU Aero Engines AG",
+        "isin": "DE000A0D9PT0",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "MTX.DE",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "MOTORI_AEROSPAZIO",
+        "role_desc": "Turbo High-Beta Motori Jet & Difesa DAX (Senza Tetto)",
+        "ref_price_eur": 320.00,
+        "shield_activation_pct": 0.0074,
+        "shield_pullback_pct": 0.0017,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    {
+        "fallback_ticker": "ASMa_EQ",
+        "name": "ASM International NV",
+        "isin": "NL0000334118",
+        "exchange": "Euronext Amsterdam",
+        "yahoo": "ASM.AS",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "SEMICONDUTTORI_CHIP",
+        "role_desc": "Turbo High-Beta Wafer & Chip AI Olanda (Senza Tetto)",
+        "ref_price_eur": 560.00,
+        "shield_activation_pct": 0.0080,
+        "shield_pullback_pct": 0.0018,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    {
+        "fallback_ticker": "DBKd_EQ",
+        "name": "Deutsche Bank AG",
+        "isin": "DE0005140008",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "DBK.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "BANCHE_FINANZA",
+        "role_desc": "Cecchino High-Beta Investment Banking DAX (Senza Tetto)",
+        "ref_price_eur": 16.50,
+        "shield_activation_pct": 0.0064,
+        "shield_pullback_pct": 0.0015,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    {
+        "fallback_ticker": "MUV2d_EQ",
+        "name": "Munich Re (Münchener Rück)",
+        "isin": "DE0008430026",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "MUV2.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "ASSICURAZIONI_FINANZA",
+        "role_desc": "Colosso Riassicurativo Globale DAX (Senza Tetto)",
+        "ref_price_eur": 485.00,
+        "shield_activation_pct": 0.0060,
+        "shield_pullback_pct": 0.0014,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
+    {
+        "fallback_ticker": "DTGd_EQ",
+        "name": "Daimler Truck Holding AG",
+        "isin": "DE000DTR0CK8",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "DTG.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "VEICOLI_INDUSTRIALI",
+        "role_desc": "Colosso Trasporti Pesanti & Mobilità DAX (Senza Tetto)",
+        "ref_price_eur": 39.00,
+        "shield_activation_pct": 0.0065,
+        "shield_pullback_pct": 0.0015,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
+    {
+        "fallback_ticker": "ADSd_EQ",
+        "name": "Adidas AG",
+        "isin": "DE000A1EWW60",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "ADS.DE",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "CONSUMER_BRAND_GLOBALE",
+        "role_desc": "Cavalca-Onda Sportswear & Brand Globale DAX (Senza Tetto)",
+        "ref_price_eur": 220.00,
+        "shield_activation_pct": 0.0070,
+        "shield_pullback_pct": 0.0016,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    {
+        "fallback_ticker": "MRKd_EQ",
+        "name": "Merck KGaA",
+        "isin": "DE0006599905",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "MRK.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "PHARMA_BIOTECH",
+        "role_desc": "Colosso Life Science & Chimica Semiconduttori DAX (Senza Tetto)",
+        "ref_price_eur": 155.00,
+        "shield_activation_pct": 0.0064,
+        "shield_pullback_pct": 0.0015,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
+    {
+        "fallback_ticker": "SHLd_EQ",
+        "name": "Siemens Healthineers AG",
+        "isin": "DE000SHL1006",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "SHL.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "MEDTECH_DIAGNOSTICA",
+        "role_desc": "Colosso MedTech & Diagnostica AI DAX (Senza Tetto)",
+        "ref_price_eur": 52.00,
+        "shield_activation_pct": 0.0062,
+        "shield_pullback_pct": 0.0014,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
+    {
+        "fallback_ticker": "EOANd_EQ",
+        "name": "E.ON SE",
+        "isin": "DE000ENAG999",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "EOAN.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "UTILITIES_RETI_ELETTRICHE",
+        "role_desc": "Incasso Veloce Difensivo Reti Elettriche Europee (Senza Tetto)",
+        "ref_price_eur": 13.00,
+        "shield_activation_pct": 0.0055,
+        "shield_pullback_pct": 0.0013,
+        "beta_tier": "DEFENSIVE_LOW_BETA",
+    },
+    {
+        "fallback_ticker": "RWEd_EQ",
+        "name": "RWE AG",
+        "isin": "DE0007037129",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "RWE.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "ENERGIA_RINNOVABILE_POWER",
+        "role_desc": "Colosso Generazione Elettrica & Rinnovabili DAX (Senza Tetto)",
+        "ref_price_eur": 32.00,
+        "shield_activation_pct": 0.0062,
+        "shield_pullback_pct": 0.0014,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
+    {
+        "fallback_ticker": "DHLd_EQ",
+        "name": "DHL Group (Deutsche Post)",
+        "isin": "DE0005552004",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "DHL.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "LOGISTICA_GLOBALE",
+        "role_desc": "Colosso Logistica & Spedizioni Mondiali DAX (Senza Tetto)",
+        "ref_price_eur": 38.00,
+        "shield_activation_pct": 0.0060,
+        "shield_pullback_pct": 0.0014,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
+    {
+        "fallback_ticker": "BASd_EQ",
+        "name": "BASF SE",
+        "isin": "DE000BASF111",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "BAS.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "CHIMICA_INDUSTRIALE",
+        "role_desc": "Colosso Chimica Industriale Globale DAX (Senza Tetto)",
+        "ref_price_eur": 45.00,
+        "shield_activation_pct": 0.0062,
+        "shield_pullback_pct": 0.0014,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
+    {
+        "fallback_ticker": "BMWd_EQ",
+        "name": "BMW AG",
+        "isin": "DE0005190003",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "BMW.DE",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "AUTOMOTIVE_PREMIUM",
+        "role_desc": "Colosso Automotive Luxury DAX (Senza Tetto)",
+        "ref_price_eur": 78.00,
+        "shield_activation_pct": 0.0064,
+        "shield_pullback_pct": 0.0015,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
+    {
+        "fallback_ticker": "INGAa_EQ",
+        "name": "ING Groep NV",
+        "isin": "NL0011821202",
+        "exchange": "Euronext Amsterdam",
+        "yahoo": "INGA.AS",
+        "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
+        "sector": "BANCHE_FINANZA",
+        "role_desc": "Colosso Bancario Europeo AEX Olanda (Senza Tetto)",
+        "ref_price_eur": 16.00,
+        "shield_activation_pct": 0.0060,
+        "shield_pullback_pct": 0.0014,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
+    {
+        "fallback_ticker": "PRXa_EQ",
+        "name": "Prosus NV",
+        "isin": "NL0013654783",
+        "exchange": "Euronext Amsterdam",
+        "yahoo": "PRX.AS",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "TECH_HOLDING_AI",
+        "role_desc": "Turbo High-Beta Tech & AI Global Holding AEX (Senza Tetto)",
+        "ref_price_eur": 38.00,
+        "shield_activation_pct": 0.0072,
+        "shield_pullback_pct": 0.0016,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+]
+
+
+def discover_and_verify_eur_giants(client: Trading212Client) -> int:
+    """
+    Interroga una sola volta il catalogo ufficiale di Trading 212 (/equity/metadata/instruments)
+    o legge la cache locale verificata per attivare solo i ticker realmente negoziabili in EUR
+    su XETRA (*d_EQ) ed Euronext Amsterdam (*a_EQ) corrispondenti agli ISIN ufficiali.
+    """
+    verified_map: Dict[str, str] = {}
+    if os.path.exists(VERIFIED_UNIVERSE_CACHE_PATH):
+        try:
+            with open(VERIFIED_UNIVERSE_CACHE_PATH, "r", encoding="utf-8") as f:
+                verified_map = json.load(f)
+        except Exception:
+            verified_map = {}
+
+    if len(verified_map) < len(CANDIDATE_EUR_GIANTS):
+        try:
+            instruments = client._request("GET", "/equity/metadata/instruments")
+            if isinstance(instruments, list):
+                by_isin: Dict[str, List[Dict[str, Any]]] = {}
+                for inst in instruments:
+                    if inst.get("currencyCode") == "EUR":
+                        isin_code = str(inst.get("isin", "")).strip()
+                        if isin_code:
+                            by_isin.setdefault(isin_code, []).append(inst)
+                for cand in CANDIDATE_EUR_GIANTS:
+                    c_isin = cand["isin"]
+                    matches = by_isin.get(c_isin, [])
+                    if matches:
+                        preferred = [
+                            m["ticker"]
+                            for m in matches
+                            if str(m.get("ticker", "")).endswith(("d_EQ", "a_EQ"))
+                        ]
+                        chosen_tkr = preferred[0] if preferred else str(matches[0].get("ticker", ""))
+                        if chosen_tkr:
+                            verified_map[c_isin] = chosen_tkr
+                if verified_map:
+                    with open(VERIFIED_UNIVERSE_CACHE_PATH, "w", encoding="utf-8") as f:
+                        json.dump(verified_map, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"[RADAR DISCOVERY] Uso universo base / cache locale ({e})", flush=True)
+
+    added_count = 0
+    for cand in CANDIDATE_EUR_GIANTS:
+        tkr = verified_map.get(cand["isin"])
+        if not tkr:
+            continue
+        EUR_ZERO_FEE_UNIVERSE[tkr] = {
+            "name": cand["name"],
+            "exchange": cand["exchange"],
+            "currency": "EUR",
+            "isin": cand["isin"],
+            "tobin_tax": "0.00%",
+        }
+        ASSET_PROFILES[tkr] = {
+            "yahoo": cand["yahoo"],
+            "squad": cand["squad"],
+            "sector": cand["sector"],
+            "role_desc": cand["role_desc"],
+            "ref_price_eur": cand["ref_price_eur"],
+            "shield_activation_pct": cand["shield_activation_pct"],
+            "shield_pullback_pct": cand["shield_pullback_pct"],
+            "beta_tier": cand["beta_tier"],
+        }
+        added_count += 1
+    return added_count
+
 
 def compute_rsi(closes: List[float], period: int = 14) -> float:
     if len(closes) < period + 1:
@@ -564,7 +849,11 @@ class QuantMarketScanner:
         # 3) Bonus Spinta Volumi Istituzionali su Uncino Verde
         rvol_bonus = 8.0 if (green_hook_confirmed and rvol_ratio >= 1.15) else 0.0
 
-        # 4) BLINDATURA #17 - Memoria Intraday Hot Leader / Anti-Whipsaw Cold Penalty (0ms RAM)
+        # 4) BLINDATURA #17 & #20 - Selettore Dinamico di Regime (Zero Whitelist/Blacklist fisse):
+        #    - Se un titolo ha storico negativo (es. Adyen, Zalando, Infineon <= -0,35 EUR), NON viene bannato a vita:
+        #      finché resta debole/sporco o sotto il VWAP viene parcheggiato in tribuna (-35 pt),
+        #      ma se esplode in vero Breakout Istituzionale sopra il VWAP (vwap >= +0,18%, Kaufman >= 0.32, Uncino Verde)
+        #      la penalità storica si azzera istantaneamente per cavalcare il rialzo!
         memory_bonus = 0.0
         if tax_data and "operazioni_chiuse" in tax_data:
             ops_tkr = [
@@ -572,7 +861,16 @@ class QuantMarketScanner:
                 if op.get("ticker") == ticker
             ]
             tkr_pnl = sum(float(op.get("risultato_fiscale_eur", 0.0)) for op in ops_tkr)
-            memory_bonus = max(-5.0, min(8.0, round(tkr_pnl * 6.0, 1)))
+            is_clean_institutional_breakout = (
+                vwap_dist_pct >= 0.18
+                and score_momentum >= 60.0
+                and kaufman_er >= 0.32
+                and green_hook_confirmed
+            )
+            if tkr_pnl <= -0.35 and len(ops_tkr) >= 4:
+                memory_bonus = 0.0 if is_clean_institutional_breakout else -35.0
+            else:
+                memory_bonus = max(-5.0, min(8.0, round(tkr_pnl * 6.0, 1)))
             today_prefix = datetime.date.today().isoformat()
             today_ops = [
                 op for op in ops_tkr
@@ -583,10 +881,9 @@ class QuantMarketScanner:
                 today_wins = sum(1 for op in today_ops if float(op.get("risultato_fiscale_eur", 0.0)) > 0.0)
                 today_losses = sum(1 for op in today_ops if float(op.get("risultato_fiscale_eur", 0.0)) < 0.0)
                 if today_losses >= 2 and today_wins < today_losses:
-                    # Two-Strikes-Out Intraday Ban: con 15 titoli in paniere, vieta il 3° tentativo sui titoli freddi di oggi
                     memory_bonus = -55.0
                 elif last_today_pnl < 0.0:
-                    memory_bonus = -22.0
+                    memory_bonus = min(memory_bonus, -22.0)
                 elif today_wins >= 2 and today_losses == 0:
                     memory_bonus = max(memory_bonus, min(10.0, round(today_wins * 3.0, 1)))
 
@@ -663,7 +960,7 @@ class QuantMarketScanner:
         now_ts = time.time()
         results: Dict[str, Dict[str, Any]] = {}
         tickers = list(ASSET_PROFILES.keys())
-        with ThreadPoolExecutor(max_workers=15) as pool:
+        with ThreadPoolExecutor(max_workers=20) as pool:
             futures = {
                 tkr: pool.submit(self.fetch_5m_metrics, tkr, tax_data, dax_change_pct)
                 for tkr in tickers
@@ -720,16 +1017,19 @@ class HybridUncappedIntelligence:
                         if ts_str:
                             dt = datetime.datetime.fromisoformat(ts_str)
                             self.position_open_time[tkr] = dt.timestamp()
+                today_prefix_init = datetime.date.today().isoformat()
                 for op in tx.get("operazioni_chiuse", []):
                     tkr_op = op.get("ticker")
-                    ts_op = op.get("timestamp", "")
+                    ts_op = str(op.get("timestamp", ""))
                     px_op = op.get("sell_price_eur")
                     pnl_op = float(op.get("risultato_fiscale_eur", 0.0))
                     if tkr_op and ts_op and px_op is not None:
                         dt_op = datetime.datetime.fromisoformat(ts_op)
                         self.last_sell_time[tkr_op] = dt_op.timestamp()
                         self.last_sell_price[tkr_op] = float(px_op)
-                        self.last_sell_was_loss[tkr_op] = (pnl_op < 0.0)
+                        self.last_sell_was_loss[tkr_op] = (
+                            (pnl_op < 0.0) and ts_op.startswith(today_prefix_init)
+                        )
             except Exception:
                 pass
 
@@ -867,9 +1167,13 @@ class HybridUncappedIntelligence:
 
         # BLINDATURA #1 (Stadio 1B - Gradino Progressivo Intermedio):
         # Se il titolo ha già toccato >= +0,58% (~+0,15 EUR), non può MAI più ridiscendere a +0,02 EUR!
-        # Se perde slancio o ritraccia nella fascia +0,18%..+0,42% (e non ha più Uncino Verde sopra VWAP), incassa subito ~+0,10 EUR!
+        # Se è ancora fortissimo sopra il VWAP (>= +0,15%), NON svenderlo mai sotto +0,36% (~+0,09..+0,11 EUR)!
         if new_peak >= mid_tier_trigger and 0.0018 <= pnl_pct <= mid_tier_floor:
-            if not (vwap_dist >= 0.08 and green_hook_ok and pnl_pct >= 0.0034):
+            strong_above_vwap_hold = (
+                (vwap_dist >= 0.15 and cur_rsi_5m >= 38.0 and pnl_pct < 0.0036)
+                or (vwap_dist >= 0.08 and green_hook_ok and pnl_pct >= 0.0034)
+            )
+            if not strong_above_vwap_hold:
                 return (
                     f"BLINDATURA #1B - SCALA PROGRESSIVA SALVA-UTILE: {ticker} aveva toccato "
                     f"il picco di +{new_peak*100:.2f}% e ha blindato il gradino alto a +{pnl_pct*100:.2f}%!"
@@ -1571,6 +1875,11 @@ def main():
         flush=True,
     )
     client = load_client()
+    added_giants = discover_and_verify_eur_giants(client)
+    print(
+        f"[RADAR DINAMICO V8.8] Universo EUR Zero-Fee attivo: {len(ASSET_PROFILES)} Colossi DAX40/AEX25 (+{added_giants} nuovi scoperti via ISIN)",
+        flush=True,
+    )
     bot = Trading212AutonomousBot(client=client, total_budget_eur=100.00, cartridges=4, annual_target_pct=0.30)
     intel = HybridUncappedIntelligence()
     scanner = QuantMarketScanner()
