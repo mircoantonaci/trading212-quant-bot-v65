@@ -762,6 +762,7 @@ class QuantMarketScanner:
             path_move = sum(abs(closes[j] - closes[j - 1]) for j in range(len(closes) - k_win, len(closes)))
             kaufman_er = round(net_move / path_move, 2) if path_move > 0 else 0.35
         else:
+            ref_idx_2 = max(0, len(closes) - 2)
             price_turning_down = False
             breakout_candle = False
             higher_low = True
