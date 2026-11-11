@@ -800,16 +800,18 @@ class QuantMarketScanner:
         else:
             score_pullback = 0.0
 
-        # 3) STRATEGIA C - V-BOTTOM SPRING REVERSAL (Ipervenduto sotto VWAP con Breakout Candle o minimo crescente):
-        if rsi_14 < 40.0 and green_hook_confirmed and (breakout_candle or (closes[-1] > closes[-2] and higher_low and rsi_14 < 30.0)):
+        # 3) STRATEGIA C - V-BOTTOM SPRING REVERSAL (Solo rimbalzo reale con candela verde closes[-1] > closes[-2]):
+        #    Gerarchia V8.9: il contro-trend sotto VWAP ha sempre priorità inferiore rispetto ai Leader sopra il VWAP!
+        real_green_bounce = (len(closes) >= 2 and closes[-1] > closes[ref_idx_2] and higher_low)
+        if rsi_14 < 38.0 and green_hook_confirmed and (breakout_candle or (real_green_bounce and rsi_14 < 32.0)):
             score_reversal = (
-                52.0
-                + min(25.0, (40.0 - rsi_14) * 1.25)
-                + min(15.0, abs(min(0.0, dip_from_high_pct)) * 6.0)
+                46.0
+                + min(14.0, (38.0 - rsi_14) * 0.85)
+                + min(8.0, abs(min(0.0, dip_from_high_pct)) * 3.0)
             )
         else:
             # Se un titolo è sotto il VWAP in trend discendente senza inversione reale, VETO sui falsi rimbalzi!
-            score_reversal = max(0.0, min(22.0, (55.0 - rsi_14) * 0.4)) if vwap_dist_pct < -0.55 else 25.0
+            score_reversal = max(0.0, min(20.0, (55.0 - rsi_14) * 0.35)) if vwap_dist_pct < -0.55 else 22.0
 
         base_opp_score = max(score_momentum, score_pullback, score_reversal)
 
@@ -887,8 +889,18 @@ class QuantMarketScanner:
                 elif today_wins >= 2 and today_losses == 0:
                     memory_bonus = max(memory_bonus, min(10.0, round(today_wins * 3.0, 1)))
 
+        # V8.9 Post-Clamp Penalty & Gerarchia Sopra-VWAP > Sotto-VWAP:
+        # 1) I titoli sopra/vicino al VWAP (vwap_dist >= -0,20%) hanno tetto tecnico 100.0;
+        #    i titoli nettamente sotto il VWAP (< -0,20%) hanno tetto tecnico 72.0 (così chi sale sopra VWAP vince sempre!).
+        # 2) Il bonus/penalità di memoria (memory_bonus: -22 / -35 / -55) viene applicato DOPO il tetto tecnico,
+        #    impedendo all'overflow (es. 90 * 1.55 = 139.5) di annullare le penalità!
+        max_tech_cap = 100.0 if vwap_dist_pct >= -0.20 else 72.0
+        tech_score_capped = min(
+            max_tech_cap,
+            (base_opp_score * profit_velocity_mult) + er_bonus + rvol_bonus,
+        )
         quant_score = round(
-            max(0.0, min(100.0, (base_opp_score * profit_velocity_mult) + er_bonus + rvol_bonus + memory_bonus)),
+            max(0.0, min(100.0, tech_score_capped + memory_bonus)),
             1,
         )
 
