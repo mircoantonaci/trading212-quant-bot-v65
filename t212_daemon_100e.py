@@ -833,11 +833,18 @@ class HybridUncappedIntelligence:
         shield_act = max(0.0072, float(ticker_metrics.get("elastic_shield_act_raw", prof["shield_activation_pct"])))
         shield_pull = max(0.0018, float(ticker_metrics.get("elastic_shield_pull_raw", prof["shield_pullback_pct"])))
 
-        # BLINDATURA #10 + Calibrazione ATR V8.5: Pre-Scudo Salva-Utile sincronizzato (+0.48%..+0.56%)
-        # con pavimento allargato (0.04%..breakeven_floor) per non far mai scivolare in rosso un picco >= +0.56%!
+        # BLINDATURA #10 + Calibrazione Simmetrica V8.7 (Mossa A: Scala Progressiva Salva-Utile + Zero Strangolamento sopra VWAP)
         daily_vault_active = (realized_net_eur >= 1.60)
-        breakeven_trigger = max(0.0036 if daily_vault_active else 0.0038, min(0.0046, round(atr_raw * 2.0, 4)))
+        breakeven_trigger = max(0.0040 if daily_vault_active else 0.0042, min(0.0050, round(atr_raw * 2.1, 4)))
         breakeven_floor = max(0.0016 if daily_vault_active else 0.0018, round(breakeven_trigger * 0.45, 4))
+        mid_tier_trigger = 0.0058  # ~+0,15 EUR: alza subito il pavimento garantito a +0,38%..+0,44% (~+0,10..+0,11 EUR)!
+        mid_tier_floor = 0.0040
+
+        sine_phase = ticker_metrics.get("fase_onda_sinusoidale", "")
+        stock_is_strong = bool(ticker_metrics.get("strong_for_overnight", False))
+        green_hook_ok = bool(ticker_metrics.get("green_hook_confirmed", False))
+        vwap_dist = float(ticker_metrics.get("vwap_dist_pct", 0.0))
+        cur_rsi_5m = float(ticker_metrics.get("rsi_5m", 50.0))
 
         prev_peak = self.peak_pnl_pct.get(ticker, pnl_pct)
         new_peak = max(prev_peak, pnl_pct)
@@ -852,23 +859,34 @@ class HybridUncappedIntelligence:
                 )
 
         # BLINDATURA #1 (Stadio 2) + BLINDATURA #8 (ATR Elastico): Scudo Mobile Senza Tetto
-        if new_peak >= shield_act and (new_peak - pnl_pct) >= shield_pull and pnl_pct >= 0.0035:
+        if new_peak >= shield_act and (new_peak - pnl_pct) >= shield_pull and pnl_pct >= 0.0045:
             return (
                 f"SCUDO MOBILE ELASTICO SENZA TETTO ({prof['squad']}): cavalcato rialzo fino al picco "
                 f"di +{new_peak*100:.2f}% e incassato su inversione a +{pnl_pct*100:.2f}%"
             )
 
-        # BLINDATURA #1 (Stadio 1): Pre-Scudo "Salva-Utile" ATR-Proporzionale (Break-Even Lock)
-        if new_peak >= breakeven_trigger and 0.0004 <= pnl_pct <= breakeven_floor:
-            return (
-                f"BLINDATURA #1 - PRE-SCUDO SALVA-UTILE ATR (Break-Even Lock): {ticker} aveva toccato "
-                f"il picco di +{new_peak*100:.2f}% e ha ritracciato al pavimento garantito di +{pnl_pct*100:.2f}%!"
-            )
+        # BLINDATURA #1 (Stadio 1B - Gradino Progressivo Intermedio):
+        # Se il titolo ha già toccato >= +0,58% (~+0,15 EUR), non può MAI più ridiscendere a +0,02 EUR!
+        # Se perde slancio o ritraccia nella fascia +0,18%..+0,42% (e non ha più Uncino Verde sopra VWAP), incassa subito ~+0,10 EUR!
+        if new_peak >= mid_tier_trigger and 0.0018 <= pnl_pct <= mid_tier_floor:
+            if not (vwap_dist >= 0.08 and green_hook_ok and pnl_pct >= 0.0034):
+                return (
+                    f"BLINDATURA #1B - SCALA PROGRESSIVA SALVA-UTILE: {ticker} aveva toccato "
+                    f"il picco di +{new_peak*100:.2f}% e ha blindato il gradino alto a +{pnl_pct*100:.2f}%!"
+                )
+
+        # BLINDATURA #1 (Stadio 1A - Pre-Scudo Salva-Utile Anti-Inversione):
+        # NON strangola mai a +0,04 EUR un titolo che è ancora SOPRA il VWAP (vwap_dist >= -0.03 e RSI >= 46);
+        # interviene SOLO se il titolo dopo aver toccato +0,42%..+0,57% perde il VWAP o perde forza!
+        if new_peak >= breakeven_trigger and 0.0005 <= pnl_pct <= breakeven_floor:
+            trend_still_healthy_above_vwap = (vwap_dist >= -0.03 and cur_rsi_5m >= 46.0)
+            if not trend_still_healthy_above_vwap:
+                return (
+                    f"BLINDATURA #1A - PRE-SCUDO SALVA-UTILE SU PERDITA VWAP: {ticker} aveva toccato "
+                    f"il picco di +{new_peak*100:.2f}% e ha perso il VWAP a +{pnl_pct*100:.2f}%!"
+                )
 
         # BLINDATURE #4, #5 e #14: Radar Macro / VIX (Intraday H24 + Finestra Pre-Chiusura 17:15-17:30)
-        sine_phase = ticker_metrics.get("fase_onda_sinusoidale", "")
-        stock_is_strong = bool(ticker_metrics.get("strong_for_overnight", False))
-        green_hook_ok = bool(ticker_metrics.get("green_hook_confirmed", False))
         nasdaq_chg = float(overnight_radar.get("nasdaq_change_pct", 0.0))
         sp500_chg = float(overnight_radar.get("sp500_change_pct", 0.0))
         dax_chg = float(overnight_radar.get("dax_change_pct", 0.0))
@@ -962,20 +980,20 @@ class HybridUncappedIntelligence:
                 f"sblocco cartuccia ferma solo in positivo per salire sul razzo in Super-Trend!"
             )
 
-        # BLINDATURA #15: Taglio Strutturale Anti-Discesa Calibrato su ATR (Breakdown Stop -0,95%..-1,15% dopo >= 25m / Max -1,35%)
-        # Lascia respirare le oscillazioni fisiologiche (-0,60%..-0,85%) dei primi 25 minuti senza vendere sui minimi di candela!
-        breakdown_stop_pct = -max(0.0095, min(0.0115, round(atr_raw * 3.8, 4)))
-        cur_rsi_5m = float(ticker_metrics.get("rsi_5m", 50.0))
-        if minutes_open >= 25.0:
-            if pnl_pct <= breakdown_stop_pct and vwap_dist < -0.35 and cur_rsi_5m < 44.0 and not green_hook_ok and not stock_is_strong:
+        # BLINDATURA #15 (V8.7 Mossa B): Taglio Chirurgico su Tesi Invalidata (-0,58%..-0,68% / ~-0,14..-0,16 EUR dopo >= 20m)
+        # Se dopo 20 minuti il titolo ha rotto il VWAP al ribasso, perso l'Uncino Verde e RSI < 43, taglia subito a ~-0,14 EUR
+        # invece di aspettare -0,24 EUR (-0,96%)! Stop di emergenza invalicabile stretto a -0,90% (~-0,22 EUR).
+        breakdown_stop_pct = -max(0.0058, min(0.0068, round(atr_raw * 2.6, 4)))
+        if minutes_open >= 20.0:
+            if pnl_pct <= breakdown_stop_pct and vwap_dist < -0.22 and cur_rsi_5m < 43.0 and not green_hook_ok and not stock_is_strong:
                 return (
-                    f"BLINDATURA #15 - TAGLIO STRUTTURALE ANTI-DISCESA ATR ({pnl_pct*100:+.2f}% <= {breakdown_stop_pct*100:+.2f}%): "
-                    f"rottura ribassista confermata sotto VWAP -> taglio la discesa e ruoto sul leader!"
+                    f"BLINDATURA #15 - TAGLIO CHIRURGICO TESI INVALIDATA ({pnl_pct*100:+.2f}% <= {breakdown_stop_pct*100:+.2f}%): "
+                    f"rottura ribassista sotto VWAP confermata -> taglio rapido (~0,15 EUR) e ruoto sul leader!"
                 )
-        if minutes_open >= 15.0 and pnl_pct <= -0.0135:
+        if minutes_open >= 12.0 and pnl_pct <= -0.0090:
             return (
                 f"BLINDATURA #15 - STOP DI EMERGENZA INVALICABILE ({pnl_pct*100:+.2f}%): "
-                f"taglio netto di sicurezza (max ~0,34 EUR) per proteggere il capitale!"
+                f"taglio netto di sicurezza per proteggere il capitale!"
             )
 
         return None
