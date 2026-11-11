@@ -60,6 +60,16 @@
         "price_eur": 29.9,
         "total_eur": 25.116
       }
+    ],
+    "DBKd_EQ": [
+      {
+        "timestamp": "2026-11-11T16:35:11",
+        "ticker": "DBKd_EQ",
+        "isin": "DE0005140008",
+        "quantity": 0.75,
+        "price_eur": 33.48,
+        "total_eur": 25.11
+      }
     ]
   },
   "operazioni_chiuse": [
@@ -1192,7 +1202,7 @@
   "totale_corrispettivi_vendita_eur": 3057.42,
   "totale_costi_carico_lifo_eur": 3060.59,
   "plusvalenze_lorde_eur": 9.89,
-  "minusvalenze_lorde_eur": 12.08,
+  "minusvalenze_lorde_eur": 11.98,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0
