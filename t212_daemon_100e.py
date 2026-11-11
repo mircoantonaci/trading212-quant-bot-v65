@@ -968,20 +968,39 @@ class QuantMarketScanner:
         tax_data: Optional[Dict[str, Any]] = None,
         dax_change_pct: float = 0.0,
         force: bool = False,
+        active_tickers: Optional[List[str]] = None,
     ) -> Dict[str, Dict[str, Any]]:
         now_ts = time.time()
-        results: Dict[str, Dict[str, Any]] = {}
-        tickers = list(ASSET_PROFILES.keys())
-        with ThreadPoolExecutor(max_workers=20) as pool:
-            futures = {
-                tkr: pool.submit(self.fetch_5m_metrics, tkr, tax_data, dax_change_pct)
-                for tkr in tickers
-            }
-            for tkr, fut in futures.items():
-                results[tkr] = fut.result()
-        self.cached_metrics = results
-        self.last_scan_ts = now_ts
-        return results
+        # Architettura Split-Speed Turbo V9.0 (6s Posizioni Aperte / 24s Radar Globale 29 Titoli):
+        # - Ogni 24s (o subito se c'è una cartuccia libera da investire: force=True) scansiona tutti i 29 Colossi.
+        # - Nei cicli intermedi da 6s aggiorna a latenza zero le sole cartucce aperte in portafoglio!
+        full_radar_due = force or not self.cached_metrics or (now_ts - self.last_scan_ts) >= 22.0
+        if full_radar_due:
+            tickers = list(ASSET_PROFILES.keys())
+            results: Dict[str, Dict[str, Any]] = {}
+            with ThreadPoolExecutor(max_workers=20) as pool:
+                futures = {
+                    tkr: pool.submit(self.fetch_5m_metrics, tkr, tax_data, dax_change_pct)
+                    for tkr in tickers
+                }
+                for tkr, fut in futures.items():
+                    results[tkr] = fut.result()
+            self.cached_metrics = results
+            self.last_scan_ts = now_ts
+            return results
+        else:
+            results = dict(self.cached_metrics)
+            open_list = [t for t in (active_tickers or []) if t in ASSET_PROFILES]
+            if open_list:
+                with ThreadPoolExecutor(max_workers=max(1, len(open_list))) as pool:
+                    futures = {
+                        tkr: pool.submit(self.fetch_5m_metrics, tkr, tax_data, dax_change_pct)
+                        for tkr in open_list
+                    }
+                    for tkr, fut in futures.items():
+                        results[tkr] = fut.result()
+            self.cached_metrics = results
+            return results
 
 
 class HybridUncappedIntelligence:
@@ -1368,11 +1387,10 @@ def run_cycle(
     now = datetime.datetime.now(MARKET_TZ).replace(tzinfo=None)
     regime = intel.get_intraday_regime(now)
 
-    # 1. Leggi posizioni aperte e ordini pendenti da Trading 212
+    # 1. Leggi posizioni aperte e ordini pendenti da Trading 212 (Split-Speed Turbo 6s)
     positions = client.get_open_positions()
-    time.sleep(2.5)
-    pending_orders = client.get_pending_orders()
-    time.sleep(2.5)
+    time.sleep(0.3)
+    pending_orders = client.get_pending_orders() if len(positions) < bot.cartridges else []
 
     pos_by_ticker: Dict[str, Dict[str, Any]] = {p.get("ticker", ""): p for p in positions}
     pending_by_ticker: Dict[str, Dict[str, Any]] = {
@@ -1391,11 +1409,17 @@ def run_cycle(
         cur_px = float(p.get("currentPrice", 0.0))
         scanner.update_t212_live_price(tkr, cur_px)
 
-    # 2. Scansione quantitativa 5m + Selettore Dinamico High-Beta V7.0 + Radar Onda Notturna
+    # 2. Scansione quantitativa Split-Speed (6s sulle cartucce aperte / 24s sui 29 Colossi o subito se slot libero)
     bot.tax_tracker.load()
     overnight_status = radar.evaluate_overnight_wave()
     dax_live_pct = float(overnight_status.get("dax_change_pct", 0.0))
-    quant_metrics = scanner.scan_all(tax_data=bot.tax_tracker.data, dax_change_pct=dax_live_pct)
+    need_full_scan = len(pos_by_ticker) < bot.cartridges
+    quant_metrics = scanner.scan_all(
+        tax_data=bot.tax_tracker.data,
+        dax_change_pct=dax_live_pct,
+        force=need_full_scan,
+        active_tickers=list(pos_by_ticker.keys()),
+    )
 
     # Sincronizzazione automatica 100% con "Profitti/perdite realizzati" certificato da Trading 212 (/equity/account/cash -> result)
     try:
@@ -1408,7 +1432,7 @@ def run_cycle(
             if abs((cur_plus - cur_minus) - t212_net) >= 0.01:
                 bot.tax_tracker.data["minusvalenze_lorde_eur"] = round(cur_plus - t212_net, 2)
                 bot.tax_tracker.save()
-        time.sleep(1.5)
+        time.sleep(0.3)
     except Exception:
         pass
 
@@ -1954,7 +1978,7 @@ def main():
         if args.cycles > 0 and executed >= args.cycles:
             print(f"=== SESSIONE CLOUD COMPLETATA ({executed}/{args.cycles} cicli eseguiti) ===", flush=True)
             break
-        time.sleep(15)
+        time.sleep(5)
 
 
 if __name__ == "__main__":
