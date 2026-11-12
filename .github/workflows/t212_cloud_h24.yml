@@ -69,15 +69,16 @@ jobs:
               break
             fi
 
-            git pull --rebase origin main || true
+            git fetch origin main || true
+            git reset --hard origin/main || true
             python3 t212_daemon_100e.py --cycles "$BATCH"
             python3 t212-cli.py dashboard
 
-            # Checkpoint automatico su GitHub ogni 15 minuti (30 cicli)
-            git pull --rebase origin main || true
+            # Checkpoint automatico su GitHub a fine batch senza conflitti di rebase
             git add trading212_state.json registro_fiscale_730.json dashboard_v6_5.html
             if ! git diff --cached --quiet; then
               git commit -m "chore(state): checkpoint live portafoglio & 730 ($(date +%H:%M) CET) [skip ci]"
+              git pull --rebase -X ours origin main || git rebase --abort || true
               git push origin main || true
             fi
 

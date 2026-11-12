@@ -24,10 +24,14 @@ import datetime
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Any
+from zoneinfo import ZoneInfo
+
+MARKET_TZ = ZoneInfo("Europe/Rome")
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -165,7 +169,7 @@ class ItalianTaxTracker730:
     def __init__(self, filepath: str = TAX_REGISTRY_PATH) -> None:
         self.filepath = filepath
         self.data: Dict[str, Any] = {
-            "anno_fiscale": datetime.date.today().year,
+            "anno_fiscale": datetime.datetime.now(MARKET_TZ).year,
             "broker": "Trading 212 (Conto Invest - EUR)",
             "stato_estero_codice": "040 (Cipro) / 031 (Regno Unito)",
             "valore_iniziale_quadro_w_eur": 100.00,
@@ -199,7 +203,7 @@ class ItalianTaxTracker730:
         """Registra un acquisto aggiungendo il lotto in cima alla pila LIFO."""
         info = EUR_ZERO_FEE_UNIVERSE.get(ticker, {"isin": "UNKNOWN"})
         lot = TaxLot(
-            timestamp=datetime.datetime.now().isoformat(timespec="seconds"),
+            timestamp=datetime.datetime.now(MARKET_TZ).replace(tzinfo=None).isoformat(timespec="seconds"),
             ticker=ticker,
             isin=info["isin"],
             quantity=round(quantity, 6),
@@ -278,7 +282,7 @@ class ItalianTaxTracker730:
         self.data["imposta_sostitutiva_26_eur"] = round(net_taxable * 0.26, 2)
 
         closed_op = {
-            "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+            "timestamp": datetime.datetime.now(MARKET_TZ).replace(tzinfo=None).isoformat(timespec="seconds"),
             "ticker": ticker,
             "quantity": round(sell_qty, 6),
             "sell_price_eur": round(sell_price_eur, 4),
@@ -366,14 +370,29 @@ class Trading212Client:
             "User-Agent": "Trading212-AutonomousBot-100EUR/1.0",
         }
         data = json.dumps(payload).encode("utf-8") if payload is not None else None
-        req = urllib.request.Request(url, data=data, headers=headers, method=method)
-        try:
-            with urllib.request.urlopen(req, timeout=15) as resp:
-                body = resp.read().decode("utf-8")
-                return json.loads(body) if body else {}
-        except urllib.error.HTTPError as e:
-            err_body = e.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"HTTP {e.code} su {endpoint}: {err_body}") from e
+        last_err: Optional[Exception] = None
+        for attempt in range(3):
+            req = urllib.request.Request(url, data=data, headers=headers, method=method)
+            try:
+                with urllib.request.urlopen(req, timeout=15) as resp:
+                    body = resp.read().decode("utf-8")
+                    return json.loads(body) if body else {}
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode("utf-8", errors="replace")
+                if e.code == 429 and attempt < 2:
+                    time.sleep(1.8 * (attempt + 1))
+                    continue
+                if method == "GET" and e.code in (502, 503, 504) and attempt == 0:
+                    time.sleep(1.2)
+                    continue
+                raise RuntimeError(f"HTTP {e.code} su {endpoint}: {err_body}") from e
+            except urllib.error.URLError as e:
+                last_err = e
+                if method == "GET" and attempt == 0:
+                    time.sleep(1.0)
+                    continue
+                raise RuntimeError(f"Errore rete su {endpoint}: {e}") from e
+        raise RuntimeError(f"Richiesta fallita su {endpoint}: {last_err}")
 
     def get_account_cash(self) -> Dict[str, Any]:
         """Restituisce saldo libero, investito e risultato totale del conto."""
