@@ -1149,16 +1149,29 @@ class HybridUncappedIntelligence:
                 "is_pre_close_window": False,
                 "is_morning_gap_harvest": False,
                 "is_friday_pre_weekend": False,
+                "is_lunch_desert_window": True,
             }
-        if 10 * 60 + 30 <= hm < 15 * 60 + 30:
+        if 11 * 60 + 15 <= hm < 14 * 60 + 28:
             return {
-                "code": "FASE_2_IBRIDA_2X2_BLINDATA_V5",
-                "description": "10:30-15:30: 2 Cartucce Cecchino + 2 Cavalca-Onda (con Pre-Scudo Salva-Utile a +0,60% e Filtro Uncino Verde)",
+                "code": "FASE_2_SCUDO_DESERTO_MEZZOGIORNO_11_15_14_35",
+                "description": "11:15-14:35: Scudo Pausa Pranzo Europea — gestione/incasso posizioni aperte, stop acquisti ordinari (attesa volumi USA 14:35)",
                 "market_open": True,
                 "allow_new_buys": True,
                 "is_pre_close_window": False,
                 "is_morning_gap_harvest": False,
                 "is_friday_pre_weekend": False,
+                "is_lunch_desert_window": True,
+            }
+        if 10 * 60 + 30 <= hm < 15 * 60 + 30:
+            return {
+                "code": "FASE_2_IBRIDA_2X2_BLINDATA_V5",
+                "description": "10:30-11:15 & 14:36-15:30: Sessione Istituzionale Attiva (Fascia d'Oro + Pavimento VWAP)",
+                "market_open": True,
+                "allow_new_buys": True,
+                "is_pre_close_window": False,
+                "is_morning_gap_harvest": False,
+                "is_friday_pre_weekend": False,
+                "is_lunch_desert_window": False,
             }
         if 17 * 60 + 15 <= hm < 17 * 60 + 30:
             return {
@@ -1490,13 +1503,24 @@ def run_cycle(
     )
     running_today_pnl = 0.0
     today_peak_realized_eur = 0.0
+    stops_after_loot_peak = 0
     for op in today_ops:
-        running_today_pnl += float(op.get("risultato_fiscale_eur", 0.0))
+        op_pnl = float(op.get("risultato_fiscale_eur", 0.0))
+        if today_peak_realized_eur >= 0.80 and op_pnl < 0.0:
+            stops_after_loot_peak += 1
+        running_today_pnl += op_pnl
         if running_today_pnl > today_peak_realized_eur:
             today_peak_realized_eur = running_today_pnl
+            stops_after_loot_peak = 0
     morning_loot_shield_active = (
         today_peak_realized_eur >= 0.80
-        and today_realized_net_eur <= (today_peak_realized_eur - 0.35)
+        and today_realized_net_eur <= (today_peak_realized_eur - 0.30)
+    )
+    hm_now = now.hour * 60 + now.minute
+    lunch_profit_lock_active = (
+        today_peak_realized_eur >= 0.80
+        and stops_after_loot_peak >= 1
+        and (11 * 60 <= hm_now < 14 * 60 + 36)
     )
     compounded_budget_eur = round(bot.total_budget_eur + max(0.0, realized_net_eur), 2)
     dynamic_cartridge_eur = round(compounded_budget_eur / bot.cartridges, 2)
@@ -1799,6 +1823,24 @@ def run_cycle(
                 # I titoli SOPRA il VWAP mantengono sempre soglia libera (52.0) per non perdere nessun rialzo;
                 # i titoli SOTTO il VWAP in giornate nervose (VIX >= 3.5%, >= 2 stop o Scudo Salva-Bottino) richiedono Score >= 68.0,
                 # e con VIX >= 4.0% la 4a cartuccia entra solo su leader confermati sopra VWAP o con Score >= 70.0!
+                # BLINDATURA #22 (V9.2 Scudo Deserto di Mezzogiorno 11:15-14:35 + Lucchetto Salva-Bottino >= +0,80 EUR):
+                # 1) Se il mattino ha già incassato >= +0,80 EUR e dopo il picco scatta 1 taglio tra le 11:00 e le 14:35,
+                #    scatta il Lucchetto Totale sugli acquisti fino alle 14:36 CET (impossibile rimangiarsi la mattinata!).
+                if lunch_profit_lock_active:
+                    continue
+                # 2) Tra le 11:15 e le 14:35 CET (Pausa Pranzo Europea senza volumi istituzionali), sospende tutti gli
+                #    acquisti ordinari, ammettendo SOLO anomalie esplosive di volume reale (RVOL >= 1.80x, Score >= 95, Kaufman >= 0.45).
+                if regime.get("is_lunch_desert_window", False):
+                    cand_rvol = float(cand.get("rvol_ratio", 0.0))
+                    cand_er = float(cand.get("kaufman_efficiency_ratio", 0.0))
+                    if not (
+                        cand_rvol >= 1.80
+                        and score >= 95.0
+                        and cand_er >= 0.45
+                        and 0.0 <= float(cand.get("vwap_dist_pct", 0.0)) <= 0.40
+                    ):
+                        continue
+
                 cand_vwap_dist = float(cand.get("vwap_dist_pct", 0.0))
                 cand_atr_pct = float(cand.get("atr_5m_volatility_pct", 0.18))
                 cand_day_range = float(cand.get("day_range_pct", 2.0))
