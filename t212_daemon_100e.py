@@ -775,28 +775,37 @@ class QuantMarketScanner:
             atr_5m_pct = 0.0018
             kaufman_er = 0.35
 
-        # MOTORE V8.1 MULTI-STRATEGIA AUTO-ADATTIVO CONTINUO (Zero Zone Cieche tra le 3 Strategie):
-        # 1) STRATEGIA A - MOMENTUM BREAKOUT (Cavalca i Leader sopra il VWAP evitando acquisti sulla cresta RSI > 67.5):
+        # MOTORE V9.1 MULTI-STRATEGIA + PAVIMENTO VWAP (Ingresso attaccato al VWAP, Veto sugli acquisti estesi):
+        # 1) STRATEGIA A - MOMENTUM BREAKOUT (Premia 0,00%..+0,45% sopra VWAP; penalizza chi è già scappato > +0,48%):
         if vwap_dist_pct >= -0.15 and (slope_15m_pct >= -0.10 or slope_rising) and 42.0 <= rsi_14 <= 67.5 and green_hook_confirmed:
             rsi_crest_taper = max(0.0, (rsi_14 - 62.0) * 2.5)
+            vwap_extension_taper = max(0.0, (vwap_dist_pct - 0.48) * 36.0)
+            vwap_floor_bonus = (
+                16.0
+                if -0.05 <= vwap_dist_pct <= 0.45
+                else min(14.0, max(0.0, (vwap_dist_pct + 0.15) * 14.0))
+            )
             score_momentum = (
                 58.0
-                + min(20.0, max(0.0, (vwap_dist_pct + 0.15) * 15.0))
+                + vwap_floor_bonus
                 + min(18.0, max(0.0, (slope_15m_pct + 0.10) * 28.0))
                 + (kaufman_er * 14.0)
                 + (6.0 if breakout_candle else 0.0)
                 - rsi_crest_taper
+                - vwap_extension_taper
             )
         else:
             score_momentum = 0.0
 
-        # 2) STRATEGIA B - INSTITUTIONAL VWAP PULLBACK (Copre senza buchi RSI 32..64 vicino/sopra VWAP):
-        if vwap_dist_pct >= -0.55 and 32.0 <= rsi_14 <= 64.0 and green_hook_confirmed and slope_30m_pct >= -0.45:
+        # 2) STRATEGIA B - INSTITUTIONAL VWAP PULLBACK (Copre senza buchi RSI 32..64 attaccato al pavimento VWAP):
+        if vwap_dist_pct >= -0.38 and 32.0 <= rsi_14 <= 64.0 and green_hook_confirmed and slope_30m_pct >= -0.45:
+            pullback_ext_taper = max(0.0, (vwap_dist_pct - 0.48) * 32.0)
             score_pullback = (
                 54.0
                 + min(24.0, max(0.0, (64.0 - rsi_14) * 0.95))
                 + (12.0 if breakout_candle else 4.0)
                 + (kaufman_er * 12.0)
+                - pullback_ext_taper
             )
         else:
             score_pullback = 0.0
@@ -890,15 +899,38 @@ class QuantMarketScanner:
                 elif today_wins >= 2 and today_losses == 0:
                     memory_bonus = max(memory_bonus, min(10.0, round(today_wins * 3.0, 1)))
 
-        # V8.9 Post-Clamp Penalty & Gerarchia Sopra-VWAP > Sotto-VWAP:
-        # 1) I titoli sopra/vicino al VWAP (vwap_dist >= -0,20%) hanno tetto tecnico 100.0;
-        #    i titoli nettamente sotto il VWAP (< -0,20%) hanno tetto tecnico 72.0 (così chi sale sopra VWAP vince sempre!).
-        # 2) Il bonus/penalità di memoria (memory_bonus: -22 / -35 / -55) viene applicato DOPO il tetto tecnico,
-        #    impedendo all'overflow (es. 90 * 1.55 = 139.5) di annullare le penalità!
+        # V9.1 Fascia d'Oro Velocità + Gerarchia Pavimento VWAP (Né Tartarughe Immobili, Né Cavalli Pazzi Sporchi):
+        atr_pct_100 = atr_5m_pct * 100.0
+        now_cet_scan = datetime.datetime.now(MARKET_TZ)
+        range_matured = (now_cet_scan.hour > 9) or (now_cet_scan.hour == 9 and now_cet_scan.minute >= 45)
+        is_sluggish_turtle = (
+            dax_change_pct > -0.50
+            and range_matured
+            and atr_pct_100 < 0.135
+            and day_range_pct < 1.45
+        )
+        wild_chop_penalty = -18.0 if (atr_pct_100 > 0.38 and kaufman_er < 0.30) else 0.0
+        golden_zone_bonus = (
+            7.0
+            if (
+                0.145 <= atr_pct_100 <= 0.34
+                and (not range_matured or 1.50 <= day_range_pct <= 4.20)
+                and kaufman_er >= 0.24
+                and -0.12 <= vwap_dist_pct <= 0.48
+            )
+            else 0.0
+        )
+
         max_tech_cap = 100.0 if vwap_dist_pct >= -0.20 else 72.0
+        if is_sluggish_turtle:
+            max_tech_cap = min(max_tech_cap, 62.0)
         tech_score_capped = min(
             max_tech_cap,
-            (base_opp_score * profit_velocity_mult) + er_bonus + rvol_bonus,
+            (base_opp_score * profit_velocity_mult)
+            + er_bonus
+            + rvol_bonus
+            + golden_zone_bonus
+            + wild_chop_penalty,
         )
         quant_score = round(
             max(0.0, min(100.0, tech_score_capped + memory_bonus)),
@@ -1316,20 +1348,20 @@ class HybridUncappedIntelligence:
                 f"sblocco cartuccia ferma solo in positivo per salire sul razzo in Super-Trend!"
             )
 
-        # BLINDATURA #15 (V8.7 Mossa B): Taglio Chirurgico su Tesi Invalidata (-0,58%..-0,68% / ~-0,14..-0,16 EUR dopo >= 20m)
-        # Se dopo 20 minuti il titolo ha rotto il VWAP al ribasso, perso l'Uncino Verde e RSI < 43, taglia subito a ~-0,14 EUR
-        # invece di aspettare -0,24 EUR (-0,96%)! Stop di emergenza invalicabile stretto a -0,90% (~-0,22 EUR).
-        breakdown_stop_pct = -max(0.0058, min(0.0068, round(atr_raw * 2.6, 4)))
-        if minutes_open >= 20.0:
-            if pnl_pct <= breakdown_stop_pct and vwap_dist < -0.22 and cur_rsi_5m < 43.0 and not green_hook_ok and not stock_is_strong:
+        # BLINDATURA #15 (V9.1 Airbag Economico ~ -0,14..-0,16 EUR):
+        # 1) Taglio rapido a ~-0,14 EUR (-0,54%..-0,62%) dopo 12m se perde spinta o rompe il pavimento VWAP senza Uncino Verde.
+        # 2) Airbag Economico Invalicabile stretto a -0,64% (~-0,15/-0,16 EUR) dopo 8m senza Uncino Verde (tetto assoluto -0,72%).
+        breakdown_stop_pct = -max(0.0054, min(0.0062, round(atr_raw * 2.4, 4)))
+        if minutes_open >= 12.0:
+            if pnl_pct <= breakdown_stop_pct and (vwap_dist < -0.10 or cur_rsi_5m < 45.0) and not green_hook_ok and not stock_is_strong:
                 return (
                     f"BLINDATURA #15 - TAGLIO CHIRURGICO TESI INVALIDATA ({pnl_pct*100:+.2f}% <= {breakdown_stop_pct*100:+.2f}%): "
-                    f"rottura ribassista sotto VWAP confermata -> taglio rapido (~0,15 EUR) e ruoto sul leader!"
+                    f"rottura pavimento VWAP / perdita spinta -> taglio minimo (~0,14 EUR) e ruoto su Fascia d'Oro!"
                 )
-        if minutes_open >= 12.0 and pnl_pct <= -0.0090:
+        if minutes_open >= 8.0 and ((pnl_pct <= -0.0064 and not green_hook_ok) or pnl_pct <= -0.0072):
             return (
-                f"BLINDATURA #15 - STOP DI EMERGENZA INVALICABILE ({pnl_pct*100:+.2f}%): "
-                f"taglio netto di sicurezza per proteggere il capitale!"
+                f"BLINDATURA #15 - AIRBAG ECONOMICO INVALICABILE ({pnl_pct*100:+.2f}%): "
+                f"taglio netto entro ~0,15-0,16 EUR per blindare il capitale!"
             )
 
         return None
@@ -1669,7 +1701,16 @@ def run_cycle(
     active_count = len(cartridge_statuses)
     ranked_candidates = sorted(
         quant_metrics.values(),
-        key=lambda m: float(m["quant_buy_score"]),
+        key=lambda m: (
+            float(m["quant_buy_score"]),
+            1
+            if (
+                0.145 <= float(m.get("atr_5m_volatility_pct", 0.0)) <= 0.34
+                and -0.12 <= float(m.get("vwap_dist_pct", 0.0)) <= 0.48
+            )
+            else 0,
+            round(min(0.34, float(m.get("atr_5m_volatility_pct", 0.0))), 3),
+        ),
         reverse=True,
     )
 
@@ -1759,6 +1800,21 @@ def run_cycle(
                 # i titoli SOTTO il VWAP in giornate nervose (VIX >= 3.5%, >= 2 stop o Scudo Salva-Bottino) richiedono Score >= 68.0,
                 # e con VIX >= 4.0% la 4a cartuccia entra solo su leader confermati sopra VWAP o con Score >= 70.0!
                 cand_vwap_dist = float(cand.get("vwap_dist_pct", 0.0))
+                cand_atr_pct = float(cand.get("atr_5m_volatility_pct", 0.18))
+                cand_day_range = float(cand.get("day_range_pct", 2.0))
+                range_matured_buy = (now.hour > 9) or (now.hour == 9 and now.minute >= 45)
+                # BLINDATURA #21 (V9.1 Fascia d'Oro + Veto Estensione VWAP):
+                # 1) Mai comprare un titolo già scappato lontano sopra il pavimento VWAP (> +0,50% sui veloci, > +0,65% sugli altri)!
+                max_vwap_entry = 0.50 if cand_atr_pct >= 0.23 else 0.65
+                if cand_vwap_dist > max_vwap_entry:
+                    continue
+                # 2) Mai comprare troppo sotto il pavimento VWAP (< -0,35%) salvo rimbalzo ipervenduto estremo confermato!
+                if cand_vwap_dist < -0.35 and (rsi_5m >= 32.0 or score < 68.0):
+                    continue
+                # 3) In mercato normale (DAX > -0,50%), scarta all'acquisto i titoli statici (ATR < 0,13% e Range < 1,40%)!
+                if dax_c > -0.50 and range_matured_buy and cand_atr_pct < 0.13 and cand_day_range < 1.40:
+                    continue
+
                 if vix_c >= 4.0 and active_count >= 3 and cand_vwap_dist < 0.05 and score < 70.0:
                     continue
                 if cand_vwap_dist < 0.0 and (vix_c >= 3.5 or today_stops_count >= 2 or morning_loot_shield_active):
