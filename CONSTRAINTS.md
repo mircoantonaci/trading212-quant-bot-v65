@@ -1,4 +1,4 @@
-# CONSTRAINTS.md — Contratto Matematico Inviolabile (V11.0 LTS "Zero Cerotti" Prudente)
+# CONSTRAINTS.md — Contratto Matematico Inviolabile (V11.1 LTS "Zero Cerotti" Turbo)
 
 Questo documento fissa gli **Invarianti Matematici Obbligatori** della piattaforma autonoma Trading 212 (`100,00 EUR` / `4 × 25,00 EUR`). Nessuna modifica futura può violare o abbassare queste soglie.
 
@@ -7,16 +7,16 @@ Questo documento fissa gli **Invarianti Matematici Obbligatori** della piattafor
 python3 -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-## I 10 Invarianti Bloccanti (`tests/test_quant_invariants.py`)
+## I 14 Invarianti Bloccanti (`tests/test_quant_invariants.py`)
 
 1. **Invariante #1 — Zero-Ghost su Timeout HTTP:**
    - Se Yahoo Finance non restituisce candele valide e non esiste cache in memoria (`last_valid_bars`), `quant_buy_score == 0.0`, `green_hook_confirmed == False`, `has_fresh_intraday_feed == False`, `rvol_ratio == 0.0`. È vietato cablare valori di fallback fittizi che generino punteggi > 0.
 2. **Invariante #2 — Resilienza Cache Candele 5m:**
    - Se un ticker ha già candele valide in `last_valid_bars[ticker]` e una singola richiesta HTTP va in timeout, il motore conserva `VWAP`, `ATR` e `RSI` reali aggiornando la punta con il prezzo `0ms` di Trading 212.
-3. **Invariante #3 — Monotonicità Lineare del Ranking (Zero Distorsione `1,55x`):**
-   - Il punteggio è puramente additivo: `Setup_VWAP_RSI (0..86) + Bonus_Velocità_ATR (0..10) + Memoria_Giorno`. Nessun moltiplicatore può far scavalcare un setup sporco sopra un setup istituzionale pulito né schiacciare candidati diversi contro `100,0`.
+3. **Invariante #3 — Monotonicità Lineare del Ranking (Zero Distorsione `1,55x` & Zero Tetto ATR `0,34%`):**
+   - Il punteggio è puramente additivo: `Setup_VWAP_RSI (0..86) + Bonus_Velocità_ATR (0..10) + Memoria_Giorno`. Nessun moltiplicatore può far scavalcare un setup sporco sopra un setup istituzionale pulito, e a parità di punteggio il tie-breaker premia linearmente `ATR` e `RVOL` senza plafonare i leader High-Beta a `0,34%`.
 4. **Invariante #4 — Filtro Liquidità Variante Prudente (`RVOL >= 0,20x`):**
-   - Nessun ordine di acquisto ordinario può essere eseguito su un titolo con volume relativo `rvol_ratio < 0.20` (esclusione automatica dei book illiquidi/deserti).
+   - Nessun ordine di acquisto può essere eseguito su un titolo con volume relativo strutturale `rvol_ratio < 0.20` (esclusione automatica dei book illiquidi/deserti su 2 barre).
 5. **Invariante #5 — Separazione Filiera Semiconduttori (12+ Settori Markowitz):**
    - `ASMLa_EQ` e `ASMa_EQ` appartengono a `CHIP_LITOGRAFIA_WAFER`; `BESIa_EQ`, `IFXd_EQ` e `AIXAd_EQ` appartengono a `CHIP_POTENZA_PACKAGING`. Non possono mai coesistere due titoli della stessa sotto-filiera.
 6. **Invariante #6 — Efficienza Capitale a 4 Decimali (`4 × 25,00 EUR`):**
@@ -25,7 +25,15 @@ python3 -m unittest discover -s tests -p "test_*.py" -v
    - `scudo_mobile_elastico_atr_si_attiva_a_pct` e `livello_incasso_protetto_pct` salvati in `trading212_state.json` coincidono al centesimo con le soglie usate da `evaluate_uncapped_exit()`.
 8. **Invariante #8 — Continuità Senza Buchi della Scala Salva-Utile:**
    - Una posizione che ha raggiunto picco `>= +0,65%` non può scendere fino a `+0,10%` con perdita di VWAP/Uncino senza far scattare almeno uno stadio di incasso (`Stadio 2`, `Stadio 1B` o `Stadio 1A`).
-9. **Invariante #9 — Airbag Economico & Isolamento Dati Sporchi (`V11_CLEAN_EPOCH_TS`):**
-   - Oltre `8–12 minuti` dall'apertura, nessuna posizione sotto `-0,72%` può restare aperta. Tutte le penalità/stop antecedenti a `V11_CLEAN_EPOCH_TS` e tutti i lotti LIFO orfani non presenti sul broker vengono ignorati/ripuliti automaticamente.
+9. **Invariante #9 — Airbag Simmetrico Elastico & Isolamento Dati Sporchi (`V11_CLEAN_EPOCH_TS`):**
+   - Oltre `8–12 minuti` dall'apertura, nessuna posizione sotto `-0,72%` può restare aperta. Tutte le penalità/stop antecedenti a `V11_CLEAN_EPOCH_TS` e tutti i lotti LIFO orfani o vuoti vengono ignorati/ripuliti automaticamente.
 10. **Invariante #10 — Candele 5m Deduped & Fuso Orario Fiscale `Europe/Rome`:**
     - `bar_timestamps` è strettamente crescente a multipli esatti di `300s` (zero candele duplicate nello stesso bucket da 5m) e `ItalianTaxTracker730` registra timestamp coerenti col fuso di Borsa `Europe/Rome`.
+11. **Invariante #11 — VWAP Typical Price `(H+L+C)/3` & RVOL Completed-Bar (Zero Partial-Bar Bias):**
+    - Il VWAP istituzionale pesa il prezzo tipico `((High + Low + Close) / 3) * Volume`, e il calcolo `RVOL` normalizza le barre parziali in formazione e considera `max(barra_scalata, barra_chiusa_precedente)` per non scartare falsamente un titolo nei primi secondi di una nuova candela da 5 minuti o su una candela di consolidamento (Bull-Flag).
+12. **Invariante #12 — Pavimento Gapless `-0,05%` Anti-Salto di Tick:**
+    - Se una posizione ha già armato `Stadio 2`, `Stadio 1B` o `Stadio 1A` e un salto improvviso di mercato la porta in un solo tick tra `-0,05%` e `+0,04%` senza Uncino Verde, lo scudo incassa immediatamente anziché cadere nel vuoto fino all'Airbag (`-0,64%`).
+13. **Invariante #13 — Blocco Permanente Zero-Churn al Target `+30%` (`130,00 EUR`):**
+    - Raggiunto il target `130,00 EUR`, la liquidazione avviene una sola volta e `target_30pct_raggiunto_blocco_attivo = True` inibisce qualsiasi nuovo ordine di acquisto nei cicli successivi (zero loop infinito compra/liquida).
+14. **Invariante #14 — Orologio `America/New_York` DST-Safe & Predicato Unificato `Panchina == BUY`:**
+    - La pausa dati macro USA (`08:28–08:35 ET`) e l'apertura di Wall Street (`09:30 ET`) si adattano automaticamente alle settimane di disallineamento ora legale USA/UE (Marzo/Ottobre), e `is_eligible_entry_candidate()` governa in modo identico sia la selezione della panchina per lo Stagnation Switch (`>= 80,0 pt`) sia il ciclo di acquisto.

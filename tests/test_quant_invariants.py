@@ -101,11 +101,11 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertLess(m_clean["quant_buy_score"], 100.0)
 
     def test_04_prudent_rvol_020_liquidity_gate(self):
-        """Invariante #4: PRUDENT_MIN_RVOL == 0.20 e rvol_ratio riflette fedelmente i volumi illiquidi."""
+        """Invariante #4: PRUDENT_MIN_RVOL == 0.20 e rvol_ratio riflette fedelmente i book illiquidi su 2 barre."""
         self.assertAlmostEqual(daemon.PRUDENT_MIN_RVOL, 0.20, places=2)
         scanner = daemon.QuantMarketScanner()
         closes = [50.0 + i * 0.03 for i in range(20)]
-        vols = [5000.0] * 19 + [250.0]  # Ultima candela con solo 5% dei volumi medi (RVOL = 0.05x < 0.20x)
+        vols = [5000.0] * 18 + [250.0, 250.0]  # Ultime 2 candele con solo 5% dei volumi medi (RVOL = 0.05x < 0.20x)
         with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(_make_yahoo_payload(closes, vols=vols))):
             m = scanner.fetch_5m_metrics("SHLd_EQ" if "SHLd_EQ" in daemon.ASSET_PROFILES else "SAPd_EQ")
         self.assertLess(m["rvol_ratio"], daemon.PRUDENT_MIN_RVOL)
@@ -216,6 +216,161 @@ class TestQuantInvariantsV11(unittest.TestCase):
         lot_ts = tracker.data["lotti_aperti_lifo"]["SAPd_EQ"][0]["timestamp"]
         self.assertTrue(lot_ts.startswith(rome_prefix))
         os.remove(tmp_tax)
+
+    def test_11_completed_bar_rvol_and_typical_price_vwap(self):
+        """Invariante #11: RVOL elimina il bias da candela parziale/bull-flag e VWAP usa Typical Price (H+L+C)/3."""
+        scanner = daemon.QuantMarketScanner()
+        now_dt = datetime.datetime.now(daemon.MARKET_TZ).replace(hour=10, minute=30, second=0, microsecond=0)
+        base_ts = int(now_dt.timestamp()) - 20 * 300
+        # Ultima candela appena aperta da 30s (volume parziale 500 -> scalato a 5000) dopo candela piena da 5200
+        ts_list = [base_ts + i * 300 for i in range(19)] + [base_ts + 19 * 300 + 30]
+        closes = [100.0] * 20
+        highs = [101.2] * 20   # Typical price = (101.2 + 99.7 + 100.0) / 3 = 100.3 > Close (100.0)
+        lows = [99.7] * 20
+        vols = [5000.0] * 18 + [5200.0, 500.0]
+        raw = json.dumps({
+            "chart": {
+                "result": [{
+                    "meta": {"regularMarketPrice": 100.0},
+                    "timestamp": ts_list,
+                    "indicators": {"quote": [{"close": closes, "high": highs, "low": lows, "volume": vols}]},
+                }]
+            }
+        }).encode("utf-8")
+        with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(raw)):
+            m = scanner.fetch_5m_metrics("SAPd_EQ")
+        self.assertGreaterEqual(m["rvol_ratio"], 1.0)
+        # Con Close=100.0 e Typical Price=100.3, vwap_dist_pct deve essere negativo (~ -0.30%), NON 0.00%!
+        self.assertLess(m["vwap_dist_pct"], -0.20)
+
+    def test_12_gapless_shield_floor_catches_fast_tick_drop(self):
+        """Invariante #12: dal picco +0.62%, un salto improvviso a +0.01% o -0.02% senza uncino attiva subito lo scudo."""
+        intel = daemon.HybridUncappedIntelligence()
+        intel.position_open_time["SAPd_EQ"] = datetime.datetime.now().timestamp() - 900
+        regime = {"is_morning_gap_harvest": False, "is_pre_close_window": False, "is_friday_pre_weekend": False}
+        metrics = {
+            "atr_5m_volatility_pct": 0.16,
+            "elastic_shield_act_raw": 0.0056,
+            "elastic_shield_pull_raw": 0.0014,
+            "fase_onda_sinusoidale": "ONDA_DISCENDENTE_O_DEBOLE",
+            "strong_for_overnight": False,
+            "green_hook_confirmed": False,
+            "vwap_dist_pct": -0.09,
+            "rsi_5m": 42.0,
+        }
+        for fast_gap_pnl in [0.0002, 0.0, -0.0003]:
+            intel.peak_pnl_pct["SAPd_EQ"] = 0.0062
+            reason = intel.evaluate_uncapped_exit("SAPd_EQ", fast_gap_pnl, regime, 70.0, {}, metrics, 0.0, False)
+            self.assertIsNotNone(reason, f"Salto di tick non intercettato a pnl={fast_gap_pnl}")
+
+    def test_13_target_30pct_lock_prevents_infinite_churn(self):
+        """Invariante #13: raggiunto il target +30% (130 EUR), liquida una volta e blocca ogni nuovo acquisto."""
+        tmp_tax = "/tmp/test_v11_1_target_lock_tax.json"
+        tmp_state = "/tmp/test_v11_1_target_lock_state.json"
+        for p in (tmp_tax, tmp_state):
+            if os.path.exists(p):
+                os.remove(p)
+
+        class _MockBroker:
+            def __init__(self):
+                self.positions = [{"ticker": "SAPd_EQ", "quantity": 0.12, "averagePrice": 208.0, "currentPrice": 212.0, "ppl": 0.48}]
+                self.orders = []
+
+            def get_open_positions(self):
+                return list(self.positions)
+
+            def get_pending_orders(self):
+                return []
+
+            def get_account_cash(self):
+                return {"result": 30.20, "free": 130.20}
+
+            def place_market_order(self, ticker: str, quantity: float):
+                self.orders.append((ticker, quantity))
+                if quantity < 0:
+                    self.positions = [p for p in self.positions if p["ticker"] != ticker]
+                return {"id": f"ORD_{len(self.orders)}"}
+
+            def cancel_order(self, order_id):
+                return None
+
+        broker = _MockBroker()
+        bot = daemon.Trading212AutonomousBot(client=broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
+        bot.tax_tracker = ItalianTaxTracker730(filepath=tmp_tax)
+        bot.tax_tracker.data["plusvalenze_lorde_eur"] = 30.20
+        bot.tax_tracker.data["minusvalenze_lorde_eur"] = 0.0
+        bot.tax_tracker.save()
+
+        intel = daemon.HybridUncappedIntelligence()
+        intel.prev_open_snapshot.clear()
+        scanner = daemon.QuantMarketScanner()
+        scanner.cached_metrics = {
+            "ASMLa_EQ": {
+                "ticker": "ASMLa_EQ", "name": "ASML", "squad": "SQUADRA_2_CAVALCA_ONDA",
+                "sector": "CHIP_LITOGRAFIA_WAFER", "live_price_eur": 1350.0, "rsi_5m": 54.0,
+                "vwap_dist_pct": 0.15, "atr_5m_volatility_pct": 0.22, "day_range_pct": 1.8,
+                "rvol_ratio": 1.4, "quant_buy_score": 84.0, "green_hook_confirmed": True,
+                "strong_for_overnight": True, "has_fresh_intraday_feed": True,
+                "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT",
+            }
+        }
+        scanner.last_scan_ts = 1e12
+        scanner.scan_all = lambda **kwargs: dict(scanner.cached_metrics)
+
+        class _DummyRadar:
+            def evaluate_overnight_wave(self):
+                return {"verdict": "OK", "allow_overnight_hold": True, "nasdaq_change_pct": 0.4, "sp500_change_pct": 0.3, "dax_change_pct": 0.5, "vix_fear_change_pct": -1.0, "vix_level": 15.0}
+
+        real_dt = datetime.datetime
+        monday_10am = real_dt(2026, 11, 16, 10, 15, 0, tzinfo=daemon.MARKET_TZ)
+        with patch.object(daemon, "BOT_STATE_PATH", tmp_state), patch("datetime.datetime") as mock_dt:
+            mock_dt.now.side_effect = lambda tz=None: monday_10am.astimezone(tz) if tz else monday_10am.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            st1 = daemon.run_cycle(bot, intel, scanner, _DummyRadar(), 1)
+            # Ciclo 1: liquida SAPd_EQ (-0.12) e NON compra nulla
+            self.assertEqual(broker.orders, [("SAPd_EQ", -0.12)])
+            self.assertTrue(bot.tax_tracker.data.get("target_30pct_raggiunto_blocco_attivo"))
+            self.assertFalse(st1["regime_mercato_attivo"]["allow_new_buys"])
+
+            # Ciclo 2: ZERO nuovi acquisti e ZERO liquidazioni duplicate (Zero Churn!)
+            broker.orders.clear()
+            st2 = daemon.run_cycle(bot, intel, scanner, _DummyRadar(), 2)
+            self.assertEqual(broker.orders, [])
+            self.assertEqual(st2["regime_mercato_attivo"]["code"], "TARGET_30PCT_RAGGIUNTO_CONTO_IN_CASSAFORTE")
+
+        for p in (tmp_tax, tmp_state):
+            if os.path.exists(p):
+                os.remove(p)
+
+    def test_14_ny_dst_safe_clock_and_unified_bench_buy_predicate(self):
+        """Invariante #14: orologio America/New_York DST-safe (Marzo/Ottobre) e predicato unico Panchina == BUY."""
+        intel = daemon.HybridUncappedIntelligence()
+        # 25 Marzo 2026: USA già in EDT (UTC-4), Italia ancora in CET (UTC+1) -> 08:30 ET corrisponde alle 13:30 CET!
+        dst_macro_dt = datetime.datetime(2026, 3, 25, 13, 30, 0, tzinfo=daemon.MARKET_TZ)
+        reg_macro = intel.get_intraday_regime(dst_macro_dt)
+        self.assertEqual(reg_macro["code"], "PAUSA_ANTI_SHOCK_DATI_MACRO_USA_14_30")
+        self.assertFalse(reg_macro["allow_new_buys"])
+
+        # 25 Marzo 2026 ore 14:35 CET == 09:35 ET -> Wall Street è GIÀ aperta!
+        dst_nyse_dt = datetime.datetime(2026, 3, 25, 14, 35, 0, tzinfo=daemon.MARKET_TZ)
+        reg_nyse = intel.get_intraday_regime(dst_nyse_dt)
+        self.assertEqual(reg_nyse["code"], "FASE_3_ONDA_WALL_STREET_SENZA_TETTO")
+        self.assertTrue(reg_nyse["us_market_live"])
+
+        # Durante Pausa Pranzo (12:15 CET), un candidato ordinario (RVOL 0.9x, Score 74) è respinto sia in Panchina che in BUY
+        lunch_dt = datetime.datetime(2026, 11, 12, 12, 15, 0, tzinfo=daemon.MARKET_TZ)
+        reg_lunch = intel.get_intraday_regime(lunch_dt)
+        ordinary_cand = {
+            "ticker": "SAPd_EQ", "live_price_eur": 210.0, "vwap_dist_pct": 0.15,
+            "has_fresh_intraday_feed": True, "rvol_ratio": 0.90, "quant_buy_score": 74.0,
+            "rsi_5m": 54.0, "green_hook_confirmed": True, "atr_5m_volatility_pct": 0.19,
+            "day_range_pct": 1.6, "kaufman_efficiency_ratio": 0.55, "strong_for_overnight": True,
+        }
+        elite_lunch_cand = dict(ordinary_cand, rvol_ratio=2.10, quant_buy_score=82.5)
+        ov_ok = {"allow_overnight_hold": True, "nasdaq_change_pct": 0.2, "sp500_change_pct": 0.2, "dax_change_pct": 0.3, "vix_fear_change_pct": -0.5, "vix_level": 16.0}
+        self.assertFalse(intel.is_eligible_entry_candidate(ordinary_cand, reg_lunch, ov_ok))
+        self.assertTrue(intel.is_eligible_entry_candidate(elite_lunch_cand, reg_lunch, ov_ok))
 
 
 if __name__ == "__main__":

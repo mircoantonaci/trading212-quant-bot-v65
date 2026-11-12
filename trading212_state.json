@@ -1,17 +1,17 @@
 {
   "timestamp": "2026-11-12T17:37:55",
   "cycle": 26756,
-  "mode": "INSTITUTIONAL_V11_0_ZERO_CEROTTI_PRUDENTE_LTS",
+  "mode": "INSTITUTIONAL_V11_1_ZERO_CEROTTI_TURBO_LTS",
   "blindature_attive_v6_istituzionali": [
-    "1. Blocco 1 Zero-Ghost Cache V11.0 (Resilienza timeout HTTP Yahoo + Zero numeri fittizi + Fusione 0ms Deduped)",
-    "2. Blocco 2 Ranking Lineare Additivo Puro (Setup VWAP/RSI 0..86 pt + Velocità ATR 0..10 pt, zero distorsione 1,55x)",
-    "3. Filtro Liquidità Variante Prudente (RVOL >= 0,20x obbligatorio per evitare book vuoti e micro-slippage)",
+    "1. Blocco 1 Zero-Ghost Cache V11.1 (Fetch 1d adattivo -70% payload + Persistenza 0ms giornaliera + Radar parallelo)",
+    "2. Blocco 2 VWAP Typical Price ((H+L+C)/3) & RVOL Completed-Bar (Zero bias candela parziale + Tie-breaker ATR libero)",
+    "3. Filtro Liquidità Variante Prudente (RVOL >= 0,20x su 2 barre + Predicato Unificato Panchina == Ciclo BUY)",
     "4. Blocco 3 Allocazione 4 Decimali & Kelly (Budget: 100.00 EUR -> 4 Cartucce da 25.00 EUR)",
     "5. Matrice Markowitz a Filiere Separate (Chip Litografia Wafer vs Chip Potenza Packaging, 4 settori distinti)",
-    "6. Blocco 4 Scala Continua Salva-Utile Senza Tetto (Stadio 1A, Stadio 1B, Stadio 2 Elastico ATR 0,48%..1,05%)",
-    "7. Airbag Economico Chirurgico (~-0,14..-0,16 EUR su rottura VWAP dopo 12m, tetto max -0,64%/-0,72%)",
-    "8. Finestre Liquide Istituzionali (09:00-11:15 & 14:36-17:15 + Selettore Onda Notturna Wall Street/VIX 17:15)",
-    "9. Cassaforte Giornaliera (>= +1,60 EUR in cassa -> Attiva ora: False) + Riconciliazione 1:1 Lotti LIFO"
+    "6. Blocco 4 Scala Continua Salva-Utile Gapless (-0,05% anti-salto tick + Scudo Elastico ATR 0,48%..1,05%)",
+    "7. Airbag Simmetrico Elastico su ATR (~-0,54%..-0,70% senza uncino, tetto assoluto invalicabile -0,72%)",
+    "8. Orologio DST-Safe America/New_York (08:30 ET Macro USA & 09:30 ET Wall Street + Selettore Onda Notturna 17:15)",
+    "9. Cassaforte Giornaliera (>= +1,60 EUR -> Attiva ora: False) + Anti-Split-Brain & Lock +30% Zero-Churn"
   ],
   "regime_mercato_attivo": {
     "code": "DOPOBORSA_NOTTURNO",
@@ -1189,8 +1189,8 @@
       "Nota_IVAFE": "Esente (sotto soglia minima di 12,00 EUR)"
     },
     "QUADRO_T_PLUSVALENZE_LIFO": {
-      "Totale_Corrispettivi_Vendita_EUR": 3722.2,
-      "Totale_Costi_Carico_LIFO_EUR": 3724.12,
+      "Totale_Corrispettivi_Vendita_EUR": 3846.93,
+      "Totale_Costi_Carico_LIFO_EUR": 3848.76,
       "Plusvalenza_Netta_Imponibile_EUR": 0.0,
       "Imposta_Sostitutiva_26_EUR": 0.0,
       "Nota_Versamento": "Nessun versamento F24 dovuto (sotto franchigia 12,00 EUR)"

@@ -9,9 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       cycles:
-        description: "Numero di cicli da 30s (es. 540 = 4h30m continui senza ritardi cron)"
+        description: "Numero massimo di cicli da ~13.5s (es. 1350 = ~5h continui senza buchi)"
         required: false
-        default: "540"
+        default: "1350"
       relay_afternoon:
         description: "Lancia automaticamente il Turno Pomeridiano (13:15 -> 17:35 CET) a fine sessione?"
         required: false
@@ -48,28 +48,35 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: "🧪 Verifica Bloccante dei 10 Invarianti Matematici (V11.0 Zero Cerotti)"
+      - name: "🧪 Verifica Bloccante dei 14 Invarianti Matematici (V11.1 Zero Cerotti Turbo)"
         run: |
           python3 -m unittest discover -s tests -p "test_*.py" -v
 
-      - name: "🛡️ Sessione Continua al Secondo (Zero-Latency 30s Loop + Checkpoint Git)"
+      - name: "🛡️ Sessione Continua al Secondo (Zero-Latency ~13s Loop + Checkpoint Git)"
         run: |
           git config user.name "t212-quant-bot[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          TOTAL_CYCLES="${{ github.event.inputs.cycles || '540' }}"
+          TOTAL_CYCLES="${{ github.event.inputs.cycles || '1350' }}"
+          RELAY_MODE="${{ github.event.inputs.relay_afternoon || 'auto' }}"
           BATCH=30
           DONE=0
 
-          echo "🚀 Avvio Sessione Continua per $TOTAL_CYCLES cicli (Ora locale Borsa: $(date))"
+          echo "🚀 Avvio Sessione Continua V11.1 per max $TOTAL_CYCLES cicli (Ora locale Borsa: $(date))"
           while [ "$DONE" -lt "$TOTAL_CYCLES" ]; do
             HOUR=$(date +%H)
             MIN=$(date +%M)
             HM=$((10#$HOUR * 60 + 10#$MIN))
 
-            # Se sono passate le 17:35 CET (1055 min), la Borsa Europea è chiusa: termina il turno
-            if [ "$HM" -ge 1055 ] && [ "${{ github.event_name }}" = "schedule" ]; then
-              echo "🏁 Borsa Europea chiusa (ore $(date +%H:%M) CET). Fine sessione giornaliera."
+            # Se sono passate le 17:35 CET/CEST (1055 min), la Borsa Europea è chiusa: termina il turno
+            if [ "$HM" -ge 1055 ]; then
+              echo "🏁 Borsa Europea chiusa (ore $(date +%H:%M)). Fine sessione giornaliera."
+              break
+            fi
+
+            # Nel turno mattutino (RELAY_MODE != false), passa il testimone alle 13:15 (795 min) ben prima del timeout 330m
+            if [ "$RELAY_MODE" != "false" ] && [ "$HM" -ge 795 ] && [ "$DONE" -ge 60 ]; then
+              echo "🔄 Passaggio di testimone programmato delle $(date +%H:%M) al Turno Pomeridiano..."
               break
             fi
 
@@ -103,7 +110,7 @@ jobs:
           # Se siamo tra le 12:00 e le 16:30 CET, lancia via workflow_dispatch (avvio in 2 secondi, zero coda cron!) il turno fino alle 17:35
           if [ "$RELAY" != "false" ] && [ "$HM" -ge 720 ] && [ "$HM" -le 990 ]; then
             REMAINING_MIN=$((1055 - HM))
-            NEXT_CYCLES=$((REMAINING_MIN * 2 + 10))
+            NEXT_CYCLES=$((REMAINING_MIN * 5 + 30))
             echo "⚡ Attivazione Staffetta Pomeridiana Istantanea ($NEXT_CYCLES cicli fino alle 17:35 CET)..."
             gh workflow run t212_cloud_h24.yml --repo "${{ github.repository }}" -f cycles="$NEXT_CYCLES" -f relay_afternoon="false" || true
           fi
