@@ -88,6 +88,9 @@ def main() -> None:
         if isinstance(cash, dict) and cash.get("result") is not None:
             seen_t212_net = round(float(cash["result"]), 2)
     except Exception as exc:
+        if "Errno 8" in str(exc) or "nodename nor servname" in str(exc):
+            print(f"[ERRORE RETE AVVIO] Accesso API bloccato dal sandbox: {exc}", flush=True)
+            sys.exit(2)
         print(f"[AVVISO] Lettura iniziale cassa T212 differita: {exc}", flush=True)
 
     now_rome = datetime.datetime.now(MARKET_TZ)
