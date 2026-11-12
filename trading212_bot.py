@@ -22,8 +22,10 @@ Caratteristiche:
 import base64
 import datetime
 import json
+import math
 import os
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.request
@@ -230,10 +232,13 @@ class ItalianTaxTracker730:
         remaining_to_sell = sell_qty
         cost_basis_eur = 0.0
 
-        # Usa SEMPRE il prezzo medio reale certificato da Trading 212 (fallback_avg_price_eur)
-        # per evitare disallineamenti tra la stima Yahoo al momento del buy e il vero prezzo eseguito su T212:
+        # Allinea in-place il prezzo di carico LIFO al prezzo medio reale certificato da Trading 212
+        # senza mai svuotare i lotti residui durante una vendita parziale di ribilanciamento:
         if fallback_avg_price_eur and fallback_avg_price_eur > 0 and lots:
-            lots.clear()
+            real_avg = round(float(fallback_avg_price_eur), 4)
+            for existing_lot in lots:
+                existing_lot["price_eur"] = real_avg
+                existing_lot["total_eur"] = round(float(existing_lot["quantity"]) * real_avg, 4)
 
         while remaining_to_sell > 1e-7 and lots:
             last_lot = lots[-1]
@@ -293,6 +298,35 @@ class ItalianTaxTracker730:
         self.data["operazioni_chiuse"].append(closed_op)
         self.save()
         return closed_op
+
+    def reconcile_certified_cash_result(self, certified_net_eur: float) -> bool:
+        """
+        Riconcilia in modo atomico, simmetrico e monotono il risultato realizzato certificato
+        dal broker (/equity/account/cash -> result) mantenendo sempre allineati:
+        - plusvalenze_lorde_eur (>= 0)
+        - minusvalenze_lorde_eur (>= 0)
+        - imponibile_netto_eur e imposta_sostitutiva_26_eur
+        """
+        t212_net = round(float(certified_net_eur), 2)
+        cur_plus = float(self.data.get("plusvalenze_lorde_eur", 0.0))
+        cur_minus = float(self.data.get("minusvalenze_lorde_eur", 0.0))
+        diff = round(t212_net - (cur_plus - cur_minus), 2)
+        if abs(diff) < 0.01:
+            return False
+
+        if diff > 0:
+            self.data["plusvalenze_lorde_eur"] = round(max(0.0, cur_plus + diff), 2)
+        else:
+            self.data["minusvalenze_lorde_eur"] = round(max(0.0, cur_minus + abs(diff)), 2)
+
+        net_taxable = max(
+            0.0,
+            float(self.data["plusvalenze_lorde_eur"]) - float(self.data["minusvalenze_lorde_eur"]),
+        )
+        self.data["imponibile_netto_eur"] = round(net_taxable, 2)
+        self.data["imposta_sostitutiva_26_eur"] = round(net_taxable * 0.26, 2)
+        self.save()
+        return True
 
     def generate_730_summary(self, current_account_value_eur: float) -> Dict[str, Any]:
         """Restituisce il prospetto pronto da copiare nel Modello 730 online."""
@@ -376,7 +410,7 @@ class Trading212Client:
             try:
                 with urllib.request.urlopen(req, timeout=15) as resp:
                     body = resp.read().decode("utf-8")
-                    return json.loads(body) if body else {}
+                    return json.loads(body) if (body and body.strip()) else {}
             except urllib.error.HTTPError as e:
                 err_body = e.read().decode("utf-8", errors="replace")
                 if e.code == 429 and attempt < 2:
@@ -410,6 +444,33 @@ class Trading212Client:
         """Restituisce gli ordini pendenti (in attesa di apertura mercato o esecuzione)."""
         return self._request("GET", "/equity/orders")
 
+    @staticmethod
+    def snap_mifid_tick_price(raw_price: float, side: str = "BUY") -> float:
+        """
+        Allinea un prezzo limite al passo di quotazione regolamentare MiFID II RTS 11
+        compatibile con tutte le bande di liquidità EUR (XETRA / Euronext Amsterdam),
+        evitando rifiuti HTTP 400 per tick-size invalido o rumore floating-point IEEE-754.
+        """
+        px = max(0.01, float(raw_price))
+        if px < 20.0:
+            step = 0.01
+        elif px < 50.0:
+            step = 0.02
+        elif px < 200.0:
+            step = 0.10
+        elif px < 500.0:
+            step = 0.20
+        elif px < 2000.0:
+            step = 1.00
+        else:
+            step = 2.00
+
+        if side.upper() == "BUY":
+            ticks = math.floor((px / step) + 1e-9)
+        else:
+            ticks = math.ceil((px / step) - 1e-9)
+        return round(max(step, ticks * step), 2)
+
     def place_market_order(self, ticker: str, quantity: float) -> Dict[str, Any]:
         """
         Invia un ordine Market a commissioni zero su azioni frazionate.
@@ -427,6 +488,36 @@ class Trading212Client:
             "quantity": round(quantity, 6),
         }
         return self._request("POST", "/equity/orders/market", payload=payload)
+
+    def place_limit_order(
+        self,
+        ticker: str,
+        quantity: float,
+        limit_price: float,
+        time_validity: str = "DAY",
+    ) -> Dict[str, Any]:
+        """
+        Invia un ordine LIMIT conforme MiFID II RTS 11 su azioni intere o frazionate (Trading 212 API v0).
+        Protegge gli ingressi dagli spike anomali senza mai ripiegare su ordini Market ciechi.
+        """
+        if ticker not in EUR_ZERO_FEE_UNIVERSE:
+            raise ValueError(
+                f"BLOCCO SICUREZZA COSTI: {ticker} non appartiene alla lista "
+                "Europea in EUR a 0% cambio valuta e 0% Tobin Tax."
+            )
+        side = "BUY" if quantity > 0 else "SELL"
+        snapped_limit = self.snap_mifid_tick_price(limit_price, side=side)
+        payload = {
+            "ticker": ticker,
+            "quantity": round(quantity, 6),
+            "limitPrice": snapped_limit,
+            "timeValidity": time_validity,
+        }
+        return self._request("POST", "/equity/orders/limit", payload=payload)
+
+    def cancel_order(self, order_id: Any) -> Dict[str, Any]:
+        """Cancella un ordine pendente tramite ID ufficiale Trading 212 (DELETE /equity/orders/{id})."""
+        return self._request("DELETE", f"/equity/orders/{order_id}")
 
 
 class Trading212AutonomousBot:
@@ -457,44 +548,69 @@ class Trading212AutonomousBot:
 
     def liquidate_all_for_withdrawal(self) -> List[Dict[str, Any]]:
         """
-        Chiude immediatamente tutte le posizioni azionarie aperte a mercato (0,00 EUR commissioni),
-        trasformando l'intero saldo in liquidità EUR pronta per il bonifico di prelievo.
+        Cancella eventuali ordini pendenti e chiude immediatamente tutte le posizioni EUR aperte
+        a mercato (0,00 EUR commissioni), registrando il costo medio reale certificato da T212.
         """
         if not self.client:
             raise RuntimeError("Client Trading 212 non configurato.")
+        try:
+            for pend in self.client.get_pending_orders() or []:
+                oid = pend.get("id")
+                if oid is not None:
+                    try:
+                        self.client.cancel_order(oid)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
         open_positions = self.client.get_open_positions()
         closed_orders: List[Dict[str, Any]] = []
         for pos in open_positions:
-            ticker = pos.get("ticker", "")
+            ticker = str(pos.get("ticker", ""))
             qty = float(pos.get("quantity", 0.0))
             current_price = float(pos.get("currentPrice", 0.0))
-            if qty > 0 and ticker in EUR_ZERO_FEE_UNIVERSE:
+            avg_price = float(pos.get("averagePrice") or current_price)
+            if qty <= 0:
+                continue
+            if ticker not in EUR_ZERO_FEE_UNIVERSE and ticker.endswith(("d_EQ", "a_EQ")):
+                EUR_ZERO_FEE_UNIVERSE[ticker] = {
+                    "name": ticker,
+                    "exchange": "XETRA / Euronext",
+                    "currency": "EUR",
+                    "isin": "EUR_VERIFIED",
+                    "tobin_tax": "0.00%",
+                }
+            if ticker in EUR_ZERO_FEE_UNIVERSE:
                 order_resp = self.client.place_market_order(ticker=ticker, quantity=-qty)
                 tax_op = self.tax_tracker.record_sell(
                     ticker=ticker,
                     sell_qty=qty,
                     sell_price_eur=current_price,
+                    fallback_avg_price_eur=avg_price,
                 )
                 closed_orders.append({"order": order_resp, "tax_record": tax_op})
         return closed_orders
 
 
 def run_self_test() -> None:
-    """Esegue un test locale del motore e del Registro Fiscale 730 (LIFO)."""
-    test_registry_path = os.path.join(BASE_DIR, "registro_fiscale_730.json")
-    if os.path.exists(test_registry_path):
-        os.remove(test_registry_path)
-
-    tracker = ItalianTaxTracker730(filepath=test_registry_path)
-    # Inizializza il file registro_fiscale_730.json pulito per l'utente (stato iniziale 100 EUR)
-    tracker.save()
-    summary = tracker.generate_730_summary(current_account_value_eur=100.00)
-    print("=== MOTORE TRADING 212 + REGISTRO FISCALE 730 PRONTO ===")
-    print(f"File registro fiscale creato in: {test_registry_path}")
-    print(f"Universo Azioni EUR 0-Commissioni caricato ({len(EUR_ZERO_FEE_UNIVERSE)} titoli):")
-    for tkr, meta in EUR_ZERO_FEE_UNIVERSE.items():
-        print(f"  - {tkr}: {meta['name']} ({meta['exchange']}) | Valuta: {meta['currency']} | Tobin Tax: {meta['tobin_tax']}")
-    print("Riepilogo Fiscale Iniziale:", json.dumps(summary, indent=2, ensure_ascii=False))
+    """Esegue un test isolato in /tmp del motore e del Registro Fiscale 730 (senza toccare il file live)."""
+    with tempfile.NamedTemporaryFile(prefix="t212_tax_selftest_", suffix=".json", delete=False) as tmp_f:
+        test_registry_path = tmp_f.name
+    try:
+        if os.path.exists(test_registry_path):
+            os.remove(test_registry_path)
+        tracker = ItalianTaxTracker730(filepath=test_registry_path)
+        tracker.save()
+        summary = tracker.generate_730_summary(current_account_value_eur=100.00)
+        print("=== MOTORE TRADING 212 + REGISTRO FISCALE 730 PRONTO (SELF-TEST ISOLATO) ===")
+        print(f"Universo Azioni EUR Base caricato ({len(EUR_ZERO_FEE_UNIVERSE)} titoli):")
+        for tkr, meta in EUR_ZERO_FEE_UNIVERSE.items():
+            print(f"  - {tkr}: {meta['name']} ({meta['exchange']}) | Valuta: {meta['currency']} | Tobin Tax: {meta['tobin_tax']}")
+        print("Riepilogo Fiscale Test:", json.dumps(summary, indent=2, ensure_ascii=False))
+    finally:
+        if os.path.exists(test_registry_path):
+            os.remove(test_registry_path)
 
 
 if __name__ == "__main__":

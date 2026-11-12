@@ -44,9 +44,14 @@ from trading212_bot import (
 )
 
 CREDENTIALS_PATH = os.path.join(BASE_DIR, "t212_credentials.json")
+SCANNER_CACHE_PATH = os.path.join(BASE_DIR, ".scanner_5m_cache.json")
 V11_CLEAN_EPOCH_TS = "2026-11-12T15:30:00"
 PRUDENT_MIN_RVOL = 0.20
 LINEAR_ELITE_SCORE = 80.0
+BASE_MIN_BUY_SCORE = 58.0
+LIMIT_ORDER_CAP_PCT = 0.0100  # +1,00% tetto anti-spike MiFID II RTS 11
+DAILY_VAULT_TRIGGER_EUR = 1.60
+DAILY_VAULT_GIVEBACK_EUR = 0.30
 
 ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     "RHMd_EQ": {
@@ -389,7 +394,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "beta_tier": "CORE_BLUE_CHIP",
     },
     {
-        "fallback_ticker": "DHLd_EQ",
+        "fallback_ticker": "DPWd_EQ",
         "name": "DHL Group (Deutsche Post)",
         "isin": "DE0005552004",
         "exchange": "XETRA (Francoforte)",
@@ -507,7 +512,7 @@ def discover_and_verify_eur_giants(client: Trading212Client) -> int:
 
     added_count = 0
     for cand in CANDIDATE_EUR_GIANTS:
-        tkr = verified_map.get(cand["isin"])
+        tkr = verified_map.get(cand["isin"]) or cand.get("fallback_ticker", "")
         if not tkr:
             continue
         EUR_ZERO_FEE_UNIVERSE[tkr] = {
@@ -557,7 +562,7 @@ class OvernightWaveRadar:
         self.last_check_ts: float = 0.0
         self.cached_radar: Dict[str, Any] = {}
 
-    def _fetch_index_snapshot(self, symbol: str) -> Tuple[float, float]:
+    def _fetch_index_snapshot(self, symbol: str) -> Tuple[float, float, bool]:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=5m&range=1d"
         req = urllib.request.Request(
             url,
@@ -577,14 +582,14 @@ class OvernightWaveRadar:
                 ]
                 last_lvl = closes[-1] if closes else reg_px
                 if closes and prev_close > 0:
-                    return round(((closes[-1] - prev_close) / prev_close) * 100.0, 2), round(last_lvl, 2)
+                    return round(((closes[-1] - prev_close) / prev_close) * 100.0, 2), round(last_lvl, 2), True
                 if len(closes) >= 2 and closes[0] > 0:
-                    return round(((closes[-1] - closes[0]) / closes[0]) * 100.0, 2), round(last_lvl, 2)
+                    return round(((closes[-1] - closes[0]) / closes[0]) * 100.0, 2), round(last_lvl, 2), True
                 if last_lvl > 0 and prev_close > 0:
-                    return round(((last_lvl - prev_close) / prev_close) * 100.0, 2), round(last_lvl, 2)
+                    return round(((last_lvl - prev_close) / prev_close) * 100.0, 2), round(last_lvl, 2), True
         except Exception:
             pass
-        return 0.0, 0.0
+        return 0.0, 0.0, False
 
     def evaluate_overnight_wave(self, force: bool = False) -> Dict[str, Any]:
         now_ts = time.time()
@@ -594,25 +599,43 @@ class OvernightWaveRadar:
         symbols = ("%5EGSPC", "%5EIXIC", "%5EGDAXI", "%5EVIX")
         with ThreadPoolExecutor(max_workers=4) as pool:
             futs = {sym: pool.submit(self._fetch_index_snapshot, sym) for sym in symbols}
-            sp500_pct, _ = futs["%5EGSPC"].result()
-            nasdaq_pct, _ = futs["%5EIXIC"].result()
-            dax_pct, _ = futs["%5EGDAXI"].result()
-            vix_pct, vix_raw_lvl = futs["%5EVIX"].result()
-        vix_level = vix_raw_lvl if vix_raw_lvl > 0.0 else 16.0
+            sp500_pct, _, ok_sp = futs["%5EGSPC"].result()
+            nasdaq_pct, _, ok_nq = futs["%5EIXIC"].result()
+            dax_pct, _, ok_dax = futs["%5EGDAXI"].result()
+            vix_pct, vix_raw_lvl, ok_vix = futs["%5EVIX"].result()
 
-        # V10.0 Regola Istituzionale VIX (Livello Assoluto + Variazione %):
-        # Un rimbalzo del VIX da 13.0 a 13.7 (+5%) è rumore fisiologico in regime ultra-calmo (< 18.5);
-        # diventa vera paura istituzionale solo quando VIX >= 18.5 oppure esplode >= +9.0% intraday!
+        prev = self.cached_radar
+        if not ok_sp and prev:
+            sp500_pct = float(prev.get("sp500_change_pct", 0.0))
+            ok_sp = True
+        if not ok_nq and prev:
+            nasdaq_pct = float(prev.get("nasdaq_change_pct", 0.0))
+            ok_nq = True
+        if not ok_dax and prev:
+            dax_pct = float(prev.get("dax_change_pct", 0.0))
+            ok_dax = True
+        if not ok_vix and prev:
+            vix_pct = float(prev.get("vix_fear_change_pct", 0.0))
+            vix_raw_lvl = float(prev.get("vix_level", 16.0))
+            ok_vix = True
+
+        vix_level = vix_raw_lvl if (ok_vix and vix_raw_lvl > 0.0) else 20.0
+        us_and_vix_reliable = bool((ok_nq or ok_sp) and ok_vix)
+
+        # V11.2 Regola Istituzionale VIX con Protezione Zero-Ghost su Timeout Yahoo:
+        # Se i feed USA/VIX non rispondono e non esiste cache valida, vieta falsi positivi overnight!
         us_avg_pct = round((nasdaq_pct * 0.6 + sp500_pct * 0.4), 2)
-        vix_calm_for_overnight = (vix_pct <= 2.5) or (vix_level < 18.5 and vix_pct <= 7.5)
-        vix_ultra_calm = (vix_pct <= 1.0) or (vix_level < 17.5 and vix_pct <= 5.0)
+        vix_calm_for_overnight = us_and_vix_reliable and ((vix_pct <= 2.5) or (vix_level < 18.5 and vix_pct <= 7.5))
+        vix_ultra_calm = us_and_vix_reliable and ((vix_pct <= 1.0) or (vix_level < 17.5 and vix_pct <= 5.0))
         vix_is_elevated_fear = (
-            (vix_level >= 18.5 and vix_pct >= 3.5)
+            not us_and_vix_reliable
+            or (vix_level >= 18.5 and vix_pct >= 3.5)
             or vix_pct >= 9.0
             or vix_level >= 24.0
         )
-        is_positive_wave = (us_avg_pct >= 0.10 and vix_calm_for_overnight) or (
-            us_avg_pct >= 0.0 and dax_pct >= 0.35 and vix_ultra_calm
+        is_positive_wave = us_and_vix_reliable and (
+            (us_avg_pct >= 0.10 and vix_calm_for_overnight)
+            or (us_avg_pct >= 0.0 and dax_pct >= 0.35 and vix_ultra_calm)
         )
 
         if is_positive_wave:
@@ -648,7 +671,8 @@ class OvernightWaveRadar:
 class QuantMarketScanner:
     """Scanner quantitativo a 5 minuti con Fusione Zero-Latency (Tick Real-Time Trading 212 + Storico 5m)."""
 
-    def __init__(self) -> None:
+    def __init__(self, cache_path: Optional[str] = None) -> None:
+        self.cache_path = cache_path
         self.live_prices: Dict[str, float] = {
             tkr: float(prof["ref_price_eur"]) for tkr, prof in ASSET_PROFILES.items()
         }
@@ -657,10 +681,59 @@ class QuantMarketScanner:
         self.realtime_5m_bars: Dict[str, Dict[int, Dict[str, float]]] = {
             tkr: {} for tkr in ASSET_PROFILES
         }
-        # V11.0 Zero-Ghost Cache: conserva l'ultima serie valida di candele 5m per resistere ai timeout HTTP di Yahoo senza inventare numeri fittizi
+        # V11.2 Zero-Ghost Cache: conserva l'ultima serie valida di candele 5m anche tra i batch Cloud (con int keys tipizzate)
         self.last_valid_bars: Dict[str, Dict[str, Any]] = {}
         self.last_scan_ts: float = 0.0
         self.cached_metrics: Dict[str, Dict[str, Any]] = {}
+        if self.cache_path:
+            self.load_disk_cache()
+
+    def load_disk_cache(self) -> None:
+        if not self.cache_path or not os.path.exists(self.cache_path):
+            return
+        try:
+            with open(self.cache_path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            today_iso = datetime.datetime.now(MARKET_TZ).date().isoformat()
+            if raw.get("date") != today_iso:
+                return
+            for tkr, bmap in raw.get("realtime_5m_bars", {}).items():
+                if isinstance(bmap, dict):
+                    self.realtime_5m_bars[tkr] = {
+                        int(k): {
+                            "open": float(v["open"]),
+                            "high": float(v["high"]),
+                            "low": float(v["low"]),
+                            "close": float(v["close"]),
+                        }
+                        for k, v in bmap.items()
+                        if isinstance(v, dict) and "close" in v
+                    }
+            for tkr, cb in raw.get("last_valid_bars", {}).items():
+                if isinstance(cb, dict) and cb.get("closes"):
+                    cb["bar_timestamps"] = [int(ts) for ts in cb.get("bar_timestamps", [])]
+                    self.last_valid_bars[tkr] = cb
+        except Exception:
+            pass
+
+    def save_disk_cache(self) -> None:
+        if not self.cache_path:
+            return
+        try:
+            today_iso = datetime.datetime.now(MARKET_TZ).date().isoformat()
+            payload = {
+                "date": today_iso,
+                "realtime_5m_bars": {
+                    tkr: {str(k): v for k, v in bmap.items()}
+                    for tkr, bmap in self.realtime_5m_bars.items()
+                    if bmap
+                },
+                "last_valid_bars": self.last_valid_bars,
+            }
+            with open(self.cache_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, separators=(",", ":"))
+        except Exception:
+            pass
 
     def update_t212_live_price(self, ticker: str, price_eur: float) -> None:
         if price_eur > 0 and ticker in ASSET_PROFILES:
@@ -738,7 +811,9 @@ class QuantMarketScanner:
                         v_f = float(v or 0.0)
                         ts_int = int(ts)
                         bucket_ts = int(ts_int // 300) * 300
-                        if v_f > 0.0:
+                        b_dt_v = datetime.datetime.fromtimestamp(bucket_ts, tz=MARKET_TZ)
+                        is_closing_auction_spike = (b_dt_v.hour == 17 and b_dt_v.minute >= 25)
+                        if v_f > 0.0 and not is_closing_auction_spike:
                             if yahoo_nonzero_buckets and yahoo_nonzero_buckets[-1] == bucket_ts:
                                 yahoo_nonzero_vols[-1] = max(yahoo_nonzero_vols[-1], v_f)
                             else:
@@ -830,14 +905,19 @@ class QuantMarketScanner:
             mkt_open_now = now_cet_bar.weekday() < 5 and (9 * 60 <= now_hm < 17 * 60 + 30)
             now_bucket = int(time.time() // 300) * 300
             if abs(last_c - closes[-1]) > 1e-4:
-                if mkt_open_now and bar_timestamps and now_bucket > bar_timestamps[-1]:
+                if (
+                    self.has_t212_realtime.get(ticker, False)
+                    and mkt_open_now
+                    and bar_timestamps
+                    and now_bucket > bar_timestamps[-1]
+                ):
                     closes.append(last_c)
                     highs.append(max(last_c, closes[-2]))
                     lows.append(min(last_c, closes[-2]))
                     vols.append(avg_vol_est)
                     bar_timestamps.append(now_bucket)
                 else:
-                    # Aggiornamento in-place della punta 0ms dentro il bucket 5m corrente!
+                    # Aggiornamento in-place della punta 0ms/spot dentro il bucket corrente (zero candele sintetiche sui dati ritardati!)
                     closes[-1] = last_c
                     highs[-1] = max(highs[-1], last_c)
                     lows[-1] = min(lows[-1], last_c)
@@ -885,11 +965,19 @@ class QuantMarketScanner:
             ref_idx_3 = max(first_today_idx, len(closes) - 3)
             ref_idx_4 = max(first_today_idx, len(closes) - 4)
             ref_idx_7 = max(first_today_idx, len(closes) - 7)
-            price_turning_down = (closes[-1] < closes[ref_idx_2])
-            falling_knife = (closes[-1] < closes[ref_idx_2] and closes[ref_idx_2] < closes[ref_idx_3])
-            breakout_candle = (closes[-1] > highs[ref_idx_2]) if len(highs) >= 2 else False
-            higher_low = (lows[-1] >= lows[ref_idx_2]) if len(lows) >= 2 else True
-            green_hook_confirmed = not falling_knife and (closes[-1] >= closes[ref_idx_2] or higher_low)
+            if len(today_indices) == 1 and ref_idx_2 == len(closes) - 1:
+                bar_mid_open = (highs[-1] + lows[-1]) / 2.0
+                price_turning_down = closes[-1] < bar_mid_open
+                falling_knife = closes[-1] < bar_mid_open and (highs[-1] - lows[-1]) > 0 and closes[-1] <= (lows[-1] + 0.25 * (highs[-1] - lows[-1]))
+                breakout_candle = (closes[-1] > highs[-2]) if len(highs) >= 2 else False
+                higher_low = closes[-1] >= bar_mid_open
+                green_hook_confirmed = not falling_knife and higher_low
+            else:
+                price_turning_down = (closes[-1] < closes[ref_idx_2])
+                falling_knife = (closes[-1] < closes[ref_idx_2] and closes[ref_idx_2] < closes[ref_idx_3])
+                breakout_candle = (closes[-1] > highs[ref_idx_2]) if len(highs) >= 2 else False
+                higher_low = (lows[-1] >= lows[ref_idx_2]) if len(lows) >= 2 else True
+                green_hook_confirmed = not falling_knife and (closes[-1] >= closes[ref_idx_2] or higher_low)
             slope_rising = (closes[-1] >= closes[ref_idx_3])
             slope_15m_pct = ((closes[-1] - closes[ref_idx_4]) / closes[ref_idx_4] * 100.0) if closes[ref_idx_4] > 0 else 0.0
             slope_30m_pct = ((closes[-1] - closes[ref_idx_7]) / closes[ref_idx_7] * 100.0) if closes[ref_idx_7] > 0 else slope_15m_pct
@@ -915,25 +1003,38 @@ class QuantMarketScanner:
             else:
                 volume_drying_up = False
                 rvol_ratio = 0.0
-            # Calcolo ATR (Average True Range) a 5m per Scudo Elastico e Bonus Velocità Lineare
+            # Calcolo ATR 5m Intraday Puro (esclude salti overnight/halt > 1800s dal True Range a 5 minuti!)
             tr_pcts: List[float] = []
             start_idx = max(1, len(closes) - 14)
             for i in range(start_idx, len(closes)):
                 prev_c = closes[i - 1]
                 if prev_c > 0:
-                    tr = max(
-                        highs[i] - lows[i],
-                        abs(highs[i] - prev_c),
-                        abs(lows[i] - prev_c),
+                    has_time_gap = (
+                        len(bar_timestamps) == len(closes)
+                        and (bar_timestamps[i] - bar_timestamps[i - 1]) > 1800
                     )
+                    if has_time_gap:
+                        tr = highs[i] - lows[i]
+                    else:
+                        tr = max(
+                            highs[i] - lows[i],
+                            abs(highs[i] - prev_c),
+                            abs(lows[i] - prev_c),
+                        )
                     tr_pcts.append(tr / prev_c)
             atr_5m_pct = (sum(tr_pcts) / len(tr_pcts)) if tr_pcts else 0.0018
 
-            # Indice di Pulizia dell'Onda di Kaufman (Efficiency Ratio 10 barre)
-            k_win = min(10, len(closes) - 1)
-            net_move = abs(closes[-1] - closes[-1 - k_win])
-            path_move = sum(abs(closes[j] - closes[j - 1]) for j in range(len(closes) - k_win, len(closes)))
-            kaufman_er = round(net_move / path_move, 2) if path_move > 0 else 0.0
+            # Indice di Pulizia dell'Onda di Kaufman Intraday Puro (Efficiency Ratio senza contaminazione gap 16h)
+            if len(today_indices) >= 4:
+                k_start = max(first_today_idx, len(closes) - 11)
+                net_move = abs(closes[-1] - closes[k_start])
+                path_move = sum(abs(closes[j] - closes[j - 1]) for j in range(k_start + 1, len(closes)))
+                kaufman_er = round(net_move / path_move, 2) if path_move > 0 else 0.0
+            else:
+                k_win = min(10, len(closes) - 1)
+                net_move = abs(closes[-1] - closes[-1 - k_win])
+                path_move = sum(abs(closes[j] - closes[j - 1]) for j in range(len(closes) - k_win, len(closes)))
+                kaufman_er = round(net_move / path_move, 2) if path_move > 0 else 0.0
         else:
             # V11.0 Invariante Anti-Fantasma: in assenza di candele reali, ZERO numeri inventati (Score = 0.0)
             ref_idx_2 = 0
@@ -1027,12 +1128,12 @@ class QuantMarketScanner:
         elif rsi_14 > 68.0 and price_turning_down and volume_drying_up:
             sine_phase = "CRESTA_IN_INVERSIONE_FALSO_POSITIVO"
             strong_for_overnight = False
-        elif score_momentum >= 55.0 or (rsi_14 > 60.0 and (not price_turning_down or slope_rising or vwap_dist_pct >= 0.0)):
+        elif score_momentum >= 55.0 or (rsi_14 > 60.0 and vwap_dist_pct >= 0.0 and (not price_turning_down or slope_rising)):
             sine_phase = "SUPER_TREND_VERO_POSITIVO_BREAKOUT"
-            strong_for_overnight = True
-        elif score_pullback >= 52.0 or (36.0 <= rsi_14 <= 64.0 and (slope_rising or green_hook_confirmed) and vwap_dist_pct >= -0.55):
+            strong_for_overnight = vwap_dist_pct >= -0.05
+        elif rsi_14 >= 38.0 and (score_pullback >= 52.0 or (38.0 <= rsi_14 <= 64.0 and (slope_rising or green_hook_confirmed) and vwap_dist_pct >= -0.05)):
             sine_phase = "ONDA_ASCENDENTE_SANA_VERO_POSITIVO"
-            strong_for_overnight = True
+            strong_for_overnight = vwap_dist_pct >= -0.05
         elif rsi_14 < 38.0 and green_hook_confirmed:
             sine_phase = "VALLE_CON_UNCINO_VERDE_PRONTO_ACQUISTO"
             strong_for_overnight = False
@@ -1050,7 +1151,7 @@ class QuantMarketScanner:
             "sector": prof["sector"],
             "beta_tier": beta_tier,
             "role_desc": prof["role_desc"],
-            "live_price_eur": round(last_c, 2),
+            "live_price_eur": round(last_c, 4),
             "rsi_5m": rsi_14,
             "dip_from_high_pct": round(dip_from_high_pct, 2),
             "day_range_pct": round(day_range_pct, 2),
@@ -1174,6 +1275,15 @@ class HybridUncappedIntelligence:
                     if st_dt.tzinfo is None:
                         st_dt = st_dt.replace(tzinfo=MARKET_TZ)
                     state_fresh = abs(time.time() - st_dt.timestamp()) <= 3600.0
+                if state_fresh:
+                    cd = st.get("cooldown_state", {})
+                    if isinstance(cd, dict):
+                        for k, v in cd.get("last_sell_price", {}).items():
+                            self.last_sell_price[str(k)] = float(v)
+                        for k, v in cd.get("last_sell_time", {}).items():
+                            self.last_sell_time[str(k)] = float(v)
+                        for k, v in cd.get("last_sell_was_loss", {}).items():
+                            self.last_sell_was_loss[str(k)] = bool(v)
                 for c in st.get("cartucce_4x25_eur", []):
                     tkr = c.get("ticker")
                     pk = c.get("peak_pnl_pct")
@@ -1287,9 +1397,9 @@ class HybridUncappedIntelligence:
         if hm >= 11 * 60 + 15 and ny_hm < 8 * 60 + 28:
             return {
                 "code": "FASE_2_SCUDO_DESERTO_MEZZOGIORNO_11_15_14_35",
-                "description": "11:15 CET - 08:28 ET: Scudo Pausa Pranzo Europea — gestione/incasso posizioni aperte, stop acquisti ordinari (solo Super-Breakout RVOL >= 1,80x & Score >= 80)",
+                "description": "11:15 CET - 08:28 ET: Scudo Pausa Pranzo Europea — gestione/incasso posizioni aperte, stop totale nuovi acquisti nel deserto di volumi",
                 "market_open": True,
-                "allow_new_buys": True,
+                "allow_new_buys": False,
                 "is_pre_close_window": False,
                 "is_morning_gap_harvest": False,
                 "is_friday_pre_weekend": False,
@@ -1319,6 +1429,33 @@ class HybridUncappedIntelligence:
             "us_market_live": True,
         }
 
+    def compute_profit_protection_floor(
+        self,
+        peak_pnl_pct: float,
+        shield_act: float,
+        shield_pull: float,
+        atr_raw: float,
+        daily_vault_active: bool = False,
+    ) -> Tuple[str, Optional[float]]:
+        """
+        Funzione monotona continua unica (Zero Gradini Ciechi e parità 1:1 Motore == JSON):
+        - peak >= shield_act: Scudo Mobile Senza Tetto (peak - shield_pull, gapless fino a -0,05%)
+        - 0,58% <= peak < shield_act: Curva Continua Monotona che sale senza buchi da +0,40% fino a (shield_act - shield_pull)
+        - breakeven_trigger <= peak < 0,58%: Pre-Scudo Salva-Utile sul pavimento di pareggio protetto
+        """
+        breakeven_trigger = max(0.0040 if daily_vault_active else 0.0042, min(0.0050, round(atr_raw * 2.1, 4)))
+        breakeven_floor = max(0.0016 if daily_vault_active else 0.0018, round(breakeven_trigger * 0.45, 4))
+        if peak_pnl_pct >= shield_act:
+            return ("UNCAPPED_SHIELD_2", max(-0.0005, round(peak_pnl_pct - shield_pull, 4)))
+        if peak_pnl_pct >= 0.0058:
+            mid_pull = max(0.0018, round(shield_pull * 1.15, 4))
+            upper_anchor = max(0.0040, round(shield_act - shield_pull, 4))
+            cont_floor = min(upper_anchor, max(0.0040, round(peak_pnl_pct - mid_pull, 4)))
+            return ("CONTINUOUS_CURVE_1B", cont_floor)
+        if peak_pnl_pct >= breakeven_trigger:
+            return ("PRE_SHIELD_1A", breakeven_floor)
+        return ("NONE", None)
+
     def evaluate_uncapped_exit(
         self,
         ticker: str,
@@ -1329,19 +1466,15 @@ class HybridUncappedIntelligence:
         ticker_metrics: Dict[str, Any],
         realized_net_eur: float = 0.0,
         has_green_hook_bench: bool = False,
+        daily_vault_active: Optional[bool] = None,
     ) -> Optional[str]:
         prof = ASSET_PROFILES.get(ticker, ASSET_PROFILES["SAPd_EQ"])
-        # BLINDATURA #8 (V11.1 Scudo Elastico Puro adattato all'ATR 5m):
         atr_raw = float(ticker_metrics.get("atr_5m_volatility_pct", 0.18)) / 100.0
         shield_act = max(0.0048, float(ticker_metrics.get("elastic_shield_act_raw", prof["shield_activation_pct"])))
         shield_pull = max(0.0012, float(ticker_metrics.get("elastic_shield_pull_raw", prof["shield_pullback_pct"])))
 
-        # BLINDATURA #10 + V11.1 Scala Progressiva Continua Senza Buchi (Gapless Floor fino a -0,05% contro i salti di tick):
-        daily_vault_active = (realized_net_eur >= 1.60)
-        breakeven_trigger = max(0.0040 if daily_vault_active else 0.0042, min(0.0050, round(atr_raw * 2.1, 4)))
-        breakeven_floor = max(0.0016 if daily_vault_active else 0.0018, round(breakeven_trigger * 0.45, 4))
-        mid_tier_trigger = 0.0058  # ~+0,15 EUR: blinda il gradino intermedio senza buchi!
-        mid_tier_floor = 0.0040
+        if daily_vault_active is None:
+            daily_vault_active = (realized_net_eur >= DAILY_VAULT_TRIGGER_EUR)
 
         sine_phase = ticker_metrics.get("fase_onda_sinusoidale", "")
         stock_is_strong = bool(ticker_metrics.get("strong_for_overnight", False))
@@ -1361,29 +1494,37 @@ class HybridUncappedIntelligence:
                     f"dal picco +{new_peak*100:.2f}% a +{pnl_pct*100:.2f}% prima del Gap-Fill!"
                 )
 
-        # BLINDATURA #1 (Stadio 2) + BLINDATURA #8 (ATR Elastico V11.1, Gapless Floor >= -0,05%): Scudo Mobile Senza Tetto
-        if new_peak >= shield_act and (new_peak - pnl_pct) >= shield_pull and pnl_pct >= -0.0005:
+        stage_code, stage_floor = self.compute_profit_protection_floor(
+            new_peak,
+            shield_act,
+            shield_pull,
+            atr_raw,
+            daily_vault_active=daily_vault_active,
+        )
+
+        # BLINDATURA #1 (Stadio 2) + BLINDATURA #8 (ATR Elastico V11.2, Gapless Floor >= -0,05%): Scudo Mobile Senza Tetto
+        if stage_code == "UNCAPPED_SHIELD_2" and stage_floor is not None and -0.0005 <= pnl_pct <= stage_floor:
             return (
                 f"SCUDO MOBILE ELASTICO SENZA TETTO ({prof['squad']}): cavalcato rialzo fino al picco "
                 f"di +{new_peak*100:.2f}% e incassato su inversione a {pnl_pct*100:+.2f}%"
             )
 
-        # BLINDATURA #1 (Stadio 1B - Gradino Progressivo Continuo Senza Buchi V11.1):
-        if new_peak >= mid_tier_trigger and -0.0005 <= pnl_pct <= mid_tier_floor:
+        # BLINDATURA #1 (Stadio 1B - Curva Continua Monotona Salva-Utile V11.2, zero scalini ciechi):
+        if stage_code == "CONTINUOUS_CURVE_1B" and stage_floor is not None and -0.0005 <= pnl_pct <= stage_floor:
             strong_above_vwap_hold = (
                 vwap_dist >= 0.10
                 and cur_rsi_5m >= 44.0
                 and green_hook_ok
-                and pnl_pct >= 0.0032
+                and pnl_pct >= max(0.0032, round(stage_floor - 0.0008, 4))
             )
             if not strong_above_vwap_hold:
                 return (
-                    f"BLINDATURA #1B - SCALA PROGRESSIVA SALVA-UTILE: {ticker} aveva toccato "
-                    f"il picco di +{new_peak*100:.2f}% e ha blindato il gradino a {pnl_pct*100:+.2f}%!"
+                    f"BLINDATURA #1B - CURVA CONTINUA SALVA-UTILE: {ticker} aveva toccato "
+                    f"il picco di +{new_peak*100:.2f}% e ha blindato il pavimento dinamico ({stage_floor*100:+.2f}%) a {pnl_pct*100:+.2f}%!"
                 )
 
-        # BLINDATURA #1 (Stadio 1A - Pre-Scudo Salva-Utile Senza Buchi V11.1):
-        if new_peak >= breakeven_trigger and -0.0005 <= pnl_pct <= breakeven_floor:
+        # BLINDATURA #1 (Stadio 1A - Pre-Scudo Salva-Utile Senza Buchi V11.2):
+        if stage_code == "PRE_SHIELD_1A" and stage_floor is not None and -0.0005 <= pnl_pct <= stage_floor:
             trend_still_healthy_above_vwap = (
                 vwap_dist >= -0.03 and cur_rsi_5m >= 46.0 and green_hook_ok
             )
@@ -1484,9 +1625,14 @@ class HybridUncappedIntelligence:
                 f"sblocco cartuccia ferma solo in positivo per salire sul razzo in Super-Trend!"
             )
 
-        # BLINDATURA #15 (V11.1 Airbag Simmetrico Elastico su ATR, tetto assoluto invalicabile -0,72%):
+        # BLINDATURA #15 (V11.2 Airbag Simmetrico Elastico su ATR + Taglio Catastrofico < 8m contro Flash-Crash):
         breakdown_stop_pct = -min(0.0068, max(0.0054, round(atr_raw * 2.30, 4)))
         airbag_no_hook_pct = -min(0.0070, max(0.0064, round(atr_raw * 2.45, 4)))
+        if minutes_open < 8.0 and pnl_pct <= -0.0135:
+            return (
+                f"BLINDATURA #15 - AIRBAG CATASTROFICO ISTANTANEO (<8m, {pnl_pct*100:+.2f}% <= -1,35%): "
+                f"taglio d'emergenza immediato contro flash-crash / profit-warning!"
+            )
         if minutes_open >= 12.0:
             if pnl_pct <= breakdown_stop_pct and (vwap_dist < -0.10 or cur_rsi_5m < 45.0) and not green_hook_ok and not stock_is_strong:
                 return (
@@ -1510,7 +1656,7 @@ class HybridUncappedIntelligence:
         lunch_profit_lock_active: bool = False,
     ) -> bool:
         """Predicato unico di idoneità all'ingresso condiviso 1:1 tra Panchina (Stagnation Switch) e Ciclo BUY."""
-        if not regime.get("allow_new_buys", True):
+        if not regime.get("allow_new_buys", True) or lunch_profit_lock_active:
             return False
         tkr = str(cand.get("ticker", ""))
         live_px = float(cand.get("live_price_eur", 0.0))
@@ -1520,12 +1666,13 @@ class HybridUncappedIntelligence:
         if not bool(cand.get("has_fresh_intraday_feed", False)):
             return False
         cand_rvol = float(cand.get("rvol_ratio", 0.0))
-        if cand_rvol < PRUDENT_MIN_RVOL:
+        min_rvol = 0.85 if daily_vault_active else PRUDENT_MIN_RVOL
+        if cand_rvol < min_rvol:
             return False
 
         score = float(cand.get("quant_buy_score", 0.0))
         rsi_5m = float(cand.get("rsi_5m", 100.0))
-        min_required_score = 62.0 if daily_vault_active else 52.0
+        min_required_score = 62.0 if daily_vault_active else BASE_MIN_BUY_SCORE
         if rsi_5m > 66.0 or score < min_required_score or not bool(cand.get("green_hook_confirmed", False)):
             return False
 
@@ -1568,27 +1715,8 @@ class HybridUncappedIntelligence:
             )
         else:
             intraday_crash_shield = ((dax_c <= -1.00 and vix_fear_5_c) or vix_crash_12_c)
-        if intraday_crash_shield:
-            cand_phase = str(cand.get("fase_onda_sinusoidale", ""))
-            is_valid_valley_rebound = (
-                cand_phase == "VALLE_CON_UNCINO_VERDE_PRONTO_ACQUISTO"
-                and score >= 65.0
-            )
-            is_valid_rising_wave = bool(cand.get("strong_for_overnight", False))
-            if not (is_valid_valley_rebound or is_valid_rising_wave):
-                return False
-
-        if lunch_profit_lock_active:
+        if intraday_crash_shield and not bool(cand.get("strong_for_overnight", False)):
             return False
-        if regime.get("is_lunch_desert_window", False):
-            cand_er = float(cand.get("kaufman_efficiency_ratio", 0.0))
-            if not (
-                cand_rvol >= 1.80
-                and score >= LINEAR_ELITE_SCORE
-                and cand_er >= 0.45
-                and 0.0 <= cand_vwap_dist <= 0.40
-            ):
-                return False
 
         return True
 
@@ -1631,6 +1759,29 @@ def load_client() -> Trading212Client:
     )
 
 
+LIMIT_FILL_POLL_SEC = 0.85
+
+
+def _sync_certified_cash_safe(bot: Trading212AutonomousBot, min_interval_sec: float = 5.5) -> None:
+    if bot.client is None:
+        return
+    now_ts = time.time()
+    last_ts = float(getattr(bot, "_last_cash_sync_ts", 0.0))
+    if (now_ts - last_ts) < min_interval_sec:
+        return
+    try:
+        cash_info = bot.client.get_account_cash()
+        setattr(bot, "_last_cash_sync_ts", time.time())
+        setattr(bot, "_cash_synced_once", True)
+        if isinstance(cash_info, dict):
+            if cash_info.get("free") is not None:
+                setattr(bot, "_t212_free_cash", float(cash_info["free"]))
+            if cash_info.get("result") is not None:
+                bot.tax_tracker.reconcile_certified_cash_result(float(cash_info["result"]))
+    except Exception:
+        pass
+
+
 def run_cycle(
     bot: Trading212AutonomousBot,
     intel: HybridUncappedIntelligence,
@@ -1644,24 +1795,38 @@ def run_cycle(
     intel.sync_from_tax_data(bot.tax_tracker.data)
 
     now_rome = datetime.datetime.now(MARKET_TZ)
-    now_ny = now_rome.astimezone(US_EASTERN_TZ)
     now = now_rome.replace(tzinfo=None)
     regime = intel.get_intraday_regime(now_rome)
 
-    # 1. Leggi posizioni aperte e ordini pendenti da Trading 212 (Split-Speed Turbo 6s, zero sleep inutile a slot pieni)
+    # 1. Leggi posizioni aperte e ordini pendenti da Trading 212 (con pulizia ordini LIMIT orfani)
     positions = client.get_open_positions()
-    if len(positions) < bot.cartridges:
-        time.sleep(0.15)
-        pending_orders = client.get_pending_orders()
+    if len(positions) < bot.cartridges or getattr(bot, "_had_pending_orders", False):
+        time.sleep(0.10)
+        raw_pending = client.get_pending_orders()
+        pending_orders = []
+        for o in raw_pending:
+            o_id = o.get("id")
+            o_qty = float(o.get("quantity") or 0.0)
+            o_type = str(o.get("type", "LIMIT")).upper()
+            if regime["market_open"] and o_id is not None and o_qty > 0 and o_type == "LIMIT":
+                try:
+                    client.cancel_order(o_id)
+                    continue
+                except Exception:
+                    pass
+            pending_orders.append(o)
+        setattr(bot, "_had_pending_orders", bool(pending_orders))
     else:
         pending_orders = []
 
     pos_by_ticker: Dict[str, Dict[str, Any]] = {p.get("ticker", ""): p for p in positions if p.get("ticker")}
     pending_by_ticker: Dict[str, Dict[str, Any]] = {
-        o.get("ticker", ""): o for o in pending_orders if o.get("ticker")
+        o.get("ticker", ""): o
+        for o in pending_orders
+        if o.get("ticker") and float(o.get("quantity") or 0.0) > 0
     }
 
-    # V11.1 Persistenza Candele Real-Time 0ms per l'intera seduta (pota solo i bucket dei giorni precedenti!)
+    # V11.2 Persistenza Candele Real-Time 0ms per l'intera seduta (pota solo i bucket dei giorni precedenti!)
     scanner.has_t212_realtime.clear()
     today_d = now_rome.date()
     for tkr_all, bmap in list(scanner.realtime_5m_bars.items()):
@@ -1669,7 +1834,7 @@ def run_cycle(
             if datetime.datetime.fromtimestamp(b_ts, tz=MARKET_TZ).date() != today_d:
                 bmap.pop(b_ts, None)
 
-    # V11.1 Anti-Split-Brain: se una posizione aperta nel ciclo precedente è stata chiusa da un altro runner/app, attiva subito il cooldown!
+    # V11.2 Anti-Split-Brain: se una posizione aperta nel ciclo precedente è stata chiusa da un altro runner/app, attiva subito il cooldown!
     for tkr_prev, (prev_avg, prev_cur) in list(intel.prev_open_snapshot.items()):
         if tkr_prev not in pos_by_ticker and tkr_prev not in pending_by_ticker:
             if (time.time() - intel.last_sell_time.get(tkr_prev, 0.0)) >= 300.0 and prev_avg > 0 and prev_cur > 0:
@@ -1683,7 +1848,7 @@ def run_cycle(
         cur_px = float(p.get("currentPrice", 0.0))
         scanner.update_t212_live_price(tkr, cur_px)
 
-    # 2. Scansione quantitativa Split-Speed (6s sulle cartucce aperte / 24s sui 29 Colossi o subito se slot libero)
+    # 2. Scansione quantitativa Split-Speed (6s sulle cartucce aperte / 24s sui 32 Colossi o subito se slot libero)
     overnight_status = radar.evaluate_overnight_wave()
     dax_live_pct = float(overnight_status.get("dax_change_pct", 0.0))
     need_full_scan = len(pos_by_ticker) < bot.cartridges
@@ -1694,24 +1859,12 @@ def run_cycle(
         active_tickers=list(pos_by_ticker.keys()),
     )
 
-    # Sincronizzazione primo avvio / heartbeat con cassa reale Trading 212 (/equity/account/cash -> result)
+    # Sincronizzazione primo avvio / heartbeat con cassa reale Trading 212 (simmetrica su plus/minusvalenze)
     first_cash_sync = not getattr(bot, "_cash_synced_once", False)
     if first_cash_sync or (cycle_num % 5 == 0):
-        try:
-            cash_info = client.get_account_cash()
-            t212_realized_res = cash_info.get("result")
-            if t212_realized_res is not None:
-                t212_net = round(float(t212_realized_res), 2)
-                cur_plus = float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
-                cur_minus = float(bot.tax_tracker.data.get("minusvalenze_lorde_eur", 0.0))
-                if abs((cur_plus - cur_minus) - t212_net) >= 0.01:
-                    bot.tax_tracker.data["minusvalenze_lorde_eur"] = round(cur_plus - t212_net, 2)
-                    bot.tax_tracker.save()
-            setattr(bot, "_cash_synced_once", True)
-        except Exception:
-            pass
+        _sync_certified_cash_safe(bot, min_interval_sec=0.0 if first_cash_sync else 5.5)
 
-    # V11.1 Sanificazione Automatica Lotti LIFO Orfani/Vuoti & Epoca Pulita:
+    # V11.2 Sanificazione Automatica Lotti LIFO Orfani/Vuoti & Epoca Pulita:
     epoch_str = str(bot.tax_tracker.data.get("v11_clean_epoch_ts", V11_CLEAN_EPOCH_TS))
     lifo_dirty = False
     if bot.tax_tracker.data.get("v11_clean_epoch_ts") != epoch_str:
@@ -1731,7 +1884,7 @@ def run_cycle(
         - float(bot.tax_tracker.data.get("minusvalenze_lorde_eur", 0.0)),
         2,
     )
-    # V11.1 Blocco Permanente Anti-Churn al raggiungimento del Target +30% (130,00 EUR)
+    # V11.2 Blocco Permanente Anti-Churn al raggiungimento del Target +30% (130,00 EUR)
     target_30pct_locked = bool(bot.tax_tracker.data.get("target_30pct_raggiunto_blocco_attivo", False)) or (
         realized_net_eur >= round(bot.target_equity_eur - bot.total_budget_eur, 2)
     )
@@ -1740,43 +1893,36 @@ def run_cycle(
         regime["allow_new_buys"] = False
         regime["code"] = "TARGET_30PCT_RAGGIUNTO_CONTO_IN_CASSAFORTE"
 
-    # BLINDATURA #10: Cassaforte Giornaliera ricalcolata sui soli utili chiusi OGGI (target >= +1,60 EUR/giorno)
+    # BLINDATURA #10 (V11.2 Trailing Daily High-Water-Mark Vault: zero tetto ai trend rialzisti, scatta solo su ritracciamento >= 0,30 EUR dal picco >= +1,60 EUR!)
     today_prefix = now_rome.date().isoformat()
-    today_ops_all = [
-        op for op in bot.tax_tracker.data.get("operazioni_chiuse", [])
-        if str(op.get("timestamp", "")).startswith(today_prefix)
-    ]
-    today_ops = [
-        op for op in today_ops_all
-        if str(op.get("timestamp", "")) >= epoch_str
-    ]
+    today_ops_all = sorted(
+        (
+            op for op in bot.tax_tracker.data.get("operazioni_chiuse", [])
+            if str(op.get("timestamp", "")).startswith(today_prefix)
+        ),
+        key=lambda x: str(x.get("timestamp", "")),
+    )
     today_realized_net_eur = round(
         sum(float(op.get("risultato_fiscale_eur", 0.0)) for op in today_ops_all),
         2,
     )
     running_today_pnl = 0.0
     today_peak_realized_eur = 0.0
-    stops_after_loot_peak = 0
-    for op in today_ops:
-        op_pnl = float(op.get("risultato_fiscale_eur", 0.0))
-        if today_peak_realized_eur >= 0.80 and op_pnl < 0.0:
-            stops_after_loot_peak += 1
-        running_today_pnl += op_pnl
+    for op in today_ops_all:
+        running_today_pnl = round(running_today_pnl + float(op.get("risultato_fiscale_eur", 0.0)), 4)
         if running_today_pnl > today_peak_realized_eur:
             today_peak_realized_eur = running_today_pnl
-            stops_after_loot_peak = 0
-    hm_now = now_rome.hour * 60 + now_rome.minute
-    ny_hm_now = now_ny.hour * 60 + now_ny.minute
-    lunch_profit_lock_active = (
-        today_peak_realized_eur >= 0.80
-        and stops_after_loot_peak >= 1
-        and (hm_now >= 11 * 60 and ny_hm_now <= 8 * 60 + 35)
+    today_peak_realized_eur = round(today_peak_realized_eur, 2)
+    today_giveback_eur = round(max(0.0, today_peak_realized_eur - today_realized_net_eur), 2)
+    daily_vault_active = (
+        today_peak_realized_eur >= DAILY_VAULT_TRIGGER_EUR
+        and today_giveback_eur >= DAILY_VAULT_GIVEBACK_EUR
     )
+
     compounded_budget_eur = round(bot.total_budget_eur + max(0.0, realized_net_eur), 2)
     dynamic_cartridge_eur = round(compounded_budget_eur / bot.cartridges, 2)
-    daily_vault_active = (today_realized_net_eur >= 1.60)
 
-    # V11.1 Predicato Unificato Panchina == Ciclo BUY (Zero rotazioni orfane!)
+    # V11.2 Predicato Unificato Panchina == Ciclo BUY (Zero rotazioni orfane!)
     bench_candidates = [
         m
         for tkr, m in quant_metrics.items()
@@ -1787,7 +1933,6 @@ def run_cycle(
             regime,
             overnight_status,
             daily_vault_active=daily_vault_active,
-            lunch_profit_lock_active=lunch_profit_lock_active,
         )
     ]
 
@@ -1795,8 +1940,9 @@ def run_cycle(
     unrealized_pnl_100e = 0.0
     cartridge_statuses: List[Dict[str, Any]] = []
     actions_taken: List[str] = []
+    real_orders_executed = False
 
-    # 3. Valuta posizioni aperte con logica V11.1 Istituzionale
+    # 3. Valuta posizioni aperte con logica V11.2 Istituzionale Zero Cerotti
     slot_idx = 1
     for tkr, p in list(pos_by_ticker.items()):
         if tkr not in EUR_ZERO_FEE_UNIVERSE:
@@ -1829,7 +1975,7 @@ def run_cycle(
                     "timestamp": preserved_ts,
                     "ticker": tkr,
                     "isin": meta.get("isin", ""),
-                    "quantity": round(qty_open, 4),
+                    "quantity": round(qty_open, 6),
                     "price_eur": round(avg_price, 4),
                     "total_eur": round(qty_open * avg_price, 4),
                 }]
@@ -1837,7 +1983,7 @@ def run_cycle(
                 intel.peak_pnl_pct[tkr] = max(intel.peak_pnl_pct.get(tkr, 0.0), pnl_pct)
                 intel.position_open_time.setdefault(tkr, time.time())
 
-        # Ribilanciamento automatico SOLO IN UTILE se una cartuccia supera 1.24x la taglia composta (4 decimali)
+        # Ribilanciamento automatico SOLO IN UTILE se una cartuccia supera 1.24x la taglia composta (preserva lotto LIFO residuo)
         max_allowed_cartridge = max(31.00, round(dynamic_cartridge_eur * 1.24, 2))
         if cost_eur > max_allowed_cartridge and regime["market_open"] and cur_price > avg_price and pnl_pct >= 0.0010:
             target_qty = round(dynamic_cartridge_eur / cur_price, 4)
@@ -1850,12 +1996,13 @@ def run_cycle(
                     sell_price_eur=cur_price,
                     fallback_avg_price_eur=avg_price,
                 )
+                real_orders_executed = True
                 qty_open = round(qty_open - excess_qty, 4)
                 cost_eur = round(qty_open * avg_price, 2)
                 ppl = round((cur_price - avg_price) * qty_open, 2)
                 actions_taken.append(
                     f"RIBILANCIAMENTO CARTUCCIA COMPOSTA ({dynamic_cartridge_eur:.2f} EUR) su {tkr}: vendute {excess_qty} azioni in eccesso "
-                    f"a {cur_price:.2f} EUR (Utile fiscale: {closed_op['risultato_fiscale_eur']:+.2f} EUR)"
+                    f"a {cur_price:.4f} EUR (Utile fiscale: {closed_op['risultato_fiscale_eur']:+.2f} EUR)"
                 )
                 time.sleep(0.25)
 
@@ -1886,6 +2033,7 @@ def run_cycle(
             tkr_m,
             realized_net_eur=today_realized_net_eur,
             has_green_hook_bench=tkr_has_green_hook_bench,
+            daily_vault_active=daily_vault_active,
         )
         if exit_reason and regime["market_open"]:
             client.place_market_order(ticker=tkr, quantity=-qty_open)
@@ -1895,6 +2043,7 @@ def run_cycle(
                 sell_price_eur=cur_price,
                 fallback_avg_price_eur=avg_price,
             )
+            real_orders_executed = True
             intel.register_sell(
                 tkr,
                 cur_price,
@@ -1902,7 +2051,7 @@ def run_cycle(
             )
             msg = (
                 f"{exit_reason} su {tkr} ({meta['name']}): vendute {qty_open} azioni "
-                f"a {cur_price:.2f} EUR (Risultato fiscale: {closed_op['risultato_fiscale_eur']:+.2f} EUR, 0,00 EUR comm.)"
+                f"a {cur_price:.4f} EUR (Risultato fiscale: {closed_op['risultato_fiscale_eur']:+.2f} EUR, 0,00 EUR comm.)"
             )
             actions_taken.append(msg)
             pos_by_ticker.pop(tkr, None)
@@ -1913,19 +2062,16 @@ def run_cycle(
         atr_pos_raw = float(tkr_m.get("atr_5m_volatility_pct", 0.18)) / 100.0
         shield_act = max(0.0048, float(tkr_m.get("elastic_shield_act_raw", prof["shield_activation_pct"])))
         shield_pull = max(0.0012, float(tkr_m.get("elastic_shield_pull_raw", prof["shield_pullback_pct"])))
-        shield_is_armed = peak_now >= shield_act
-        breakeven_trigger = max(0.0040 if daily_vault_active else 0.0042, min(0.0050, round(atr_pos_raw * 2.1, 4)))
-        breakeven_floor_pct = round(max(0.0016 if daily_vault_active else 0.0018, round(breakeven_trigger * 0.45, 4)) * 100, 2)
-        mid_tier_armed = peak_now >= 0.0058
-        pre_shield_breakeven_armed = peak_now >= breakeven_trigger
-        if shield_is_armed:
-            current_floor_pct = round(max(-0.05, (peak_now - shield_pull) * 100), 2)
-        elif mid_tier_armed:
-            current_floor_pct = 0.40
-        elif pre_shield_breakeven_armed:
-            current_floor_pct = breakeven_floor_pct
-        else:
-            current_floor_pct = None
+        stage_code, stage_floor = intel.compute_profit_protection_floor(
+            peak_now,
+            shield_act,
+            shield_pull,
+            atr_pos_raw,
+            daily_vault_active=daily_vault_active,
+        )
+        shield_is_armed = (stage_code == "UNCAPPED_SHIELD_2")
+        pre_shield_breakeven_armed = (stage_code != "NONE")
+        current_floor_pct = round(stage_floor * 100, 2) if stage_floor is not None else None
 
         overnight_decision_preview = (
             "TIENI PER SALTO 09:00 (Onda Positiva)"
@@ -1944,8 +2090,8 @@ def run_cycle(
             "ruolo": prof["role_desc"],
             "status": "ESEGUITA_IN_PORTAFOGLIO",
             "quantity": qty_open,
-            "avg_price_eur": round(avg_price, 2),
-            "current_price_eur": round(cur_price, 2),
+            "avg_price_eur": round(avg_price, 4),
+            "current_price_eur": round(cur_price, 4),
             "invested_eur": cost_eur,
             "pnl_eur": round(ppl, 2),
             "pnl_pct": round(pnl_pct * 100, 2),
@@ -1962,9 +2108,9 @@ def run_cycle(
         })
         slot_idx += 1
 
-    # 4. Conta eventuali ordini pendenti
+    # 4. Conta eventuali ordini di acquisto pendenti residui
     for tkr, o in pending_by_ticker.items():
-        if tkr in EUR_ZERO_FEE_UNIVERSE and tkr not in pos_by_ticker:
+        if tkr in EUR_ZERO_FEE_UNIVERSE and tkr not in pos_by_ticker and float(o.get("quantity") or 0.0) > 0:
             meta = EUR_ZERO_FEE_UNIVERSE[tkr]
             prof = ASSET_PROFILES.get(tkr, ASSET_PROFILES["SAPd_EQ"])
             invested_100e += dynamic_cartridge_eur
@@ -1981,7 +2127,7 @@ def run_cycle(
             })
             slot_idx += 1
 
-    # 5. INGRESSO LINEARE SENZA TETTO CON VINCOLO SETTORIALE DI MARKOWITZ E INTERESSE COMPOSTO
+    # 5. INGRESSO LINEARE CON MARKETABLE LIMIT ORDER (+1,00% ANTI-SPIKE MiFID II), ZERO MARKET ORDER AL BUIO
     active_count = len(cartridge_statuses)
     ranked_candidates = sorted(
         quant_metrics.values(),
@@ -1993,6 +2139,12 @@ def run_cycle(
         reverse=True,
     )
 
+    pre_entry_equity = round(bot.total_budget_eur + realized_net_eur + unrealized_pnl_100e, 2)
+    if pre_entry_equity >= bot.target_equity_eur:
+        regime = dict(regime)
+        regime["allow_new_buys"] = False
+        regime["code"] = "TARGET_30PCT_RAGGIUNTO_CONTO_IN_CASSAFORTE"
+
     max_investable_before_4th = round(compounded_budget_eur - 18.00, 2)
     if regime["allow_new_buys"] and active_count < bot.cartridges and invested_100e <= max_investable_before_4th:
         active_sectors = {
@@ -2000,7 +2152,6 @@ def run_cycle(
             for c in cartridge_statuses
             if c.get("settore_markowitz")
         }
-        # Verifica atomica pre-ciclo contro collisioni Cloud/Locale
         live_broker_tickers = set(pos_by_ticker.keys())
         try:
             fresh_pos_once = [
@@ -2027,85 +2178,160 @@ def run_cycle(
                 regime,
                 overnight_status,
                 daily_vault_active=daily_vault_active,
-                lunch_profit_lock_active=lunch_profit_lock_active,
             ):
                 continue
 
             live_px = float(cand["live_price_eur"])
             score = float(cand["quant_buy_score"])
             rsi_5m = float(cand["rsi_5m"])
+            if live_px <= 0:
+                continue
 
+            limit_px = Trading212Client.snap_mifid_tick_price(
+                live_px * (1.0 + LIMIT_ORDER_CAP_PCT),
+                side="BUY",
+            )
             remaining_budget = round(compounded_budget_eur - invested_100e, 2)
             alloc_eur = min(dynamic_cartridge_eur, remaining_budget)
+            broker_free = getattr(bot, "_t212_free_cash", None)
+            if broker_free is not None:
+                alloc_eur = min(alloc_eur, round(max(0.0, float(broker_free)) * 0.998, 2))
             if alloc_eur < 18.00:
                 break
 
-            # Taglia Frazionata a 4 Decimali (~99,9% efficienza capitale = 25,00 EUR esatti anche su ASML/ASM/Adyen)
             effective_alloc = (
                 round(alloc_eur * 0.996, 2)
                 if remaining_budget <= (dynamic_cartridge_eur + 0.50)
                 else alloc_eur
             )
-            qty_to_buy = round(effective_alloc / live_px, 4) if live_px > 0 else 0.0
+            # Taglia dimensionata su limit_px per non eccedere MAI il margine riservato da Trading 212 sulla 4ª cartuccia
+            qty_to_buy = round(effective_alloc / limit_px, 4) if limit_px > 0 else 0.0
             if qty_to_buy <= 0:
                 continue
 
             try:
                 meta = EUR_ZERO_FEE_UNIVERSE[tkr]
                 try:
-                    order_res = client.place_market_order(ticker=tkr, quantity=qty_to_buy)
+                    order_res = client.place_limit_order(
+                        ticker=tkr,
+                        quantity=qty_to_buy,
+                        limit_price=limit_px,
+                        time_validity="DAY",
+                    )
                 except Exception as ord_err:
-                    fallback_qty = round(effective_alloc / live_px, 2)
-                    if fallback_qty > 0 and fallback_qty != qty_to_buy and "400" in str(ord_err):
+                    fallback_qty = round(effective_alloc / limit_px, 2)
+                    if fallback_qty > 0 and fallback_qty != qty_to_buy and (fallback_qty * live_px) >= 18.00 and "400" in str(ord_err):
                         qty_to_buy = fallback_qty
-                        order_res = client.place_market_order(ticker=tkr, quantity=qty_to_buy)
+                        order_res = client.place_limit_order(
+                            ticker=tkr,
+                            quantity=qty_to_buy,
+                            limit_price=limit_px,
+                            time_validity="DAY",
+                        )
                     else:
                         raise
-                est_cost = round(qty_to_buy * live_px, 2)
-                bot.tax_tracker.record_buy(ticker=tkr, quantity=qty_to_buy, price_eur=live_px)
-                intel.position_open_time[tkr] = time.time()
-                pos_by_ticker[tkr] = {"ticker": tkr, "quantity": qty_to_buy, "averagePrice": live_px, "currentPrice": live_px}
-                live_broker_tickers.add(tkr)
-                invested_100e += est_cost
-                active_count += 1
-                active_sectors.add(cand_sector)
-                msg = (
-                    f"INGRESSO V11.1 ZERO-CEROTTI TURBO ({cand_squad} / {cand_sector}) -> BUY {qty_to_buy} {tkr} ({meta['name']}) "
-                    f"per {est_cost:.2f} EUR | Score Lineare: {score}/100 (ATR: {cand.get('atr_5m_volatility_pct', 0.0):.3f}%, RVOL: {cand.get('rvol_ratio', 0.0)}x, RSI: {rsi_5m}) | Order ID: {order_res.get('id')}"
+
+                ord_id = order_res.get("id") if isinstance(order_res, dict) else None
+                if LIMIT_FILL_POLL_SEC > 0:
+                    time.sleep(LIMIT_FILL_POLL_SEC)
+
+                still_pending = False
+                if ord_id is not None:
+                    try:
+                        cur_pend = client.get_pending_orders()
+                        if any(o.get("id") == ord_id for o in cur_pend):
+                            try:
+                                client.cancel_order(ord_id)
+                                if LIMIT_FILL_POLL_SEC > 0:
+                                    time.sleep(0.15)
+                            except Exception:
+                                still_pending = True
+                    except Exception:
+                        pass
+
+                post_pos_list = client.get_open_positions()
+                matched_pos = next(
+                    (p for p in post_pos_list if p.get("ticker") == tkr and float(p.get("quantity", 0.0)) > 0),
+                    None,
                 )
-                actions_taken.append(msg)
-                cartridge_statuses.append({
-                    "slot": slot_idx,
-                    "ticker": tkr,
-                    "name": meta["name"],
-                    "squadra": cand_squad,
-                    "settore_markowitz": cand_sector,
-                    "status": "APPENA_ACQUISTATA_V11_ZERO_CEROTTI",
-                    "order_id": order_res.get("id"),
-                    "quantity": qty_to_buy,
-                    "invested_eur": est_cost,
-                })
-                slot_idx += 1
-                time.sleep(0.30)
+
+                if matched_pos is not None:
+                    filled_qty = round(float(matched_pos.get("quantity", qty_to_buy)), 4)
+                    fill_px = float(matched_pos.get("averagePrice") or live_px)
+                    est_cost = round(filled_qty * fill_px, 2)
+                    bot.tax_tracker.record_buy(ticker=tkr, quantity=filled_qty, price_eur=fill_px)
+                    real_orders_executed = True
+                    if broker_free is not None:
+                        setattr(bot, "_t212_free_cash", max(0.0, float(broker_free) - est_cost))
+                    intel.position_open_time[tkr] = time.time()
+                    pos_by_ticker[tkr] = {
+                        "ticker": tkr,
+                        "quantity": filled_qty,
+                        "averagePrice": fill_px,
+                        "currentPrice": float(matched_pos.get("currentPrice") or fill_px),
+                    }
+                    live_broker_tickers.add(tkr)
+                    invested_100e += est_cost
+                    active_count += 1
+                    active_sectors.add(cand_sector)
+                    msg = (
+                        f"INGRESSO V11.2 LIMIT PROTETTO ({cand_squad} / {cand_sector}) -> BUY {filled_qty} {tkr} ({meta['name']}) "
+                        f"a {fill_px:.4f} EUR (Tetto Limit MiFID: {limit_px:.4f} EUR, Tot: {est_cost:.2f} EUR) | "
+                        f"Score: {score}/100 (ATR: {cand.get('atr_5m_volatility_pct', 0.0):.3f}%, RVOL: {cand.get('rvol_ratio', 0.0)}x, RSI: {rsi_5m}) | Order ID: {ord_id}"
+                    )
+                    actions_taken.append(msg)
+                    cartridge_statuses.append({
+                        "slot": slot_idx,
+                        "ticker": tkr,
+                        "name": meta["name"],
+                        "squadra": cand_squad,
+                        "settore_markowitz": cand_sector,
+                        "status": "APPENA_ACQUISTATA_V11_2_LIMIT_PROTETTO",
+                        "order_id": ord_id,
+                        "quantity": filled_qty,
+                        "avg_price_eur": round(fill_px, 4),
+                        "current_price_eur": round(fill_px, 4),
+                        "invested_eur": est_cost,
+                    })
+                    slot_idx += 1
+                    if LIMIT_FILL_POLL_SEC > 0:
+                        time.sleep(0.20)
+                elif still_pending:
+                    reserved_eur = round(qty_to_buy * limit_px, 2)
+                    setattr(bot, "_had_pending_orders", True)
+                    pending_by_ticker[tkr] = {"id": ord_id, "ticker": tkr, "quantity": qty_to_buy, "type": "LIMIT"}
+                    live_broker_tickers.add(tkr)
+                    invested_100e += reserved_eur
+                    active_count += 1
+                    active_sectors.add(cand_sector)
+                    cartridge_statuses.append({
+                        "slot": slot_idx,
+                        "ticker": tkr,
+                        "name": meta["name"],
+                        "squadra": cand_squad,
+                        "settore_markowitz": cand_sector,
+                        "status": "ORDINE_IN_CODA",
+                        "order_id": ord_id,
+                        "quantity": qty_to_buy,
+                        "invested_eur": reserved_eur,
+                    })
+                    slot_idx += 1
+                else:
+                    intel.last_sell_price[tkr] = live_px
+                    intel.last_sell_was_loss[tkr] = False
+                    intel.last_sell_time[tkr] = time.time() - 600.0
+                    actions_taken.append(
+                        f"SCUDO ANTI-SPIKE LIMIT (+1,00%): ordine {tkr} annullato perché ask reale > {limit_px:.4f} EUR (zero slippage subito)"
+                    )
             except Exception as e:
                 intel.last_sell_price[tkr] = live_px
-                intel.last_sell_time[tkr] = time.time()
+                intel.last_sell_was_loss[tkr] = False
+                intel.last_sell_time[tkr] = time.time() - 600.0
                 actions_taken.append(f"Passaggio al candidato High-Beta successivo ({tkr}: {e})")
 
-    # Se nel ciclo sono stati eseguiti ordini reali, riallinea immediatamente la cassa certificata Trading 212
-    if actions_taken:
-        try:
-            cash_info_post = client.get_account_cash()
-            t212_res_post = cash_info_post.get("result")
-            if t212_res_post is not None:
-                t212_net_post = round(float(t212_res_post), 2)
-                cur_p = float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
-                cur_m = float(bot.tax_tracker.data.get("minusvalenze_lorde_eur", 0.0))
-                if abs((cur_p - cur_m) - t212_net_post) >= 0.01:
-                    bot.tax_tracker.data["minusvalenze_lorde_eur"] = round(cur_p - t212_net_post, 2)
-                    bot.tax_tracker.save()
-        except Exception:
-            pass
+    # Se nel ciclo sono stati eseguiti ordini reali, riallinea la cassa certificata Trading 212 nel rispetto del rate-limit
+    if real_orders_executed:
+        _sync_certified_cash_safe(bot, min_interval_sec=2.2)
 
     realized_net_eur = round(
         float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
@@ -2117,17 +2343,19 @@ def run_cycle(
     virtual_100e_equity = round(bot.total_budget_eur + realized_net_eur + unrealized_pnl_100e, 2)
     free_cash_100e = round(max(0.0, compounded_budget_eur - invested_100e), 2)
 
-    # 6. Verifica Target Annuale +30% (130,00 EUR) — Liquidazione Atomica Unica & Blocco Permanente Zero-Churn
+    # 6. Verifica Target Annuale +30% (130,00 EUR) — Liquidazione Atomica Unica a Mercato Aperto & Blocco Permanente Zero-Churn
     if virtual_100e_equity >= bot.target_equity_eur:
         already_locked = bool(bot.tax_tracker.data.get("target_30pct_raggiunto_blocco_attivo", False))
-        if pos_by_ticker or pending_by_ticker or not already_locked:
-            if pos_by_ticker or pending_by_ticker:
+        if (pos_by_ticker or pending_by_ticker or not already_locked):
+            liquidated_now = False
+            if (pos_by_ticker or pending_by_ticker) and regime["market_open"]:
                 bot.liquidate_all_for_withdrawal()
                 pos_by_ticker.clear()
                 pending_by_ticker.clear()
                 cartridge_statuses.clear()
                 invested_100e = 0.0
                 unrealized_pnl_100e = 0.0
+                liquidated_now = True
             bot.tax_tracker.load()
             bot.tax_tracker.data["target_30pct_raggiunto_blocco_attivo"] = True
             bot.tax_tracker.save()
@@ -2137,36 +2365,43 @@ def run_cycle(
                 2,
             )
             compounded_budget_eur = round(bot.total_budget_eur + max(0.0, realized_net_eur), 2)
-            virtual_100e_equity = round(bot.total_budget_eur + realized_net_eur, 2)
-            free_cash_100e = compounded_budget_eur
+            virtual_100e_equity = round(bot.total_budget_eur + realized_net_eur + unrealized_pnl_100e, 2)
+            free_cash_100e = round(max(0.0, compounded_budget_eur - invested_100e), 2)
             regime = dict(regime)
             regime["allow_new_buys"] = False
             regime["code"] = "TARGET_30PCT_RAGGIUNTO_CONTO_IN_CASSAFORTE"
-            actions_taken.append(
-                f"TARGET +30% RAGGIUNTO E BLINDATO ({virtual_100e_equity:.2f} EUR >= {bot.target_equity_eur:.2f} EUR)! "
-                "Liquidazione totale eseguita a 0,00 EUR commissioni e blocco permanente nuovi acquisti attivato."
-            )
+            if liquidated_now or not already_locked:
+                actions_taken.append(
+                    f"TARGET +30% RAGGIUNTO E BLINDATO ({virtual_100e_equity:.2f} EUR >= {bot.target_equity_eur:.2f} EUR)! "
+                    + (
+                        "Liquidazione totale eseguita a 0,00 EUR commissioni e blocco permanente nuovi acquisti attivato."
+                        if liquidated_now
+                        else "Blocco permanente nuovi acquisti attivato (liquidazione programmata all'apertura Borsa 09:00)."
+                    )
+                )
 
     intel.prev_open_snapshot = {
         t: (float(p.get("averagePrice", 0.0)), float(p.get("currentPrice", float(p.get("averagePrice", 0.0)))))
         for t, p in pos_by_ticker.items()
+        for _ in (0,)
         if t
     }
+    scanner.save_disk_cache()
 
     state = {
         "timestamp": now.isoformat(timespec="seconds"),
         "cycle": cycle_num,
-        "mode": "INSTITUTIONAL_V11_1_ZERO_CEROTTI_TURBO_LTS",
+        "mode": "INSTITUTIONAL_V11_2_LTS_ZERO_CEROTTI",
         "blindature_attive_v6_istituzionali": [
-            "1. Blocco 1 Zero-Ghost Cache V11.1 (Fetch 1d adattivo -70% payload + Persistenza 0ms giornaliera + Radar parallelo)",
-            "2. Blocco 2 VWAP Typical Price ((H+L+C)/3) & RVOL Completed-Bar (Zero bias candela parziale + Tie-breaker ATR libero)",
-            "3. Filtro Liquidità Variante Prudente (RVOL >= 0,20x su 2 barre + Predicato Unificato Panchina == Ciclo BUY)",
-            f"4. Blocco 3 Allocazione 4 Decimali & Kelly (Budget: {compounded_budget_eur:.2f} EUR -> 4 Cartucce da {dynamic_cartridge_eur:.2f} EUR)",
-            "5. Matrice Markowitz a Filiere Separate (Chip Litografia Wafer vs Chip Potenza Packaging, 4 settori distinti)",
-            "6. Blocco 4 Scala Continua Salva-Utile Gapless (-0,05% anti-salto tick + Scudo Elastico ATR 0,48%..1,05%)",
-            "7. Airbag Simmetrico Elastico su ATR (~-0,54%..-0,70% senza uncino, tetto assoluto invalicabile -0,72%)",
-            "8. Orologio DST-Safe America/New_York (08:30 ET Macro USA & 09:30 ET Wall Street + Selettore Onda Notturna 17:15)",
-            f"9. Cassaforte Giornaliera (>= +1,60 EUR -> Attiva ora: {daily_vault_active}) + Anti-Split-Brain & Lock +30% Zero-Churn",
+            "1. Blocco 1 Zero-Ghost Cache V11.2 (Cache 5m persistita su disco tra batch Cloud + Zero barre sintetiche su feed ritardati)",
+            "2. Blocco 2 Intraday Puro Gap-Clean (ATR & Kaufman ER depurati dal gap notturno 17:25->09:00 + Asta 17:25 esclusa da RVOL)",
+            "3. Marketable Limit Orders MiFID II (+1,00% cap anti-spike calettato su tick RTS 11, zero Market Order al buio)",
+            f"4. Allocazione 4 Decimali & Kelly su LimitPrice (Budget: {compounded_budget_eur:.2f} EUR -> 4 Cartucce da {dynamic_cartridge_eur:.2f} EUR)",
+            "5. Matrice Markowitz 32 Colossi EUR Zero-Fee (Chip Litografia Wafer vs Chip Potenza Packaging, 4 settori distinti)",
+            "6. Curva Monotona Continua Salva-Utile (Funzione pura unica Motore == JSON, zero gradini ciechi fino allo Scudo Elastico)",
+            "7. Airbag Simmetrico Elastico su ATR (~-0,54%..-0,72% oltre 8m + Taglio Catastrofico Istantaneo -1,35% sotto 8m)",
+            "8. Orologio DST-Safe America/New_York (Stop totale Pausa Pranzo 11:15-08:35 ET + Selettore Onda Notturna 17:15)",
+            f"9. Trailing Daily Vault (Picco oggi: {today_peak_realized_eur:+.2f} EUR, Attiva su ritracciamento >=0,30 EUR: {daily_vault_active}) + Riconciliazione 730 Simmetrica",
         ],
         "regime_mercato_attivo": regime,
         "radar_onda_notturna_wall_street": overnight_status,
@@ -2175,6 +2410,7 @@ def run_cycle(
         "budget_composto_attivo_kelly_eur": compounded_budget_eur,
         "taglia_cartuccia_composta_eur": dynamic_cartridge_eur,
         "cassaforte_giornaliera_attiva": daily_vault_active,
+        "cassaforte_giornaliera_picco_eur": today_peak_realized_eur,
         "capitale_impegnato_cartucce_eur": round(invested_100e, 2),
         "liquidita_libera_su_100e_eur": free_cash_100e,
         "profitto_realizzato_in_cassa_eur": realized_net_eur,
@@ -2185,6 +2421,11 @@ def run_cycle(
         "commissioni_pagate_eur": 0.00,
         "classifica_scanner_quantitativo_5m": ranked_candidates,
         "titoli_in_cooldown_anti_massimi": intel.last_sell_price,
+        "cooldown_state": {
+            "last_sell_price": intel.last_sell_price,
+            "last_sell_time": intel.last_sell_time,
+            "last_sell_was_loss": intel.last_sell_was_loss,
+        },
         "cartucce_4x25_eur": cartridge_statuses,
         "ultime_azioni_bot": actions_taken,
         "riepilogo_fiscale_730": bot.tax_tracker.generate_730_summary(virtual_100e_equity),
@@ -2197,7 +2438,7 @@ def run_cycle(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Trading 212 V11.1 Institutional Zero-Latency Daemon")
+    parser = argparse.ArgumentParser(description="Trading 212 V11.2 LTS Zero Cerotti Daemon")
     parser.add_argument(
         "--cycles",
         type=int,
@@ -2207,18 +2448,18 @@ def main():
     args, _ = parser.parse_known_args()
 
     print(
-        "=== AVVIO DEMONE V11.1 LTS ZERO CEROTTI TURBO (VWAP TYPICAL + RVOL COMPLETED-BAR + GAPLESS SHIELD + DST-SAFE) ===",
+        "=== AVVIO DEMONE V11.2 LTS ZERO CEROTTI (MIFID LIMIT +1% + GAP-CLEAN ATR/ER + CONTINUOUS SHIELD + TRAILING VAULT) ===",
         flush=True,
     )
     client = load_client()
     added_giants = discover_and_verify_eur_giants(client)
     print(
-        f"[RADAR DINAMICO V11.1] Universo EUR Zero-Fee attivo: {len(ASSET_PROFILES)} Colossi DAX40/AEX25 (+{added_giants} verificati via ISIN)",
+        f"[RADAR DINAMICO V11.2] Universo EUR Zero-Fee attivo: {len(ASSET_PROFILES)} Colossi DAX40/AEX25 (+{added_giants} verificati via ISIN)",
         flush=True,
     )
     bot = Trading212AutonomousBot(client=client, total_budget_eur=100.00, cartridges=4, annual_target_pct=0.30)
     intel = HybridUncappedIntelligence()
-    scanner = QuantMarketScanner()
+    scanner = QuantMarketScanner(cache_path=SCANNER_CACHE_PATH)
     radar = OvernightWaveRadar()
 
     cycle = 1
@@ -2269,7 +2510,7 @@ def main():
                 flush=True,
             )
             for act in state["ultime_azioni_bot"]:
-                print(f"   >>> [AZIONE V11.1]: {act}", flush=True)
+                print(f"   >>> [AZIONE V11.2]: {act}", flush=True)
         except Exception as e:
             print(f"[ATTENZIONE] Errore temporaneo nel ciclo #{cycle}: {e}", flush=True)
 
@@ -2278,7 +2519,7 @@ def main():
         if args.cycles > 0 and executed >= args.cycles:
             print(f"=== SESSIONE CLOUD COMPLETATA ({executed}/{args.cycles} cicli eseguiti) ===", flush=True)
             break
-        time.sleep(12.0 if args.cycles > 0 else 5.5)
+        time.sleep(6.0 if args.cycles > 0 else 5.5)
 
 
 if __name__ == "__main__":

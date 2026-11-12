@@ -16,7 +16,7 @@ if ROOT_DIR not in sys.path:
     sys.path.insert(0, ROOT_DIR)
 
 import t212_daemon_100e as daemon
-from trading212_bot import ItalianTaxTracker730
+from trading212_bot import ItalianTaxTracker730, Trading212Client
 
 
 def _make_yahoo_payload(closes, highs=None, lows=None, vols=None, base_ts=None):
@@ -358,19 +358,247 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertEqual(reg_nyse["code"], "FASE_3_ONDA_WALL_STREET_SENZA_TETTO")
         self.assertTrue(reg_nyse["us_market_live"])
 
-        # Durante Pausa Pranzo (12:15 CET), un candidato ordinario (RVOL 0.9x, Score 74) è respinto sia in Panchina che in BUY
+        # Durante Pausa Pranzo (12:15 CET), V11.2 Zero Cerotti blocca il 100% dei nuovi acquisti (anche RVOL >= 1.8x)
         lunch_dt = datetime.datetime(2026, 11, 12, 12, 15, 0, tzinfo=daemon.MARKET_TZ)
         reg_lunch = intel.get_intraday_regime(lunch_dt)
+        self.assertFalse(reg_lunch["allow_new_buys"])
         ordinary_cand = {
             "ticker": "SAPd_EQ", "live_price_eur": 210.0, "vwap_dist_pct": 0.15,
             "has_fresh_intraday_feed": True, "rvol_ratio": 0.90, "quant_buy_score": 74.0,
             "rsi_5m": 54.0, "green_hook_confirmed": True, "atr_5m_volatility_pct": 0.19,
             "day_range_pct": 1.6, "kaufman_efficiency_ratio": 0.55, "strong_for_overnight": True,
         }
-        elite_lunch_cand = dict(ordinary_cand, rvol_ratio=2.10, quant_buy_score=82.5)
+        elite_cand = dict(ordinary_cand, rvol_ratio=2.10, quant_buy_score=82.5)
         ov_ok = {"allow_overnight_hold": True, "nasdaq_change_pct": 0.2, "sp500_change_pct": 0.2, "dax_change_pct": 0.3, "vix_fear_change_pct": -0.5, "vix_level": 16.0}
         self.assertFalse(intel.is_eligible_entry_candidate(ordinary_cand, reg_lunch, ov_ok))
-        self.assertTrue(intel.is_eligible_entry_candidate(elite_lunch_cand, reg_lunch, ov_ok))
+        self.assertFalse(intel.is_eligible_entry_candidate(elite_cand, reg_lunch, ov_ok))
+
+        # Alle 14:40 CET (08:40 ET, Pre-Market USA dopo i dati macro), il blocco pranzo termina e i candidati idonei (>= 58 pt) passano
+        pre_us_dt = datetime.datetime(2026, 11, 12, 14, 40, 0, tzinfo=daemon.MARKET_TZ)
+        reg_pre_us = intel.get_intraday_regime(pre_us_dt)
+        self.assertTrue(reg_pre_us["allow_new_buys"])
+        self.assertTrue(intel.is_eligible_entry_candidate(ordinary_cand, reg_pre_us, ov_ok))
+        low_score_cand = dict(ordinary_cand, quant_buy_score=55.0)  # < BASE_MIN_BUY_SCORE (58.0)
+        self.assertFalse(intel.is_eligible_entry_candidate(low_score_cand, reg_pre_us, ov_ok))
+
+    def test_15_continuous_monotonic_profit_protection_curve(self):
+        """Invariante #15: curva salva-utile monotona non-decrescente ovunque, senza scalini ciechi tra +0.58% e shield_act."""
+        intel = daemon.HybridUncappedIntelligence()
+        for atr_raw in [0.0014, 0.0022, 0.0030]:
+            shield_act = max(0.0048, round(atr_raw * 3.85, 4))
+            shield_pull = max(0.0012, round(atr_raw * 0.92, 4))
+            prev_floor = -1.0
+            floors_mid = []
+            for step in range(0, 220):
+                pk = round(step * 0.0001, 4)
+                stage, fl = intel.compute_profit_protection_floor(pk, shield_act, shield_pull, atr_raw, False)
+                if fl is not None:
+                    self.assertGreaterEqual(
+                        fl, prev_floor,
+                        f"Violazione monotonicità a peak={pk} (atr={atr_raw}): {fl} < {prev_floor}",
+                    )
+                    prev_floor = fl
+                if 0.0058 <= pk < shield_act and fl is not None:
+                    floors_mid.append(fl)
+            if atr_raw >= 0.0026:
+                # Su titoli High-Beta (shield_act ~ 1.15%), il pavimento intermedio DEVE salire oltre +0.40% prima di shield_act!
+                self.assertGreater(max(floors_mid), 0.0045)
+
+    def test_16_mifid_limit_order_tick_snapping_and_zero_market_fallback(self):
+        """Invariante #16: tick MiFID II RTS 11 esatti, sizing su limit_px (4ª cartuccia <= 25 EUR), zero fallback a Market Order."""
+        # Verifica tutte le 6 fasce di prezzo MiFID II RTS 11
+        self.assertEqual(Trading212Client.snap_mifid_tick_price(15.127, "BUY"), 15.12)
+        self.assertEqual(Trading212Client.snap_mifid_tick_price(34.139, "BUY"), 34.12)
+        self.assertEqual(Trading212Client.snap_mifid_tick_price(142.88, "BUY"), 142.80)
+        self.assertEqual(Trading212Client.snap_mifid_tick_price(238.57, "BUY"), 238.40)
+        self.assertEqual(Trading212Client.snap_mifid_tick_price(726.84, "BUY"), 726.00)
+        self.assertEqual(Trading212Client.snap_mifid_tick_price(2145.60, "BUY"), 2144.00)
+
+        tmp_tax = "/tmp/test_v11_2_limit_buy_tax.json"
+        tmp_state = "/tmp/test_v11_2_limit_buy_state.json"
+        for p in (tmp_tax, tmp_state):
+            if os.path.exists(p):
+                os.remove(p)
+
+        class _MockLimitBroker:
+            def __init__(self):
+                self.positions = [
+                    {"ticker": "SAPd_EQ", "quantity": 0.119, "averagePrice": 210.0, "currentPrice": 210.0, "ppl": 0.0},
+                    {"ticker": "ALVd_EQ", "quantity": 0.083, "averagePrice": 300.0, "currentPrice": 300.0, "ppl": 0.0},
+                    {"ticker": "SIEd_EQ", "quantity": 0.138, "averagePrice": 180.0, "currentPrice": 180.0, "ppl": 0.0},
+                ]
+                self.limit_calls = []
+                self.market_calls = []
+                self.cancelled = []
+                self.fail_next_limit = False
+                self.leave_unfilled = False
+
+            def get_open_positions(self):
+                return list(self.positions)
+
+            def get_pending_orders(self):
+                if self.leave_unfilled and self.limit_calls:
+                    return [{"id": "LIM_SPIKE", "ticker": self.limit_calls[-1][0], "quantity": self.limit_calls[-1][1], "type": "LIMIT"}]
+                return []
+
+            def get_account_cash(self):
+                return {"result": 0.0, "free": 25.25}
+
+            def place_limit_order(self, ticker: str, quantity: float, limit_price: float, time_validity: str = "DAY"):
+                self.limit_calls.append((ticker, quantity, limit_price, time_validity))
+                if self.fail_next_limit:
+                    raise RuntimeError("HTTP 400 Fractional limit rejected")
+                if not self.leave_unfilled:
+                    # Eseguito al prezzo ask reale (inferiore al cap +1.00%)
+                    fill_px = round(limit_price / 1.008, 2)
+                    self.positions.append({"ticker": ticker, "quantity": quantity, "averagePrice": fill_px, "currentPrice": fill_px, "ppl": 0.0})
+                    return {"id": "LIM_OK_1"}
+                return {"id": "LIM_SPIKE"}
+
+            def place_market_order(self, ticker: str, quantity: float):
+                self.market_calls.append((ticker, quantity))
+                return {"id": "MKT_FORBIDDEN"}
+
+            def cancel_order(self, order_id):
+                self.cancelled.append(order_id)
+
+        broker = _MockLimitBroker()
+        bot = daemon.Trading212AutonomousBot(client=broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
+        bot.tax_tracker = ItalianTaxTracker730(filepath=tmp_tax)
+        intel = daemon.HybridUncappedIntelligence()
+        intel.prev_open_snapshot.clear()
+        scanner = daemon.QuantMarketScanner()
+        cand_asml = {
+            "ticker": "ASMLa_EQ", "name": "ASML", "squad": "SQUADRA_2_CAVALCA_ONDA",
+            "sector": "CHIP_LITOGRAFIA_WAFER", "live_price_eur": 725.40, "rsi_5m": 53.0,
+            "vwap_dist_pct": 0.12, "atr_5m_volatility_pct": 0.24, "day_range_pct": 1.9,
+            "rvol_ratio": 1.35, "quant_buy_score": 81.0, "green_hook_confirmed": True,
+            "strong_for_overnight": True, "has_fresh_intraday_feed": True,
+            "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT",
+        }
+        scanner.scan_all = lambda **kwargs: {"ASMLa_EQ": cand_asml}
+
+        class _DummyRadar:
+            def evaluate_overnight_wave(self):
+                return {"verdict": "OK", "allow_overnight_hold": True, "nasdaq_change_pct": 0.4, "sp500_change_pct": 0.3, "dax_change_pct": 0.5, "vix_fear_change_pct": -1.0, "vix_level": 15.0}
+
+        real_dt = datetime.datetime
+        tuesday_10am = real_dt(2026, 11, 17, 10, 10, 0, tzinfo=daemon.MARKET_TZ)
+        with patch.object(daemon, "BOT_STATE_PATH", tmp_state), patch.object(daemon, "LIMIT_FILL_POLL_SEC", 0.0), patch("datetime.datetime") as mock_dt:
+            mock_dt.now.side_effect = lambda tz=None: tuesday_10am.astimezone(tz) if tz else tuesday_10am.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+
+            # Caso A: errore HTTP 400 su LIMIT -> ZERO fallback su place_market_order!
+            broker.fail_next_limit = True
+            daemon.run_cycle(bot, intel, scanner, _DummyRadar(), 1)
+            self.assertEqual(broker.market_calls, [])
+
+            # Caso B: spike > +1% (ordine LIMIT non eseguito) -> cancellazione immediata e ZERO lotti fantasma nel 730!
+            intel.last_sell_price.clear()
+            intel.last_sell_time.clear()
+            broker.fail_next_limit = False
+            broker.leave_unfilled = True
+            daemon.run_cycle(bot, intel, scanner, _DummyRadar(), 2)
+            self.assertIn("LIM_SPIKE", broker.cancelled)
+            self.assertNotIn("ASMLa_EQ", bot.tax_tracker.data.get("lotti_aperti_lifo", {}))
+
+            # Caso C: esecuzione regolare 4ª cartuccia -> margine riservato qty * limit_px <= liquidità residua (~25.25 EUR)!
+            intel.last_sell_price.clear()
+            intel.last_sell_time.clear()
+            broker.leave_unfilled = False
+            broker.limit_calls.clear()
+            daemon.run_cycle(bot, intel, scanner, _DummyRadar(), 3)
+            self.assertEqual(len(broker.limit_calls), 1)
+            _, qty_sent, lim_px_sent, _ = broker.limit_calls[0]
+            self.assertEqual(lim_px_sent, 732.0)  # 725.40 * 1.01 = 732.654 -> tick MiFID 1.00 EUR -> 732.00 EUR
+            self.assertLessEqual(round(qty_sent * lim_px_sent, 2), 25.25)
+            self.assertEqual(broker.market_calls, [])
+
+        for p in (tmp_tax, tmp_state):
+            if os.path.exists(p):
+                os.remove(p)
+
+    def test_17_gap_clean_intraday_atr_er_and_zero_synthetic_bench_bar(self):
+        """Invariante #17: ATR/ER depurati dal gap notturno 17:25->09:00 e zero barre sintetiche su feed Yahoo ritardati."""
+        scanner = daemon.QuantMarketScanner()
+        today_dt = datetime.datetime.now(daemon.MARKET_TZ).replace(hour=10, minute=0, second=0, microsecond=0)
+        yday_dt = (today_dt - datetime.timedelta(days=1)).replace(hour=17, minute=0, second=0, microsecond=0)
+        # 5 barre ieri pomeriggio intorno a 100.0 EUR + salto notturno a 106.0 EUR (+6% gap!) + 15 barre oggi strette (~0.12% range)
+        yday_ts = [int(yday_dt.timestamp()) + i * 300 for i in range(5)]
+        today_open_ts = int(today_dt.replace(hour=9, minute=0).timestamp())
+        today_ts = [today_open_ts + i * 300 for i in range(15)]
+        ts_all = yday_ts + today_ts
+        closes = [100.0, 100.05, 99.98, 100.02, 100.0] + [106.0 + (i % 2) * 0.08 for i in range(15)]
+        highs = [c + 0.07 for c in closes]
+        lows = [c - 0.07 for c in closes]
+        vols = [3000.0] * 20
+        raw = json.dumps({
+            "chart": {
+                "result": [{
+                    "meta": {"regularMarketPrice": closes[-1]},
+                    "timestamp": ts_all,
+                    "indicators": {"quote": [{"close": closes, "high": highs, "low": lows, "volume": vols}]},
+                }]
+            }
+        }).encode("utf-8")
+        with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(raw)):
+            m = scanner.fetch_5m_metrics("SAPd_EQ")
+        # Senza depurazione del gap +6%, ATR sarebbe > 0.65%; con gap-clean V11.2 misura solo il vero range intraday (< 0.25%)!
+        self.assertLess(m["atr_5m_volatility_pct"], 0.25)
+
+        # Verifica zero candela sintetica su titolo in panchina con Yahoo ritardato di 15m e candela rossa:
+        # regularMarketPrice leggermente sopra l'ultimo close NON deve fabbricare una falsa barra verde senza T212 live!
+        delayed_closes = [200.0 + i * 0.1 for i in range(18)] + [201.8, 201.4]  # Ultima candela ROSSA (201.8 -> 201.4)
+        delayed_ts = [int(time_val) for time_val in [int(datetime.datetime.now(daemon.MARKET_TZ).timestamp()) // 300 * 300 - (23 - i) * 300 for i in range(20)]]
+        raw_delayed = json.dumps({
+            "chart": {
+                "result": [{
+                    "meta": {"regularMarketPrice": 201.55},
+                    "timestamp": delayed_ts,
+                    "indicators": {"quote": [{"close": delayed_closes, "high": [c + 0.1 for c in delayed_closes], "low": [c - 0.1 for c in delayed_closes], "volume": [2500.0] * 20}]},
+                }]
+            }
+        }).encode("utf-8")
+        scanner_bench = daemon.QuantMarketScanner()
+        with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(raw_delayed)):
+            m_bench = scanner_bench.fetch_5m_metrics("IFXd_EQ")
+        self.assertFalse(m_bench["green_hook_confirmed"])
+
+    def test_18_trailing_daily_vault_and_partial_sell_lifo_preservation(self):
+        """Invariante #18: Trailing Daily Vault senza soffitto statico + preservazione LIFO su vendita parziale & cash sync."""
+        tmp_tax = "/tmp/test_v11_2_lifo_partial_tax.json"
+        if os.path.exists(tmp_tax):
+            os.remove(tmp_tax)
+        tracker = ItalianTaxTracker730(filepath=tmp_tax)
+        tracker.record_buy("SAPd_EQ", 0.1500, 200.00)
+        orig_ts = tracker.data["lotti_aperti_lifo"]["SAPd_EQ"][0]["timestamp"]
+        # Vendita parziale di ribilanciamento (0.0300 su 0.1500 azioni)
+        op = tracker.record_sell("SAPd_EQ", 0.0300, 210.00, fallback_avg_price_eur=200.00)
+        self.assertAlmostEqual(op["risultato_fiscale_eur"], 0.30, places=2)
+        remaining_lots = tracker.data["lotti_aperti_lifo"].get("SAPd_EQ", [])
+        self.assertEqual(len(remaining_lots), 1)
+        self.assertAlmostEqual(remaining_lots[0]["quantity"], 0.1200, places=4)
+        self.assertEqual(remaining_lots[0]["timestamp"], orig_ts)
+
+        # Riconciliazione simmetrica su slippage positivo (t212_net > cur_plus - cur_minus -> minusvalenze MAI negative!)
+        tracker.reconcile_certified_cash_result(0.42)
+        self.assertGreaterEqual(tracker.data["minusvalenze_lorde_eur"], 0.0)
+        self.assertAlmostEqual(
+            tracker.data["plusvalenze_lorde_eur"] - tracker.data["minusvalenze_lorde_eur"],
+            0.42,
+            places=2,
+        )
+        os.remove(tmp_tax)
+
+        # Verifica logica Trailing Daily High-Water-Mark Vault:
+        # 1) A +2.40 EUR senza ritracciamento -> False (lascia correre la giornata di trend!)
+        # 2) Da picco +2.40 EUR a +2.05 EUR (giveback 0.35 >= 0.30) -> True (blinda il bottino!)
+        peak_day = 2.40
+        cur_day_trend = 2.40
+        self.assertFalse(peak_day >= daemon.DAILY_VAULT_TRIGGER_EUR and (peak_day - cur_day_trend) >= daemon.DAILY_VAULT_GIVEBACK_EUR)
+        cur_day_pullback = 2.05
+        self.assertTrue(peak_day >= daemon.DAILY_VAULT_TRIGGER_EUR and round(peak_day - cur_day_pullback, 2) >= daemon.DAILY_VAULT_GIVEBACK_EUR)
 
 
 if __name__ == "__main__":

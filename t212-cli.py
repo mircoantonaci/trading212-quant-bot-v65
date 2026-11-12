@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-t212-cli.py — CLI Project Manager per Trading 212 Autonomous Quant Bot (V6.5 Institutional Zero-Latency)
+t212-cli.py — CLI Project Manager per Trading 212 Autonomous Quant Bot (V11.2 LTS Zero Cerotti)
 ========================================================================================================
 Progetto Standalone: /Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e
 
@@ -10,7 +10,7 @@ Comandi disponibili:
   python3 t212-cli.py dashboard   -> Genera/aggiorna la Dashboard HTML interattiva (dashboard_v6_5.html)
   python3 t212-cli.py start       -> Avvia il demone autonomo t212_daemon_100e.py in background
   python3 t212-cli.py stop        -> Ferma il demone in background (mantenendo intatte le posizioni a mercato)
-  python3 t212-cli.py export      -> Crea il pacchetto ZIP di backup (dist/trading212-quant-v6.5-backup.zip)
+  python3 t212-cli.py export      -> Crea il pacchetto ZIP locale senza segreti (dist/trading212-quant-backup.zip)
 """
 
 from __future__ import annotations
@@ -33,13 +33,13 @@ DAEMON_LOG = Path("/tmp/t212_daemon.log")
 
 PROJECT_FILES = [
     "AGENTS.md",
+    "CONSTRAINTS.md",
     "GEMINI.md",
     "t212-cli.py",
     "t212_daemon_100e.py",
     "trading212_bot.py",
     "trading212_state.json",
     "registro_fiscale_730.json",
-    "t212_credentials.json",
     "dashboard_v6_5.html",
     "docs/architecture_v6_5.md",
     "docs/walkthrough.md",
@@ -84,9 +84,16 @@ def fmt_pct(val: float, signed: bool = True) -> str:
     return fmt.replace(".", ",")
 
 
+def fmt_px(val: float) -> str:
+    # Mantiene precisione fino a 4 decimali se presenti sub-centesimi su XETRA/Euronext
+    if abs(val - round(val, 2)) > 1e-5:
+        return f"{val:.4f}".rstrip("0").rstrip(".").replace(".", ",") + " €"
+    return f"{val:.2f}".replace(".", ",") + " €"
+
+
 def cmd_status() -> None:
     print("\n" + "═" * 90)
-    print(" 🛡️  TRADING 212 AUTONOMOUS QUANT BOT — V6.5 INSTITUTIONAL ZERO-LATENCY (12 BLINDATURE)")
+    print(" 🛡️  TRADING 212 AUTONOMOUS QUANT BOT — V11.2 LTS ZERO CEROTTI (ISTITUZIONALE)")
     print("═" * 90)
 
     pids = get_daemon_pids()
@@ -102,7 +109,7 @@ def cmd_status() -> None:
 
     updated_at = state.get("timestamp", "N/D")
     cycle = state.get("cycle", 0)
-    arch = state.get("mode", "INSTITUTIONAL_ZERO_LATENCY_V6_5_12_SHIELDS")
+    arch = state.get("mode", "INSTITUTIONAL_V11_2_LTS_ZERO_CEROTTI")
     val_100 = float(state.get("valore_totale_portafoglio_100e_eur", 100.0))
     net_profit = float(state.get("guadagno_totale_netto_eur", 0.0))
     realized_net = float(state.get("profitto_realizzato_in_cassa_eur", 0.0))
@@ -125,7 +132,7 @@ def cmd_status() -> None:
     print(f"    ├─ PnL Fluttuante Cartucce Aperte:  {fmt_eur(open_pnl, signed=True)}")
     print(f"    ├─ Capitale Investito / Liquidità:  {fmt_eur(invested)} investiti | {fmt_eur(free_cash)} liberi")
     print(f"    ├─ Budget Composto Kelly (2+2):     {fmt_eur(kelly_budget)} ({fmt_eur(dyn_slot)} per cartuccia)")
-    print(f"    └─ Cassaforte Giornaliera (+1,80€): {'🔒 ATTIVA' if daily_vault else '🔓 In attesa'} | Commissioni: 0,00 €")
+    print(f"    └─ Cassaforte Mobile (>=+1,60€):    {'🔒 ATTIVA (Giveback Lock)' if daily_vault else '🔓 Corsa Libera Senza Tetto'} | Commissioni: 0,00 €")
 
     cartridges = state.get("cartucce_4x25_eur", [])
     print("\n" + "─" * 90)
@@ -149,36 +156,36 @@ def cmd_status() -> None:
         if shield_active and floor_pct is not None:
             shield_str = f"🛡️ SCUDO ARMONICO ATTIVO (Pavimento: {fmt_pct(float(floor_pct))})"
         elif pre_active and floor_pct is not None:
-            shield_str = f"🛡️ PRE-SCUDO SALVA-UTILE ATTIVO (Pavimento: {fmt_pct(float(floor_pct))})"
+            shield_str = f"🛡️ CURVA SALVA-UTILE CONTINUA ATTIVA (Pavimento: {fmt_pct(float(floor_pct))})"
         else:
-            shield_str = f"⏳ Attesa Scudo ATR a {fmt_pct(act_pct)} (Pre-Scudo a +0,60%)"
+            shield_str = f"⏳ Attesa Scudo ATR a {fmt_pct(act_pct)} (Pre-Scudo Continuo ATR)"
 
         print(
             f" #{slot} [{tk:<8}] {pos.get('name', tk):<24} | {squad:<15} | Settore: {sector}"
         )
         print(
             f"    Investito: {fmt_eur(inv_eur)} | PnL: {fmt_eur(pnl_eur, True)} ({fmt_pct(pnl_pct)}) | "
-            f"Picco: {fmt_pct(peak_pct)} | Prezzo 0ms: {cur_price:.2f} €"
+            f"Picco: {fmt_pct(peak_pct)} | Prezzo 0ms: {fmt_px(cur_price)}"
         )
         print(f"    Stato Scudo: {shield_str}")
 
     scanner = state.get("classifica_scanner_quantitativo_5m", [])
     if scanner:
         print("\n" + "─" * 90)
-        print(" 📡 SCANNER V7.0 HIGH-BETA (12 TITOLI EUR • PROFIT-VELOCITY + KAUFMAN ER + 0ms)")
+        print(f" 📡 SCANNER V11.2 ZERO CEROTTI ({len(scanner)} COLOSSI EUR • LINEARE MONOTONO + KAUFMAN ER + 0ms)")
         print("─" * 90)
         for item in scanner:
             tk = item.get("ticker", "")
             price = float(item.get("live_price_eur", 0.0))
             rsi = float(item.get("rsi_5m", 50.0))
             vel_m = float(item.get("profit_velocity_mult", item.get("atr_elastic_scale", 1.0)))
-            k_er = float(item.get("kaufman_efficiency_ratio", 0.35))
+            k_er = float(item.get("kaufman_efficiency_ratio", 0.0))
             hook = "🟢 Hook:SÌ" if item.get("green_hook_confirmed") else "🔴 Hook:NO"
             qscore = float(item.get("quant_buy_score", 0.0))
             phase = item.get("fase_onda_sinusoidale", "N/D")
             print(
-                f" • {tk:<8} | {price:>7.2f} € | RSI: {rsi:>4.1f} | "
-                f"Vel: {vel_m:.2f}x | ER: {k_er:.2f} | {hook} | Score: {qscore:>4.1f} | {phase}"
+                f" • {tk:<8} | {fmt_px(price):>10} | RSI: {rsi:>4.1f} | "
+                f"ATR-Sc: {vel_m:.2f}x | ER: {k_er:.2f} | {hook} | Score: {qscore:>4.1f} | {phase}"
             )
 
     radar = state.get("radar_onda_notturna_wall_street", {})
@@ -209,6 +216,15 @@ def cmd_tax_730() -> None:
 
     riepilogo = state.get("riepilogo_fiscale_730", {})
     q_w = riepilogo.get("QUADRO_W_MONITORAGGIO", {})
+    q_t = riepilogo.get("QUADRO_T_PLUSVALENZE_LIFO", {})
+    ivafe_val = float(q_w.get("IVAFE_Dovuta_EUR", 0.0))
+    imposta_val = float(tax.get("imposta_sostitutiva_26_eur", 0.0))
+    nota_f24 = q_t.get(
+        "Nota_Versamento",
+        "Nessun versamento F24 dovuto (sotto franchigia 12,00 EUR)"
+        if imposta_val <= 12.0
+        else f"Versamento F24 dovuto: {fmt_eur(imposta_val)}",
+    )
 
     print(f" Anno Fiscale:          {tax.get('anno_fiscale', 2026)}")
     print(f" Broker / Conto:        {tax.get('broker', 'Trading 212')} (ID: {state.get('account_id', 52318994)})")
@@ -218,7 +234,7 @@ def cmd_tax_730() -> None:
     print(f"    • Valore Iniziale:      {fmt_eur(float(tax.get('valore_iniziale_quadro_w_eur', 100.0)))}")
     print(f"    • Valore Finale Stim.:  {fmt_eur(float(q_w.get('Valore_Finale_31_12_EUR', tax.get('valore_finale_stimato_quadro_w_eur', 101.0))))}")
     print(f"    • Giorni Detenzione:    {tax.get('giorni_detenzione_ivafe', 365)} giorni")
-    print(f"    • IVAFE da Versare:     0,00 € ({q_w.get('Nota_IVAFE', 'Esente sotto soglia minima 12,00 EUR')})")
+    print(f"    • IVAFE da Versare:     {fmt_eur(ivafe_val)} ({q_w.get('Nota_IVAFE', 'Esente sotto soglia minima 12,00 EUR')})")
     print("─" * 90)
     print(" 📋 QUADRO T (Plusvalenze / Minusvalenze Finanziarie — Imposta Sostitutiva 26% LIFO)")
     closed = tax.get("operazioni_chiuse", [])
@@ -228,7 +244,7 @@ def cmd_tax_730() -> None:
     print(f"    • Plusvalenze Lorde:    {fmt_eur(float(tax.get('plusvalenze_lorde_eur', 0.0)), True)}")
     print(f"    • Minusvalenze Comp.:   {fmt_eur(float(tax.get('minusvalenze_lorde_eur', 0.0)))}")
     print(f"    • Imponibile Netto:     {fmt_eur(float(tax.get('imponibile_netto_eur', 0.0)), True)}")
-    print(f"    • Imposta 26% Teorica:  {fmt_eur(float(tax.get('imposta_sostitutiva_26_eur', 0.0)))} (0,00 € F24 sotto franchigia 12,00 €)")
+    print(f"    • Imposta 26% Teorica:  {fmt_eur(imposta_val)} ({nota_f24})")
 
     print("─" * 90)
     print(f" 📜 STORICO OPERAZIONI CHIUSE CONTABILIZZATE ({len(closed)})")
@@ -303,7 +319,7 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
             <div><span>Capitale Investito</span><strong>{fmt_eur(float(pos.get('invested_eur', 0.0)))}</strong></div>
             <div><span>PnL Fluttuante</span><strong class="{color_cls}">{fmt_eur(pnl_eur, True)}</strong></div>
             <div><span>Picco Toccato</span><strong>{fmt_pct(peak_pct)}</strong></div>
-            <div><span>Prezzo 0ms Live</span><strong>{float(pos.get('current_price_eur', 0.0)):.2f} €</strong></div>
+            <div><span>Prezzo 0ms Live</span><strong>{fmt_px(float(pos.get('current_price_eur', 0.0)))}</strong></div>
           </div>
           <div class="shield-bar">{badge} • RSI 5m: {float(pos.get('rsi_5m', 50.0)):.1f}</div>
         </div>
@@ -316,7 +332,7 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
         <tr>
           <td><strong>{item.get('ticker', '')}</strong> <small>{item.get('name', '')}</small></td>
           <td>{item.get('sector', '')}</td>
-          <td>{float(item.get('live_price_eur', 0.0)):.2f} €</td>
+          <td>{fmt_px(float(item.get('live_price_eur', 0.0)))}</td>
           <td>{float(item.get('rsi_5m', 50.0)):.1f}</td>
           <td>{float(item.get('atr_elastic_scale', 1.0)):.2f}x</td>
           <td>{fmt_pct(float(item.get('shield_activation_pct', 1.0)), False)} / -{fmt_pct(float(item.get('shield_pullback_pct', 0.2)), False)}</td>
@@ -348,7 +364,7 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trading 212 Autonomous Quant Bot — V6.5 Institutional Zero-Latency</title>
+  <title>Trading 212 Autonomous Quant Bot — V11.2 LTS Zero Cerotti</title>
   <style>
     :root {{
       --bg: #080b11;
@@ -459,10 +475,10 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
   <div class="container">
     <div class="header">
       <div>
-        <h1>🛡️ Trading 212 Autonomous Quant Bot — V6.5 Institutional Zero-Latency</h1>
-        <p>Conto ID: 52318994 (EUR) • 4 Cartucce 2+2 Senza Tetto • 12 Blindature Istituzionali • Ciclo #{cycle} ({updated_at[:19]})</p>
+        <h1>🛡️ Trading 212 Autonomous Quant Bot — V11.2 LTS Zero Cerotti</h1>
+        <p>Conto ID: 52318994 (EUR) • 4 Cartucce 2+2 Senza Tetto • Ordini LIMIT MiFID II + Curva Continua • Ciclo #{cycle} ({updated_at[:19]})</p>
       </div>
-      <div class="status-pill">🟢 MOTORE V6.5 ATTIVO (0ms Zero-Latency)</div>
+      <div class="status-pill">🟢 MOTORE V11.2 ATTIVO (0ms Zero-Latency)</div>
     </div>
 
     <div class="kpi-grid">
@@ -521,20 +537,20 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
       <tbody>{closed_rows}</tbody>
     </table>
 
-    <div class="section-title">🏛️ Le 12 Blindature Istituzionali Attive (V6.5)</div>
+    <div class="section-title">🏛️ Architettura Istituzionale V11.2 LTS Zero Cerotti</div>
     <div class="shields-grid">
-      <div class="shield-item"><strong>1. Pre-Scudo Salva-Utile</strong>Da +0,60% blocca un pavimento garantito a +0,25% (+0,42% → +0,20% con Cassaforte attiva).</div>
-      <div class="shield-item"><strong>2. Filtro Uncino Verde</strong>Vietato comprare su candele rosse in caduta libera: richiede candela verde o minimo crescente.</div>
-      <div class="shield-item"><strong>3. Raccolto Gap 09:00–09:30</strong>Stringe il ritracciamento a 0,14% sui gap di apertura mattutini >= +0,50%.</div>
-      <div class="shield-item"><strong>4. Radar Onda Notturna 17:15</strong>Incrocia Nasdaq, S&P500 e VIX per tenere le onde vere e liquidare le creste in inversione.</div>
+      <div class="shield-item"><strong>1. Curva Continua Salva-Utile</strong>Pavimento Lipschitz-continuo monotono col picco fino allo Scudo Mobile Senza Tetto (zero gradini morti).</div>
+      <div class="shield-item"><strong>2. Filtro Uncino Verde Puro</strong>Richiede candela verde o minimo crescente reale (zero candele sintetiche sui dati ritardati).</div>
+      <div class="shield-item"><strong>3. Raccolto Gap 09:00–09:30</strong>Stringe il ritracciamento a 0,14% sui gap di apertura mattutini >= +0,52%.</div>
+      <div class="shield-item"><strong>4. Radar Onda Notturna 17:15</strong>Incrocia Nasdaq, S&P500, DAX e VIX (con protezione anti-timeout) per filtrare l'overnight.</div>
       <div class="shield-item"><strong>5. Scudo Weekend Venerdì</strong>Protegge il capitale dalle 63 ore di chiusura mercati del fine settimana.</div>
       <div class="shield-item"><strong>6. Interesse Composto Kelly</strong>Reinveste gli utili netti aumentando ogni cartuccia a {fmt_eur(dyn_slot)}.</div>
-      <div class="shield-item"><strong>7. Vincolo Markowitz</strong>4 cartucce su 4 settori industriali diversi (mai ASML + Infineon insieme).</div>
-      <div class="shield-item"><strong>8. Scudo Elastico ATR 5m</strong>Adatta attivazione e ritracciamento (0,80x–1,30x) alla volatilità reale a 5 minuti.</div>
-      <div class="shield-item"><strong>9. Rotazione Fiscale 730</strong>Sblocca i titoli fermi >4h sotto VWAP compensando al 100% la minusvalenza.</div>
-      <div class="shield-item"><strong>10. Cassaforte Giornaliera</strong>A +1,80 € di utile giornaliero blinda i parametri in modalità difesa capitale.</div>
-      <div class="shield-item"><strong>11. Fusione Zero-Latency 0ms</strong>Inietta i prezzi live Trading 212 sulle candele 5m eliminando i 15m di ritardo XETRA.</div>
-      <div class="shield-item"><strong>12. Scudo Macro USA 14:30</strong>Congela i nuovi acquisti tra le 14:28 e le 14:35 CET durante i dati CPI/NFP USA.</div>
+      <div class="shield-item"><strong>7. Vincolo Markowitz 12+ Settori</strong>4 cartucce su 4 sotto-filiere industriali distinte (Litografia vs Packaging separati).</div>
+      <div class="shield-item"><strong>8. ATR 5m & Kaufman ER Intraday Puri</strong>Esclude i salti notturni >30m per misurare la vera volatilità e pulizia del trend a 5m.</div>
+      <div class="shield-item"><strong>9. Ordini LIMIT +1,00% MiFID II</strong>Tetto anti-spike su tick regolamentari LB6 con auto-cancel se scappato (zero Market ciechi).</div>
+      <div class="shield-item"><strong>10. Cassaforte Giornaliera Mobile</strong>Lascia correre le giornate di forte trend oltre +1,60 € e blinda solo su ritracciamento >= 0,30 €.</div>
+      <div class="shield-item"><strong>11. Fusione Zero-Latency 0ms</strong>Inietta i prezzi live Trading 212 sulle posizioni aperte per uscite al millisecondo.</div>
+      <div class="shield-item"><strong>12. Pausa Pranzo & Macro USA</strong>Zero nuovi ingressi nel deserto di liquidità 11:15–08:35 ET (apertura/dati macro USA).</div>
     </div>
   </div>
 </body>
@@ -569,7 +585,7 @@ def cmd_start() -> None:
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
-    print(f"🚀 Demone V6.5 avviato in background (PID: {proc.pid}) | Log: {DAEMON_LOG}")
+    print(f"🚀 Demone V11.2 avviato in background (PID: {proc.pid}) | Log: {DAEMON_LOG}")
 
 
 def cmd_stop() -> None:
@@ -589,18 +605,20 @@ def cmd_export() -> None:
     cmd_dashboard()
     dist_dir = PROJECT_DIR / "dist"
     dist_dir.mkdir(parents=True, exist_ok=True)
-    zip_path = dist_dir / "trading212-quant-v6.5-backup.zip"
+    zip_path = dist_dir / "trading212-quant-backup.zip"
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for rel in PROJECT_FILES:
+            if "credentials" in rel.lower():
+                continue
             fpath = PROJECT_DIR / rel
             if fpath.exists():
-                zf.write(fpath, arcname=f"trading212-quant-v65/{rel}")
-    print(f"📦 Pacchetto ZIP esportato in: {zip_path} ({zip_path.stat().st_size:,} bytes)")
+                zf.write(fpath, arcname=f"trading212-quant-v112/{rel}")
+    print(f"📦 Pacchetto ZIP locale (senza credenziali) esportato in: {zip_path} ({zip_path.stat().st_size:,} bytes)")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="CLI Manager per Trading 212 Autonomous Quant Bot V6.5"
+        description="CLI Manager per Trading 212 Autonomous Quant Bot V11.2 LTS Zero Cerotti"
     )
     parser.add_argument(
         "command",

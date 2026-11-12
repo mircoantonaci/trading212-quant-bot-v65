@@ -1,5 +1,8 @@
-# Credenziali API private (MAI caricare su GitHub - gestite tramite GitHub Secrets)
+# Credenziali API private e pacchetti di backup (MAI caricare su GitHub - gestite tramite GitHub Secrets)
 t212_credentials.json
+dist/
+*.zip
+.scanner_5m_cache.json
 
 # Cache Python e file temporanei
 __pycache__/

@@ -1,33 +1,33 @@
-name: "🛡️ Trading 212 Autonomous Quant Bot V6.5 (Cloud H24 Auto-Relay)"
+name: "🛡️ Trading 212 Autonomous Quant Bot V11.2 LTS (Cloud H24 Zero Cerotti)"
 
 on:
   schedule:
-    # Avvio anticipato alle 07:35 UTC (08:35 CET) per assorbire qualsiasi coda di GitHub prima delle 09:00!
-    - cron: "35 7 * * 1-5"
-    # Paracadute di sicurezza di metà giornata (12:45 UTC / 13:45 CET) se il turno mattutino non fosse attivo
-    - cron: "45 12 * * 1-5"
+    # Avvio DST-Safe alle 06:35 UTC (07:35 CET inverno / 08:35 CEST estate): sempre in anticipo sulle 09:00 Europe/Rome!
+    - cron: "35 6 * * 1-5"
+    # Watchdog di sicurezza non distruttivo (11:45 UTC = 12:45 CET / 13:45 CEST, cancel-in-progress: false)
+    - cron: "45 11 * * 1-5"
   workflow_dispatch:
     inputs:
       cycles:
-        description: "Numero massimo di cicli da ~13.5s (es. 1350 = ~5h continui senza buchi)"
+        description: "Numero massimo di cicli da ~6s (2800 = ~5h20m continui senza buchi)"
         required: false
-        default: "1350"
+        default: "2800"
       relay_afternoon:
-        description: "Lancia automaticamente il Turno Pomeridiano (13:15 -> 17:35 CET) a fine sessione?"
+        description: "Lancia automaticamente il Turno Pomeridiano (12:25 -> 17:36 Europe/Rome) a fine sessione?"
         required: false
         default: "auto"
 
 concurrency:
-  group: t212-quant-v65-cloud-runner
-  cancel-in-progress: true
+  group: t212-quant-v11-cloud-runner
+  cancel-in-progress: false
 
 permissions:
   contents: write
   actions: write
 
 jobs:
-  quant-bot-v65:
-    name: "Motore Continuo V6.5 (Zero-Jitter 09:00-17:35 CET)"
+  quant-bot-v11:
+    name: "Motore Continuo V11.2 Zero Cerotti (09:00-17:36 Europe/Rome)"
     runs-on: ubuntu-latest
     timeout-minutes: 330
     env:
@@ -41,56 +41,75 @@ jobs:
       - name: "📥 Checkout Repository & Stato Portafoglio"
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: "🐍 Setup Python 3.11"
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: "🧪 Verifica Bloccante dei 14 Invarianti Matematici (V11.1 Zero Cerotti Turbo)"
+      - name: "🧪 Verifica Bloccante dei 18 Invarianti Matematici (V11.2 LTS Zero Cerotti)"
         run: |
           python3 -m unittest discover -s tests -p "test_*.py" -v
 
-      - name: "🛡️ Sessione Continua al Secondo (Zero-Latency ~13s Loop + Checkpoint Git)"
+      - name: "🛡️ Sessione Continua 6s (MiFID Limit +1% + Cache 5m Persistente + Checkpoint Git)"
         run: |
           git config user.name "t212-quant-bot[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          TOTAL_CYCLES="${{ github.event.inputs.cycles || '1350' }}"
+          HOUR=$(date +%H)
+          MIN=$(date +%M)
+          HM=$((10#$HOUR * 60 + 10#$MIN))
+          if [ "$HM" -ge 1056 ]; then
+            echo "🏁 Borsa Europea già chiusa (ore $(date +%H:%M) Europe/Rome). Uscita immediata watchdog."
+            exit 0
+          fi
+
+          # Attesa leggera pre-apertura fino alle 08:50 Europe/Rome (530 min) in inverno (CET)
+          while [ "$HM" -lt 530 ]; do
+            echo "⏳ Pre-apertura Borsa ($(date +%H:%M) Europe/Rome < 08:50): attesa 30s..."
+            sleep 30
+            HOUR=$(date +%H)
+            MIN=$(date +%M)
+            HM=$((10#$HOUR * 60 + 10#$MIN))
+          done
+
+          git pull --rebase origin main || true
+
+          TOTAL_CYCLES="${{ github.event.inputs.cycles || '2800' }}"
           RELAY_MODE="${{ github.event.inputs.relay_afternoon || 'auto' }}"
-          BATCH=30
+          BATCH=25
           DONE=0
 
-          echo "🚀 Avvio Sessione Continua V11.1 per max $TOTAL_CYCLES cicli (Ora locale Borsa: $(date))"
+          echo "🚀 Avvio Sessione Continua V11.2 Zero Cerotti per max $TOTAL_CYCLES cicli da 6s (Ora Borsa: $(date))"
           while [ "$DONE" -lt "$TOTAL_CYCLES" ]; do
             HOUR=$(date +%H)
             MIN=$(date +%M)
             HM=$((10#$HOUR * 60 + 10#$MIN))
 
-            # Se sono passate le 17:35 CET/CEST (1055 min), la Borsa Europea è chiusa: termina il turno
-            if [ "$HM" -ge 1055 ]; then
+            # Se sono passate le 17:36 Europe/Rome (1056 min), la Borsa Europea è chiusa: termina il turno
+            if [ "$HM" -ge 1056 ]; then
               echo "🏁 Borsa Europea chiusa (ore $(date +%H:%M)). Fine sessione giornaliera."
               break
             fi
 
-            # Nel turno mattutino (RELAY_MODE != false), passa il testimone alle 13:15 (795 min) ben prima del timeout 330m
-            if [ "$RELAY_MODE" != "false" ] && [ "$HM" -ge 795 ] && [ "$DONE" -ge 60 ]; then
-              echo "🔄 Passaggio di testimone programmato delle $(date +%H:%M) al Turno Pomeridiano..."
+            # Nel turno mattutino (RELAY_MODE != false), passa il testimone alle 12:25 (745 min, in piena Pausa Pranzo) ben prima del timeout 330m
+            if [ "$RELAY_MODE" != "false" ] && [ "$HM" -ge 745 ] && [ "$DONE" -ge 50 ]; then
+              echo "🔄 Passaggio di testimone programmato delle $(date +%H:%M) al Turno Pomeridiano (311m fino alle 17:36)..."
               break
             fi
 
-            git fetch origin main || true
-            git reset --hard origin/main || true
             python3 t212_daemon_100e.py --cycles "$BATCH"
             python3 t212-cli.py dashboard
 
-            # Checkpoint automatico su GitHub a fine batch senza conflitti di rebase
+            # Checkpoint atomico su GitHub: in rebase '-X theirs' preserva SEMPRE lo stato locale appena calcolato!
             git add trading212_state.json registro_fiscale_730.json dashboard_v6_5.html
             if ! git diff --cached --quiet; then
-              git commit -m "chore(state): checkpoint live portafoglio & 730 ($(date +%H:%M) CET) [skip ci]"
-              git pull --rebase -X ours origin main || git rebase --abort || true
-              git push origin main || true
+              git commit -m "chore(state): checkpoint V11.2 portafoglio & 730 ($(date +%H:%M) Europe/Rome) [skip ci]"
+              if ! git push origin main; then
+                git pull --rebase -X theirs origin main || git rebase --abort || true
+                git push origin main || true
+              fi
             fi
 
             DONE=$((DONE + BATCH))
@@ -99,18 +118,18 @@ jobs:
           python3 t212-cli.py status
           python3 t212-cli.py tax-730
 
-      - name: "🔁 Auto-Staffetta Istantanea Turno Pomeridiano (Fino alle 17:35 CET)"
-        if: always()
+      - name: "🔁 Auto-Staffetta Istantanea Turno Pomeridiano (12:25 -> 17:36 Europe/Rome)"
+        if: "!cancelled()"
         run: |
           HOUR=$(date +%H)
           MIN=$(date +%M)
           HM=$((10#$HOUR * 60 + 10#$MIN))
           RELAY="${{ github.event.inputs.relay_afternoon || 'auto' }}"
 
-          # Se siamo tra le 12:00 e le 16:30 CET, lancia via workflow_dispatch (avvio in 2 secondi, zero coda cron!) il turno fino alle 17:35
-          if [ "$RELAY" != "false" ] && [ "$HM" -ge 720 ] && [ "$HM" -le 990 ]; then
-            REMAINING_MIN=$((1055 - HM))
-            NEXT_CYCLES=$((REMAINING_MIN * 5 + 30))
-            echo "⚡ Attivazione Staffetta Pomeridiana Istantanea ($NEXT_CYCLES cicli fino alle 17:35 CET)..."
+          # Se siamo tra le 12:15 e le 16:45 Europe/Rome, lancia via workflow_dispatch il turno pomeridiano continuo fino alle 17:36
+          if [ "$RELAY" != "false" ] && [ "$HM" -ge 735 ] && [ "$HM" -le 1005 ]; then
+            REMAINING_MIN=$((1058 - HM))
+            NEXT_CYCLES=$((REMAINING_MIN * 10 + 60))
+            echo "⚡ Attivazione Staffetta Pomeridiana V11.2 ($NEXT_CYCLES cicli da 6s fino alle 17:36 Europe/Rome)..."
             gh workflow run t212_cloud_h24.yml --repo "${{ github.repository }}" -f cycles="$NEXT_CYCLES" -f relay_afternoon="false" || true
           fi
