@@ -9,16 +9,7 @@
     "SAPd_EQ": [],
     "SIEd_EQ": [],
     "DTEd_EQ": [],
-    "ASMLa_EQ": [
-      {
-        "timestamp": "2026-11-12T17:11:28",
-        "ticker": "ASMLa_EQ",
-        "isin": "NL0010273215",
-        "quantity": 0.0182,
-        "price_eur": 1369.7802,
-        "total_eur": 24.93
-      }
-    ],
+    "ASMLa_EQ": [],
     "ZALd_EQ": [],
     "ADYENa_EQ": [],
     "CBKd_EQ": [],
@@ -39,7 +30,16 @@
     "BAYNd_EQ": [],
     "BMWd_EQ": [],
     "DTGd_EQ": [],
-    "ASMa_EQ": [],
+    "ASMa_EQ": [
+      {
+        "timestamp": "2026-11-12T17:20:20",
+        "ticker": "ASMa_EQ",
+        "isin": "NL0000334118",
+        "quantity": 0.0343,
+        "price_eur": 727.6968,
+        "total_eur": 24.96
+      }
+    ],
     "INGAa_EQ": [],
     "DBKd_EQ": [
       {
@@ -1425,12 +1425,21 @@
       "corrispettivo_eur": 25.08,
       "costo_lifo_eur": 24.87,
       "risultato_fiscale_eur": 0.21
+    },
+    {
+      "timestamp": "2026-11-12T17:20:15",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.0182,
+      "sell_price_eur": 1381.9,
+      "corrispettivo_eur": 25.15,
+      "costo_lifo_eur": 24.93,
+      "risultato_fiscale_eur": 0.22
     }
   ],
-  "totale_corrispettivi_vendita_eur": 3697.05,
-  "totale_costi_carico_lifo_eur": 3699.19,
-  "plusvalenze_lorde_eur": 12.56,
-  "minusvalenze_lorde_eur": 13.65,
+  "totale_corrispettivi_vendita_eur": 3722.2,
+  "totale_costi_carico_lifo_eur": 3724.12,
+  "plusvalenze_lorde_eur": 12.78,
+  "minusvalenze_lorde_eur": 13.64,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
