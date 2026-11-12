@@ -48,6 +48,10 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: "🧪 Verifica Bloccante dei 10 Invarianti Matematici (V11.0 Zero Cerotti)"
+        run: |
+          python3 -m unittest discover -s tests -p "test_*.py" -v
+
       - name: "🛡️ Sessione Continua al Secondo (Zero-Latency 30s Loop + Checkpoint Git)"
         run: |
           git config user.name "t212-quant-bot[bot]"
