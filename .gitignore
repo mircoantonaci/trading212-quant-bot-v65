@@ -3,6 +3,7 @@ t212_credentials.json
 dist/
 *.zip
 .scanner_5m_cache.json
+.radar_wave_cache.json
 
 # Cache Python e file temporanei
 __pycache__/

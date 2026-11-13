@@ -1,13 +1,13 @@
-# AGENTS.md — Trading 212 Autonomous Quant Bot (V6.5 Institutional Zero-Latency)
+# AGENTS.md — Trading 212 Autonomous Quant Bot (V11.4 LTS "Zero Cerotti")
 
-> **Progetto:** Trading 212 Autonomous Quant Bot — V6.5 Institutional Zero-Latency (12 Blindature)
-> **Origine Conversazione:** `6aa33967-d540-4201-8b0a-2fd9ff9458b8`
+> **Progetto:** Trading 212 Autonomous Quant Bot — V11.4 LTS Institutional Zero-Latency (27 Invarianti Bloccanti)
 > **Broker & Conto:** Trading 212 (`Account ID: 52318994` | Valuta: `EUR` | Modalità: `demo` / `live`)
 > **Budget Isolato:** `100,00 €` base (`4 Cartucce × 25,00 €` + Interesse Composto di Kelly sui profitti netti realizzati)
-> **Target Cash-Out:** `130,00 €` (`+30,00%` netto — liquidazione totale automatica del portafoglio)
+> **Universo Attivo:** `39 Colossi EUR Zero-Fee` (`32 Campioni DAX40/AEX25` + `7 Big Tech USA quotate in EUR su XETRA`, `0,00%` FX, `0,00%` Tobin Tax, Streaming `0s GETTEX` + Esecuzione `0ms T212`)
+> **Target Cash-Out:** `130,00 €` (`+30,00%` netto — liquidazione totale automatica del portafoglio e blocco permanente anti-churn)
 > **Root Progetto Standalone:** `/Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e`
 
-Questo file fornisce la **memoria architetturale permanente** per **Antigravity IDE** e **Antigravity CLI (`agy`)**. Aprendo una nuova sessione direttamente in questa cartella di progetto (`File -> Open Folder...`), l'agente conosce immediatamente l'intera architettura V6.5, le 12 blindature istituzionali, il registro fiscale Modello 730 e i comandi CLI senza dipendere da conversazioni precedenti.
+Questo file fornisce la **memoria architetturale permanente** per **Antigravity IDE** e **Antigravity CLI (`agy`)**. Consulta [`CONSTRAINTS.md`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/CONSTRAINTS.md) per il contratto formale dei **27 Invarianti Matematici Bloccanti** verificati ad ogni deploy tramite `python3 -m unittest discover -s tests -p "test_*.py" -v`.
 
 ---
 

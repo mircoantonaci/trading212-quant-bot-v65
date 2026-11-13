@@ -1,4 +1,4 @@
-# CONSTRAINTS.md — Contratto Matematico Inviolabile (V11.2 LTS "Zero Cerotti")
+# CONSTRAINTS.md — Contratto Matematico Inviolabile (V11.4 LTS "Zero Cerotti")
 
 Questo documento fissa gli **Invarianti Matematici Obbligatori** della piattaforma autonoma Trading 212 (`100,00 EUR` / `4 × 25,00 EUR` su 39 Colossi EUR Zero-Fee: 32 Campioni DAX40/AEX25 + 7 Big Tech USA quotate in EUR su XETRA, con lettura in tempo reale `0s` da `GETTEX`). Nessuna modifica futura può violare o abbassare queste soglie né introdurre "cerotti" (fallback ciechi, soglie scalinate duplicate o feed sintetici).
 
@@ -7,7 +7,7 @@ Questo documento fissa gli **Invarianti Matematici Obbligatori** della piattafor
 python3 -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-## I 26 Invarianti Bloccanti (`tests/test_quant_invariants.py`)
+## I 27 Invarianti Bloccanti (`tests/test_quant_invariants.py`)
 
 1. **Invariante #1 — Zero-Ghost su Timeout HTTP:**
    - Se Yahoo Finance non restituisce candele valide e non esiste cache in memoria (`last_valid_bars`), `quant_buy_score == 0.0`, `green_hook_confirmed == False`, `has_fresh_intraday_feed == False`, `rvol_ratio == 0.0`. È vietato cablare valori di fallback fittizi che generino punteggi > 0.
@@ -61,3 +61,5 @@ python3 -m unittest discover -s tests -p "test_*.py" -v
     - `rvol_ratio` proietta la barra parziale sui `300s` esclusivamente quando `yahoo_nonzero_buckets[-1] == last_yahoo_ts` (mai moltiplicando per `6,67x` una barra già chiusa seguita da quote Yahoo `v=0`), esclude sia l'asta di chiusura (`>= 17:25`) sia la `Mittagsauktion` XETRA (`13:00–13:04`), ancora la media con `max(mean, 0.5 * median)` contro gli odd-lot, vieta al 100% la fabbricazione di candele lineari sintetiche cold-start (`realtime_5m_tail` persistita su stato Cloud) e sincronizza il vero `open :00` da `GETTEX` sulle posizioni `T212` aperte mantenendo priorità `0ms` sul `close`.
 26. **Invariante #26 — Fisica Elastica ATR-VWAP (`ATR >= 0,115%`, `VWAP <= min(0,50%, 3,5*ATR)`), Valley Hook `RSI 24..64` & Disciplina Post-Loss (`test_26_atr_proportional_vwap_physics_snail_gate_valley_hook_and_loser_reentry`)**:
     - Nessun ingresso è ammesso su titoli in compressione morta (`atr_5m_volatility_pct < 0,115%`) né oltre un'estensione elastica proporzionale all'ATR corrente (`max(0,28%, 3,5 * ATR)` con tetto assoluto `+0,50%`, mai invertito a `+0,65%`); `score_momentum` richiede pulizia d'onda `kaufman_er >= 0,15`; `score_pullback` copre l'intero dominio ipervenduto `RSI 24..64` escludendo gli scivolamenti a `30m` sotto VWAP; un titolo già chiuso in perdita nella seduta può rientrare (dopo `60m`) solo con `kaufman_er >= 0,30` e `vwap_dist_pct >= 0,0%`.
+27. **Invariante #27 — Congruenza Direzionale `Signed Kaufman ER`, Climax Profit Retention $C^0$, Ampiezza Trasversale `< 15%` & Sblocco Istantaneo Liquidità Rotazione `4->3->4` (`test_27_v114_signed_er_climax_retention_breadth_and_same_cycle_rotation_cash`)**:
+    - `score_pullback` azzera il bonus direzionale `er * 12` sui crolli rettilinei a 50 minuti (`signed_kaufman_er <= -0,35` con `RSI > 34,0`), preservando intatti i veri Valley Hook (`RSI <= 34,0`); `compute_profit_protection_floor` stringe dolcemente il pullback fino a `-22%` sui climax parabolici (`>= 2,2x shield_act`) mantenendo continuità esatta $C^0$ sul bordo `peak == shield_act` e monotonicità stretta; durante le capitolazioni sistemiche (`market_breadth_above_vwap < 0,15`) sono ammessi solo Leader in Forza Relativa (`>= VWAP`) o washout profondi (`RSI <= 30`); ogni vendita a metà ciclo riallinea immediatamente `_t212_free_cash`, Kelly e Daily Vault sbloccando la rotazione `4/4 -> 3/4 -> 4/4` nello stesso ciclo anche su lag REST `< 500ms`; `OvernightWaveRadar` persiste la cache su disco tra i batch Cloud (`BATCH=50`).

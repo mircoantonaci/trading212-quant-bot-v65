@@ -1095,6 +1095,146 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertGreaterEqual(m_val["rsi_5m"], 24.0)
         self.assertGreater(m_val["quant_buy_score"], 75.0)
 
+    def test_27_v114_signed_er_climax_retention_breadth_and_same_cycle_rotation_cash(self):
+        """Invariante #27: Signed Kaufman ER contro crolli rettilinei, Climax Retention C0, Breadth < 15%, Rotazione 4->3->4 istantanea e Cache Radar."""
+        daemon.discover_and_verify_eur_giants(None)
+        scanner = daemon.QuantMarketScanner()
+
+        # 1) Signed Kaufman ER: un crollo rettilineo a 50m (RSI > 34, signed_er <= -0.35) NON riceve il bonus +12pt in score_pullback!
+        bear_crash_closes = [
+            100.80, 100.75, 100.70, 100.65, 100.60, 100.55, 100.50, 100.45, 100.40,
+            100.38, 100.34, 100.30, 100.26, 100.22, 100.18, 100.14, 100.10, 100.06, 100.02, 100.14,
+        ]
+        # Stesso RSI/VWAP simile ma onda laterale/rialzista (signed_er > 0) -> conserva il bonus direzionale ER
+        bull_pullback_closes = [
+            99.85, 99.90, 99.95, 100.00, 100.05, 100.10, 100.15, 100.20, 100.25,
+            100.02, 100.08, 100.14, 100.20, 100.16, 100.12, 100.18, 100.14, 100.10, 100.08, 100.22,
+        ]
+        with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(_make_yahoo_payload(bear_crash_closes))):
+            m_bear = scanner.fetch_5m_metrics("SAPd_EQ")
+        with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(_make_yahoo_payload(bull_pullback_closes))):
+            m_bull = scanner.fetch_5m_metrics("SAPd_EQ")
+        self.assertLessEqual(m_bear["signed_kaufman_er"], -0.35)
+        self.assertGreater(m_bear["kaufman_efficiency_ratio"], 0.45)
+        self.assertGreater(m_bull["signed_kaufman_er"], 0.0)
+        self.assertGreater(m_bull["quant_buy_score"], m_bear["quant_buy_score"])
+
+        # 2) Climax Profit Retention C0-continua e strettamente monotona in compute_profit_protection_floor:
+        intel = daemon.HybridUncappedIntelligence()
+        s_act, s_pull, atr_r = 0.0080, 0.0020, 0.0020
+        st_edge, fl_edge = intel.compute_profit_protection_floor(s_act, s_act, s_pull, atr_r, False)
+        self.assertEqual(st_edge, "UNCAPPED_SHIELD_2")
+        # Continuità esatta C0 sul bordo peak == shield_act (0.0080 - 0.0020 = 0.0060)
+        self.assertAlmostEqual(fl_edge, 0.0060, places=4)
+        # Sul climax parabolico (peak = 0.0180 >= 2.2x shield_act), il pullback si stringe del 22% (0.0020 -> 0.0016),
+        # trattenendo +0.04% extra rispetto al pullback fisso (0.0164 vs 0.0160)!
+        _, fl_climax = intel.compute_profit_protection_floor(0.0180, s_act, s_pull, atr_r, False)
+        self.assertGreater(fl_climax, round(0.0180 - s_pull, 4))
+        self.assertAlmostEqual(fl_climax, 0.0164, places=4)
+
+        # 3) Ampiezza Trasversale di Mercato (< 15% sopra VWAP -> capitolazione sistemica):
+        reg_open = {"allow_new_buys": True, "is_midday_sniper_window": False, "us_market_live": True}
+        ov_ok = {"allow_overnight_hold": True, "nasdaq_change_pct": 0.1, "sp500_change_pct": 0.1, "dax_change_pct": 0.1, "vix_fear_change_pct": 0.0, "vix_level": 16.0}
+        sub_vwap_laggard = {
+            "ticker": "SAPd_EQ", "live_price_eur": 210.0, "price_feed_source": "GETTEX_STREAMING_0S",
+            "vwap_dist_pct": -0.08, "has_fresh_intraday_feed": True, "rvol_ratio": 1.30,
+            "quant_buy_score": 76.0, "rsi_5m": 45.0, "green_hook_confirmed": True, "entry_hook_confirmed": True,
+            "atr_5m_volatility_pct": 0.20, "day_range_pct": 1.80, "kaufman_efficiency_ratio": 0.40,
+            "had_loss_today": False, "strong_for_overnight": False,
+        }
+        rs_leader = dict(sub_vwap_laggard, ticker="NVDd_EQ", vwap_dist_pct=0.14, strong_for_overnight=True)
+        deep_washout = dict(sub_vwap_laggard, ticker="ASMLa_EQ", vwap_dist_pct=-0.22, rsi_5m=28.5)
+        # In capitolazione (breadth = 0.10 < 0.15): il ritardatario sotto VWAP è bloccato, il Leader >= VWAP e il washout RSI<=30 passano!
+        self.assertFalse(intel.is_eligible_entry_candidate(sub_vwap_laggard, reg_open, ov_ok, market_breadth_above_vwap=0.10))
+        self.assertTrue(intel.is_eligible_entry_candidate(rs_leader, reg_open, ov_ok, market_breadth_above_vwap=0.10))
+        self.assertTrue(intel.is_eligible_entry_candidate(deep_washout, reg_open, ov_ok, market_breadth_above_vwap=0.10))
+        # In mercato normale (breadth = 0.50): anche il pullback sano -0.08% passa regolarmente
+        self.assertTrue(intel.is_eligible_entry_candidate(sub_vwap_laggard, reg_open, ov_ok, market_breadth_above_vwap=0.50))
+
+        # 4) Sblocco Istantaneo Liquidità di Rotazione 4/4 -> 3/4 -> 4/4 nello stesso ciclo anche con cassa iniziale 0.64 EUR e lag REST!
+        class _TightCashRotationBroker:
+            def __init__(self):
+                self.positions = [
+                    {"ticker": "MRKd_EQ", "quantity": 0.1667, "averagePrice": 150.0, "currentPrice": 148.5, "ppl": -0.25},
+                    {"ticker": "ADYENa_EQ", "quantity": 0.0290, "averagePrice": 860.0, "currentPrice": 862.0, "ppl": 0.06},
+                    {"ticker": "PRXa_EQ", "quantity": 0.7000, "averagePrice": 35.5, "currentPrice": 35.6, "ppl": 0.07},
+                    {"ticker": "MUV2d_EQ", "quantity": 0.0420, "averagePrice": 592.0, "currentPrice": 593.0, "ppl": 0.04},
+                ]
+                self.limit_buys = []
+
+            def get_open_positions(self):
+                return list(self.positions)
+
+            def get_pending_orders(self):
+                return []
+
+            def get_account_cash(self):
+                # Simula conto da 100 EUR pieno (free=0.64 EUR) + lag eventual-consistency (<500ms) subito dopo il Market Sell!
+                return {"result": 0.0, "free": 0.64}
+
+            def place_market_order(self, ticker: str, quantity: float):
+                if quantity < 0:
+                    self.positions = [p for p in self.positions if p["ticker"] != ticker]
+                return {"id": "SELL_TIGHT"}
+
+            def place_limit_order(self, ticker: str, quantity: float, limit_price: float, time_validity: str = "DAY"):
+                self.limit_buys.append((ticker, quantity, limit_price))
+                self.positions.append({"ticker": ticker, "quantity": quantity, "averagePrice": limit_price, "currentPrice": limit_price, "ppl": 0.0})
+                return {"id": "BUY_TIGHT"}
+
+            def cancel_order(self, order_id):
+                return None
+
+        real_dt = datetime.datetime
+        mkt_dt = real_dt(2026, 11, 13, 15, 45, 0, tzinfo=daemon.MARKET_TZ)
+        now_epoch = mkt_dt.timestamp()
+        tight_broker = _TightCashRotationBroker()
+        bot = daemon.Trading212AutonomousBot(client=tight_broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
+        bot.tax_tracker = ItalianTaxTracker730(filepath=self._tmp_tax_path)
+        for p0 in tight_broker.positions:
+            bot.tax_tracker.record_buy(p0["ticker"], p0["quantity"], p0["averagePrice"])
+        bot.tax_tracker.save()
+        intel_rot = daemon.HybridUncappedIntelligence()
+        intel_rot.prev_open_snapshot.clear()
+        intel_rot.position_open_time["MRKd_EQ"] = now_epoch - 1200.0  # 20m a -1.00% -> Airbag libera ~24.75 EUR!
+        rot_scan = daemon.QuantMarketScanner()
+        rot_scan.scan_all = lambda **kw: {
+            "MRKd_EQ": {"ticker": "MRKd_EQ", "name": "Merck", "squad": "SQUADRA_1_CECCHINO_GIORNALIERO", "sector": "PHARMA_BIOTECH", "live_price_eur": 148.5, "rsi_5m": 32.0, "vwap_dist_pct": -0.40, "atr_5m_volatility_pct": 0.16, "day_range_pct": 1.6, "rvol_ratio": 1.2, "quant_buy_score": 0.0, "green_hook_confirmed": False, "entry_hook_confirmed": False, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "COLTELLO_IN_CADUTA_ATTENDERE_UNCINO_VERDE"},
+            "ASMLa_EQ": {"ticker": "ASMLa_EQ", "name": "ASML", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "CHIP_LITOGRAFIA_WAFER", "live_price_eur": 720.0, "rsi_5m": 56.0, "vwap_dist_pct": 0.18, "atr_5m_volatility_pct": 0.24, "day_range_pct": 2.1, "rvol_ratio": 1.6, "quant_buy_score": 84.0, "green_hook_confirmed": True, "entry_hook_confirmed": True, "strong_for_overnight": True, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT"},
+        }
+
+        class _DummyRadar27:
+            def evaluate_overnight_wave(self):
+                return {"verdict": "OK", "allow_overnight_hold": True, "nasdaq_change_pct": 0.3, "sp500_change_pct": 0.2, "dax_change_pct": 0.2, "vix_fear_change_pct": -1.0, "vix_level": 15.5}
+
+        with patch.object(daemon, "LIMIT_FILL_POLL_SEC", 0.0), patch("datetime.datetime") as mock_dt, patch("time.time", return_value=now_epoch):
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            st_rot = daemon.run_cycle(bot, intel_rot, rot_scan, _DummyRadar27(), 1)
+
+        self.assertEqual(len(tight_broker.limit_buys), 1)
+        self.assertEqual(tight_broker.limit_buys[0][0], "ASMLa_EQ")
+        self.assertEqual(st_rot["mode"], "INSTITUTIONAL_V11_4_LTS_ZERO_CEROTTI")
+
+        # 5) Persistenza su disco di OvernightWaveRadar attraverso i riavvii batch Cloud:
+        tmp_radar_cache = "/tmp/test_v114_radar_cache.json"
+        if os.path.exists(tmp_radar_cache):
+            os.remove(tmp_radar_cache)
+        try:
+            r1 = daemon.OvernightWaveRadar(cache_path=tmp_radar_cache)
+            snap_map = {"%5EGSPC": (0.40, 5950.0, True), "%5EIXIC": (0.55, 19200.0, True), "%5EGDAXI": (0.30, 19300.0, True), "%5EVIX": (-2.0, 15.2, True)}
+            with patch.object(r1, "_fetch_index_snapshot", side_effect=lambda s: snap_map[s]):
+                v1 = r1.evaluate_overnight_wave(force=True)
+            self.assertTrue(v1["allow_overnight_hold"])
+            r2 = daemon.OvernightWaveRadar(cache_path=tmp_radar_cache)
+            with patch.object(r2, "_fetch_index_snapshot", side_effect=AssertionError("Non deve rifare HTTP entro 120s!")):
+                v2 = r2.evaluate_overnight_wave(force=False)
+            self.assertEqual(v2["verdict"], v1["verdict"])
+        finally:
+            if os.path.exists(tmp_radar_cache):
+                os.remove(tmp_radar_cache)
+
 
 if __name__ == "__main__":
     unittest.main()

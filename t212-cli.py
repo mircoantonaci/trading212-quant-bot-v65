@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-t212-cli.py — CLI Project Manager per Trading 212 Autonomous Quant Bot (V11.2 LTS Zero Cerotti)
+t212-cli.py — CLI Project Manager per Trading 212 Autonomous Quant Bot (V11.4 LTS Zero Cerotti)
 ========================================================================================================
 Progetto Standalone: /Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e
 
@@ -93,7 +93,7 @@ def fmt_px(val: float) -> str:
 
 def cmd_status() -> None:
     print("\n" + "═" * 90)
-    print(" 🛡️  TRADING 212 AUTONOMOUS QUANT BOT — V11.2 LTS ZERO CEROTTI (ISTITUZIONALE)")
+    print(" 🛡️  TRADING 212 AUTONOMOUS QUANT BOT — V11.4 LTS ZERO CEROTTI (ISTITUZIONALE)")
     print("═" * 90)
 
     pids = get_daemon_pids()
@@ -109,7 +109,7 @@ def cmd_status() -> None:
 
     updated_at = state.get("timestamp", "N/D")
     cycle = state.get("cycle", 0)
-    arch = state.get("mode", "INSTITUTIONAL_V11_2_LTS_ZERO_CEROTTI")
+    arch = state.get("mode", "INSTITUTIONAL_V11_4_LTS_ZERO_CEROTTI")
     val_100 = float(state.get("valore_totale_portafoglio_100e_eur", 100.0))
     net_profit = float(state.get("guadagno_totale_netto_eur", 0.0))
     realized_net = float(state.get("profitto_realizzato_in_cassa_eur", 0.0))
@@ -475,10 +475,10 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
   <div class="container">
     <div class="header">
       <div>
-        <h1>🛡️ Trading 212 Autonomous Quant Bot — V11.2 LTS Zero Cerotti</h1>
-        <p>Conto ID: 52318994 (EUR) • 4 Cartucce 2+2 Senza Tetto • Ordini LIMIT MiFID II + Curva Continua • Ciclo #{cycle} ({updated_at[:19]})</p>
+        <h1>🛡️ Trading 212 Autonomous Quant Bot — V11.4 LTS Zero Cerotti</h1>
+        <p>Conto ID: 52318994 (EUR) • 39 Colossi Zero-Fee (GETTEX 0s + T212 0ms) • Ordini LIMIT MiFID II • Ciclo #{cycle} ({updated_at[:19]})</p>
       </div>
-      <div class="status-pill">🟢 MOTORE V11.2 ATTIVO (0ms Zero-Latency)</div>
+      <div class="status-pill">🟢 MOTORE V11.4 ATTIVO (0ms Zero-Latency)</div>
     </div>
 
     <div class="kpi-grid">
@@ -537,7 +537,7 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
       <tbody>{closed_rows}</tbody>
     </table>
 
-    <div class="section-title">🏛️ Architettura Istituzionale V11.2 LTS Zero Cerotti</div>
+    <div class="section-title">🏛️ Architettura Istituzionale V11.4 LTS Zero Cerotti</div>
     <div class="shields-grid">
       <div class="shield-item"><strong>1. Curva Continua Salva-Utile</strong>Pavimento Lipschitz-continuo monotono col picco fino allo Scudo Mobile Senza Tetto (zero gradini morti).</div>
       <div class="shield-item"><strong>2. Filtro Uncino Verde Puro</strong>Richiede candela verde o minimo crescente reale (zero candele sintetiche sui dati ritardati).</div>
@@ -585,7 +585,7 @@ def cmd_start() -> None:
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
-    print(f"🚀 Demone V11.2 avviato in background (PID: {proc.pid}) | Log: {DAEMON_LOG}")
+    print(f"🚀 Demone V11.4 avviato in background (PID: {proc.pid}) | Log: {DAEMON_LOG}")
 
 
 def cmd_stop() -> None:
@@ -612,13 +612,13 @@ def cmd_export() -> None:
                 continue
             fpath = PROJECT_DIR / rel
             if fpath.exists():
-                zf.write(fpath, arcname=f"trading212-quant-v112/{rel}")
+                zf.write(fpath, arcname=f"trading212-quant-v114/{rel}")
     print(f"📦 Pacchetto ZIP locale (senza credenziali) esportato in: {zip_path} ({zip_path.stat().st_size:,} bytes)")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="CLI Manager per Trading 212 Autonomous Quant Bot V11.2 LTS Zero Cerotti"
+        description="CLI Manager per Trading 212 Autonomous Quant Bot V11.4 LTS Zero Cerotti"
     )
     parser.add_argument(
         "command",
