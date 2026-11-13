@@ -5,7 +5,48 @@
   "valore_iniziale_quadro_w_eur": 100.0,
   "valore_finale_stimato_quadro_w_eur": 100.86,
   "giorni_detenzione_ivafe": 365,
-  "lotti_aperti_lifo": {},
+  "lotti_aperti_lifo": {
+    "ASMLa_EQ": [
+      {
+        "timestamp": "2026-11-13T14:36:21",
+        "ticker": "ASMLa_EQ",
+        "isin": "NL0010273215",
+        "quantity": 0.0182,
+        "price_eur": 1360.989,
+        "total_eur": 24.77
+      }
+    ],
+    "IFXd_EQ": [
+      {
+        "timestamp": "2026-11-13T14:36:27",
+        "ticker": "IFXd_EQ",
+        "isin": "DE0006231004",
+        "quantity": 0.48,
+        "price_eur": 51.4792,
+        "total_eur": 24.71
+      }
+    ],
+    "MRKd_EQ": [
+      {
+        "timestamp": "2026-11-13T14:36:40",
+        "ticker": "MRKd_EQ",
+        "isin": "DE0006599905",
+        "quantity": 0.1657,
+        "price_eur": 149.9095,
+        "total_eur": 24.84
+      }
+    ],
+    "AMDd_EQ": [
+      {
+        "timestamp": "2026-11-13T14:38:28",
+        "ticker": "AMDd_EQ",
+        "isin": "US0079031078",
+        "quantity": 0.0476,
+        "price_eur": 521.0084,
+        "total_eur": 24.8
+      }
+    ]
+  },
   "operazioni_chiuse": [
     {
       "timestamp": "2026-11-05T09:44:17",
