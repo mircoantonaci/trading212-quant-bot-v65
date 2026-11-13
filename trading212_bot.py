@@ -40,6 +40,29 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TAX_REGISTRY_PATH = os.path.join(BASE_DIR, "registro_fiscale_730.json")
 BOT_STATE_PATH = os.path.join(BASE_DIR, "trading212_state.json")
 
+
+def atomic_write_json(
+    filepath: str,
+    payload: Any,
+    indent: Optional[int] = 2,
+    separators: Optional[tuple[str, str]] = None,
+) -> None:
+    """Scrittura JSON atomica POSIX (tempfile nella stessa directory + os.replace): zero file troncati su SIGTERM/letture concorrenti."""
+    parent_dir = os.path.dirname(os.path.abspath(filepath)) or "."
+    os.makedirs(parent_dir, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=".tmp_", suffix=".json", dir=parent_dir)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=indent, separators=separators, ensure_ascii=False)
+        os.replace(tmp_path, filepath)
+    except Exception:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+        raise
+
 # Universo rigorosamente in EUR su borse senza Tobin Tax (Germania XETRA / Olanda Euronext)
 # Include sia le 6 Blue-Chip classiche sia i 6 Campioni "Turbo High-Beta" per massimizzare il rendimento giornaliero
 EUR_ZERO_FEE_UNIVERSE: Dict[str, Dict[str, str]] = {
@@ -198,8 +221,18 @@ class ItalianTaxTracker730:
                 pass
 
     def save(self) -> None:
-        with open(self.filepath, "w", encoding="utf-8") as f:
-            json.dump(self.data, f, indent=2, ensure_ascii=False)
+        atomic_write_json(self.filepath, self.data, indent=2)
+
+    def _recompute_taxable_summary(self) -> None:
+        prior_loss_carry = float(self.data.get("zainetto_minusvalenze_pregresse_eur", 0.0))
+        net_taxable = max(
+            0.0,
+            float(self.data.get("plusvalenze_lorde_eur", 0.0))
+            - float(self.data.get("minusvalenze_lorde_eur", 0.0))
+            - prior_loss_carry,
+        )
+        self.data["imponibile_netto_eur"] = round(net_taxable, 2)
+        self.data["imposta_sostitutiva_26_eur"] = round(net_taxable * 0.26, 2)
 
     def record_buy(self, ticker: str, quantity: float, price_eur: float) -> None:
         """Registra un acquisto aggiungendo il lotto in cima alla pila LIFO."""
@@ -278,12 +311,7 @@ class ItalianTaxTracker730:
                 float(self.data["minusvalenze_lorde_eur"]) + abs(pnl_eur), 2
             )
 
-        net_taxable = max(
-            0.0,
-            float(self.data["plusvalenze_lorde_eur"]) - float(self.data["minusvalenze_lorde_eur"]),
-        )
-        self.data["imponibile_netto_eur"] = round(net_taxable, 2)
-        self.data["imposta_sostitutiva_26_eur"] = round(net_taxable * 0.26, 2)
+        self._recompute_taxable_summary()
 
         closed_op = {
             "timestamp": datetime.datetime.now(MARKET_TZ).replace(tzinfo=None).isoformat(timespec="seconds"),
@@ -303,7 +331,7 @@ class ItalianTaxTracker730:
         Riconcilia in modo atomico, simmetrico e isolato per Anno Fiscale il risultato realizzato
         certificato dal broker (/equity/account/cash -> result cumulativo lifetime):
         - Archivia automaticamente l'anno chiuso al cambio d'anno solare (1° Gennaio) salvando
-          l'offset `baseline_result_inizio_anno_eur` (zero doppia tassazione sugli anni pregressi!)
+          l'offset `baseline_result_inizio_anno_eur` e consumando/accumulando lo zainetto (Art. 68 TUIR)
         - Mantiene sempre `plusvalenze_lorde_eur >= 0` e `minusvalenze_lorde_eur >= 0`
         """
         t212_lifetime_net = round(float(certified_net_eur), 2)
@@ -315,19 +343,18 @@ class ItalianTaxTracker730:
             old_net = round(old_plus - old_minus, 2)
             prev_hist = float(self.data.get("profitto_storico_anni_precedenti_eur", 0.0))
             prior_baseline = float(self.data.get("baseline_result_inizio_anno_eur", 0.0))
+            prior_carry = float(self.data.get("zainetto_minusvalenze_pregresse_eur", 0.0))
+            archived_taxable = round(max(0.0, old_net - prior_carry), 2)
             arch = self.data.setdefault("archivio_anni_precedenti", {})
             arch[str(stored_year)] = {
                 "plusvalenze_lorde_eur": round(old_plus, 2),
                 "minusvalenze_lorde_eur": round(old_minus, 2),
-                "imponibile_netto_eur": round(max(0.0, old_net), 2),
-                "imposta_sostitutiva_26_eur": round(max(0.0, old_net) * 0.26, 2),
+                "imponibile_netto_eur": archived_taxable,
+                "imposta_sostitutiva_26_eur": round(archived_taxable * 0.26, 2),
             }
             self.data["profitto_storico_anni_precedenti_eur"] = round(prev_hist + old_net, 2)
             self.data["baseline_result_inizio_anno_eur"] = round(prior_baseline + old_net, 2)
-            self.data["zainetto_minusvalenze_pregresse_eur"] = round(
-                max(0.0, float(self.data.get("zainetto_minusvalenze_pregresse_eur", 0.0)) + max(0.0, old_minus - old_plus)),
-                2,
-            )
+            self.data["zainetto_minusvalenze_pregresse_eur"] = round(max(0.0, prior_carry - old_net), 2)
             self.data["anno_fiscale"] = cur_year
             self.data["totale_corrispettivi_vendita_eur"] = 0.00
             self.data["totale_costi_carico_lifo_eur"] = 0.00
@@ -350,13 +377,7 @@ class ItalianTaxTracker730:
         else:
             self.data["minusvalenze_lorde_eur"] = round(max(0.0, cur_minus + abs(diff)), 2)
 
-        prior_loss_carry = float(self.data.get("zainetto_minusvalenze_pregresse_eur", 0.0))
-        net_taxable = max(
-            0.0,
-            float(self.data["plusvalenze_lorde_eur"]) - float(self.data["minusvalenze_lorde_eur"]) - prior_loss_carry,
-        )
-        self.data["imponibile_netto_eur"] = round(net_taxable, 2)
-        self.data["imposta_sostitutiva_26_eur"] = round(net_taxable * 0.26, 2)
+        self._recompute_taxable_summary()
         self.save()
         return True
 

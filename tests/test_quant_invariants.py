@@ -1461,6 +1461,74 @@ class TestQuantInvariantsV11(unittest.TestCase):
             if os.path.exists(tmp_st_radar):
                 os.remove(tmp_st_radar)
 
+    def test_30_convergence_multipoll_frozen_bar_us_holiday_atomic_io_and_zainetto(self):
+        """Invariante #30: Guardia barra congelata :00 persistente su poll multipli, festività USA senza falsi crash/overnight, uscita atomica singola su posizione >1.24x e zainetto multi-anno TUIR."""
+        real_dt = datetime.datetime
+        mkt_dt = real_dt(2026, 11, 16, 16, 10, 8, tzinfo=daemon.MARKET_TZ)
+        now_ts = mkt_dt.timestamp()
+        bucket_now = int(now_ts // 300) * 300
+        prev_b5 = bucket_now - 300
+
+        # 1) Multi-poll su barra GETTEX congelata a :00: né il 1° poll (:00:02) né il 2° poll (:00:08) devono clonare il corpo passato!
+        sc_mp = daemon.QuantMarketScanner()
+        sc_mp.realtime_5m_bars["IFXd_EQ"] = {prev_b5: {"open": 30.00, "high": 30.40, "low": 29.95, "close": 30.35, "has_true_open": True}}
+        gx_frozen = json.dumps({"data": [{"s": "GETTEX:IFX", "d": [30.35, 30.00, 30.40, 29.95, 100, "streaming"]}]}).encode("utf-8")
+        gx_unfrozen = json.dumps({"data": [{"s": "GETTEX:IFX", "d": [30.38, 30.36, 30.42, 30.35, 100, "streaming"]}]}).encode("utf-8")
+        with patch("datetime.datetime") as mock_dt:
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            with patch("time.time", return_value=float(bucket_now + 2)), patch("urllib.request.urlopen", return_value=_FakeHTTPResp(gx_frozen)):
+                sc_mp.refresh_gettex_live_quotes(force=True)
+            self.assertFalse(sc_mp.realtime_5m_bars["IFXd_EQ"][bucket_now]["has_true_open"])
+            self.assertEqual(sc_mp.realtime_5m_bars["IFXd_EQ"][bucket_now]["open"], 30.35)
+            # Secondo poll 6s dopo (:00:08) ancora senza scambi su GETTEX -> DEVE restare protetta (non sovrascrivere con 30.00!):
+            with patch("time.time", return_value=float(bucket_now + 8)), patch("urllib.request.urlopen", return_value=_FakeHTTPResp(gx_frozen)):
+                sc_mp.refresh_gettex_live_quotes(force=True)
+            self.assertFalse(sc_mp.realtime_5m_bars["IFXd_EQ"][bucket_now]["has_true_open"])
+            self.assertEqual(sc_mp.realtime_5m_bars["IFXd_EQ"][bucket_now]["open"], 30.35)
+            # Terzo poll (:00:14) con primo vero scambio nel nuovo bucket -> adotta il vero open 30.36!
+            with patch("time.time", return_value=float(bucket_now + 14)), patch("urllib.request.urlopen", return_value=_FakeHTTPResp(gx_unfrozen)):
+                sc_mp.refresh_gettex_live_quotes(force=True)
+            self.assertTrue(sc_mp.realtime_5m_bars["IFXd_EQ"][bucket_now]["has_true_open"])
+            self.assertEqual(sc_mp.realtime_5m_bars["IFXd_EQ"][bucket_now]["open"], 30.36)
+
+        # 2) Festività USA (XETRA aperta alle 16:10 CET, ma NYSE chiusa con barre USA ferme a ieri -1.50%):
+        #    is_macro_crash_shield_active NON deve attivare falsi crash USA su dati vecchi di 24h!
+        intel = daemon.HybridUncappedIntelligence()
+        reg_afternoon = {"us_market_live": True, "allow_new_buys": True}
+        ov_us_holiday = {"us_indices_live_today": False, "nasdaq_change_pct": -1.50, "sp500_change_pct": -1.30, "dax_change_pct": 0.25, "vix_fear_change_pct": 0.5, "vix_level": 15.5}
+        self.assertFalse(intel.is_macro_crash_shield_active(reg_afternoon, ov_us_holiday))
+        ov_us_live_crash = dict(ov_us_holiday, us_indices_live_today=True)
+        self.assertTrue(intel.is_macro_crash_shield_active(reg_afternoon, ov_us_live_crash))
+
+        # 3) Consumo algebrico pluriennale dello Zainetto Minusvalenze (Art. 68 TUIR) + record_sell coerente:
+        tmp_z = "/tmp/test_v115_zainetto_tuir.json"
+        if os.path.exists(tmp_z):
+            os.remove(tmp_z)
+        try:
+            trz = ItalianTaxTracker730(filepath=tmp_z)
+            trz.data["anno_fiscale"] = 2026
+            trz.data["plusvalenze_lorde_eur"] = 1.00
+            trz.data["minusvalenze_lorde_eur"] = 5.00  # Netto 2026 = -4.00€ -> Zainetto 4.00€ nel 2027
+            trz.save()
+            with patch("trading212_bot.datetime.datetime") as mb_dt:
+                d27 = real_dt(2027, 1, 5, 10, 0, 0, tzinfo=daemon.MARKET_TZ)
+                mb_dt.now.side_effect = lambda tz=None: d27.astimezone(tz) if tz else d27.replace(tzinfo=None)
+                trz.reconcile_certified_cash_result(-4.00)
+                self.assertAlmostEqual(trz.data["zainetto_minusvalenze_pregresse_eur"], 4.00, places=2)
+                # Vendita in utile di +10.00€ nel 2027 via record_sell -> imponibile = 10 - 4 = 6.00€!
+                trz.record_buy("SAPd_EQ", 1.0, 100.00)
+                trz.record_sell("SAPd_EQ", 1.0, 110.00)
+                self.assertAlmostEqual(trz.data["imponibile_netto_eur"], 6.00, places=2)
+                # Rollover al 2028: lo zainetto da 4.00€ è stato integralmente assorbito dai +10.00€ del 2027 (-> 0.00€ nel 2028)!
+                d28 = real_dt(2028, 1, 5, 10, 0, 0, tzinfo=daemon.MARKET_TZ)
+                mb_dt.now.side_effect = lambda tz=None: d28.astimezone(tz) if tz else d28.replace(tzinfo=None)
+                trz.reconcile_certified_cash_result(6.00)
+                self.assertAlmostEqual(trz.data["zainetto_minusvalenze_pregresse_eur"], 0.00, places=2)
+                self.assertAlmostEqual(trz.data["archivio_anni_precedenti"]["2027"]["imponibile_netto_eur"], 6.00, places=2)
+        finally:
+            if os.path.exists(tmp_z):
+                os.remove(tmp_z)
+
 
 if __name__ == "__main__":
     unittest.main()

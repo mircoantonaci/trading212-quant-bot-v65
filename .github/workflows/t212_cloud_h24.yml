@@ -64,11 +64,12 @@ jobs:
           restore-keys: |
             t212-intraday-cache-${{ runner.os }}-${{ steps.cache-key.outputs.today }}-
 
-      - name: "🧪 Verifica Bloccante dei 29 Invarianti Matematici (V11.5 LTS Cross-Model Verified)"
+      - name: "🧪 Verifica Bloccante dei 30 Invarianti Matematici (V11.5 LTS Cross-Model Converged)"
         run: |
           python3 -m unittest discover -s tests -p "test_*.py" -v
 
       - name: "🛡️ Sessione Continua 6s (MiFID Limit +1% + Cache 5m Persistente + Checkpoint Git)"
+        id: run-session
         run: |
           git config user.name "t212-quant-bot[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -78,8 +79,10 @@ jobs:
           HM=$((10#$HOUR * 60 + 10#$MIN))
           if [ "$HM" -ge 1056 ]; then
             echo "🏁 Borsa Europea già chiusa (ore $(date +%H:%M) Europe/Rome). Uscita immediata watchdog."
+            echo "ran_session=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "ran_session=true" >> "$GITHUB_OUTPUT"
 
           # Attesa leggera pre-apertura fino alle 08:50 Europe/Rome (530 min) in inverno (CET)
           while [ "$HM" -lt 530 ]; do
@@ -135,7 +138,7 @@ jobs:
           python3 t212-cli.py tax-730
 
       - name: "💾 Salva Cache Candele 5m & Radar per la Staffetta Pomeridiana (Zero Git Bloat)"
-        if: always()
+        if: "!cancelled() && steps.run-session.outputs.ran_session == 'true' && hashFiles('.scanner_5m_cache.json') != ''"
         uses: actions/cache/save@v4
         with:
           path: |
