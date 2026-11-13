@@ -660,6 +660,96 @@ class TestQuantInvariantsV11(unittest.TestCase):
             res_strong = radar.evaluate_overnight_wave(force=True)
         self.assertTrue(res_strong["allow_overnight_hold"])
 
+    def test_20_gettex_0s_streaming_fusion_blocks_stale_peak_and_preserves_xetra_rvol(self):
+        """Invariante #20: GETTEX 0s blocca i falsi positivi da picco Yahoo vecchio di 15m senza alterare RVOL XETRA, con priorità T212."""
+        real_dt = datetime.datetime
+        # Simula esattamente il caso ENRd_EQ delle 11:11 CET (mercato aperto: Giovedì 12 Nov 2026 ore 11:11 CET)
+        mkt_dt = real_dt(2026, 11, 12, 11, 11, 10, tzinfo=daemon.MARKET_TZ)
+        now_epoch = mkt_dt.timestamp()
+        # Yahoo è fermo di 15 minuti (ultima candela alle 10:55 CET in forte salita a 133.60 EUR)
+        last_yahoo_bucket = int(real_dt(2026, 11, 12, 10, 55, 0, tzinfo=daemon.MARKET_TZ).timestamp())
+        base_ts = last_yahoo_bucket - 19 * 300
+        stale_rally_closes = [
+            132.0, 132.2, 132.4, 132.3, 132.5, 132.3, 132.1, 132.2, 132.4, 132.2,
+            132.0, 132.1, 132.3, 132.1, 131.9, 132.0, 132.1, 132.25, 132.45, 132.65,
+        ]
+        xetra_vols = [4000.0] * 18 + [6200.0, 6400.0]
+        yahoo_raw = _make_yahoo_payload(stale_rally_closes, vols=xetra_vols, base_ts=base_ts)
+
+        # 1) Senza GETTEX (solo Yahoo ritardato di 15m), il titolo appare erroneamente in pieno breakout (Score > 65)
+        scanner_stale = daemon.QuantMarketScanner()
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=now_epoch), patch(
+            "urllib.request.urlopen", return_value=_FakeHTTPResp(yahoo_raw)
+        ):
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            m_stale = scanner_stale.fetch_5m_metrics("ENRd_EQ")
+        self.assertGreater(m_stale["quant_buy_score"], 65.0)
+        self.assertEqual(m_stale["price_feed_source"], "YAHOO_FALLBACK_15M")
+
+        # 2) Con Occhio GETTEX 0s (alle 11:11 il titolo è in realtà già sceso a 131.88 EUR con candela 5m rossa):
+        #    - Score crolla a 0.0 (falso positivo bloccato al 100%)
+        #    - RVOL istituzionale XETRA resta identico al centesimo (zero distorsione dai volumi locali di Monaco)
+        gettex_raw = json.dumps({
+            "data": [
+                {"s": "GETTEX:ENR", "d": [131.88, 132.20, 132.24, 131.85, 131.88, "streaming"]},
+            ]
+        }).encode("utf-8")
+        scanner_live = daemon.QuantMarketScanner()
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=now_epoch):
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(gettex_raw)):
+                updated_n = scanner_live.refresh_gettex_live_quotes(force=True)
+            self.assertEqual(updated_n, 1)
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(yahoo_raw)):
+                m_live = scanner_live.fetch_5m_metrics("ENRd_EQ")
+
+        self.assertEqual(m_live["live_price_eur"], 131.88)
+        self.assertEqual(m_live["price_feed_source"], "GETTEX_STREAMING_0S")
+        self.assertFalse(m_live["green_hook_confirmed"])
+        self.assertEqual(m_live["quant_buy_score"], 0.0)
+        self.assertEqual(m_live["rvol_ratio"], m_stale["rvol_ratio"])
+
+        # 3) Se il titolo è già in portafoglio su Trading 212, il prezzo esecutivo T212 (0ms) ha priorità assoluta su GETTEX
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=now_epoch):
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            scanner_live.update_t212_live_price("ENRd_EQ", 131.95)
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(gettex_raw)):
+                scanner_live.refresh_gettex_live_quotes(force=True)
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(yahoo_raw)):
+                m_t212 = scanner_live.fetch_5m_metrics("ENRd_EQ")
+        self.assertEqual(m_t212["live_price_eur"], 131.95)
+        self.assertEqual(m_t212["price_feed_source"], "T212_LIVE_0MS")
+
+        # 4) Resilienza: un timeout HTTP su GETTEX non solleva mai eccezioni
+        with patch("urllib.request.urlopen", side_effect=TimeoutError("GETTEX timeout")):
+            self.assertEqual(scanner_live.refresh_gettex_live_quotes(force=True), 0)
+
+    def test_21_us_big_tech_eur_universe_and_markowitz_sector_isolation(self):
+        """Invariante #21: 39 Colossi EUR Zero-Fee (32 UE + 7 Big Tech USA in EUR), 100% GETTEX 0s e isolamento Markowitz."""
+        daemon.discover_and_verify_eur_giants(None)
+        expected_us_eur = {"NVDd_EQ", "MSFd_EQ", "APCd_EQ", "AMZd_EQ", "ABEAd_EQ", "FB2Ad_EQ", "AMDd_EQ"}
+        self.assertTrue(expected_us_eur.issubset(set(daemon.ASSET_PROFILES.keys())))
+        # FREd_EQ ("" in t212_verified_universe.json) deve essere escluso per evitare ordini HTTP 400 su ticker inesistenti
+        self.assertNotIn("FREd_EQ", daemon.ASSET_PROFILES)
+        self.assertEqual(len(daemon.ASSET_PROFILES), 39)
+
+        for tkr, prof in daemon.ASSET_PROFILES.items():
+            meta = daemon.EUR_ZERO_FEE_UNIVERSE[tkr]
+            self.assertEqual(meta["currency"], "EUR", f"Valuta non EUR su {tkr}")
+            self.assertEqual(meta["tobin_tax"], "0.00%", f"Tobin tax non zero su {tkr}")
+            self.assertTrue(str(prof.get("gettex", "")).startswith("GETTEX:"), f"Simbolo GETTEX mancante su {tkr}")
+
+        # Isolamento settoriale Markowitz sulle Big Tech USA correlate:
+        # NVIDIA + AMD condividono CHIP_ACCELERATORI_AI; Alphabet + Meta condividono DIGITAL_ADS_SOCIAL_AI;
+        # Microsoft + SAP condividono SOFTWARE_CLOUD; Amazon + Zalando condividono ECOMMERCE_CONSUMER.
+        self.assertEqual(daemon.ASSET_PROFILES["NVDd_EQ"]["sector"], daemon.ASSET_PROFILES["AMDd_EQ"]["sector"])
+        self.assertEqual(daemon.ASSET_PROFILES["ABEAd_EQ"]["sector"], daemon.ASSET_PROFILES["FB2Ad_EQ"]["sector"])
+        self.assertEqual(daemon.ASSET_PROFILES["MSFd_EQ"]["sector"], daemon.ASSET_PROFILES["SAPd_EQ"]["sector"])
+        self.assertEqual(daemon.ASSET_PROFILES["AMZd_EQ"]["sector"], daemon.ASSET_PROFILES["ZALd_EQ"]["sector"])
+
 
 if __name__ == "__main__":
     unittest.main()

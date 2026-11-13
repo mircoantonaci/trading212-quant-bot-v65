@@ -56,6 +56,7 @@ DAILY_VAULT_GIVEBACK_EUR = 0.30
 ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     "RHMd_EQ": {
         "yahoo": "RHM.DE",
+        "gettex": "GETTEX:RHM",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "DIFESA_AEROSPAZIO",
         "role_desc": "Turbo High-Beta Difesa/Aerospazio (Senza Tetto)",
@@ -66,6 +67,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "ENRd_EQ": {
         "yahoo": "ENR.DE",
+        "gettex": "GETTEX:ENR",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "ENERGIA_RETI_AI",
         "role_desc": "Turbo High-Beta Energia & Reti Data Center AI (Senza Tetto)",
@@ -76,6 +78,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "ADYENa_EQ": {
         "yahoo": "ADYEN.AS",
+        "gettex": "GETTEX:1N8",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "FINTECH_PAGAMENTI",
         "role_desc": "Turbo High-Beta Fintech & Pagamenti Globali (Senza Tetto)",
@@ -86,6 +89,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "CBKd_EQ": {
         "yahoo": "CBK.DE",
+        "gettex": "GETTEX:CBK",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "BANCHE_FINANZA",
         "role_desc": "Cecchino High-Beta Bancario DAX (Senza Tetto)",
@@ -96,6 +100,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "BESIa_EQ": {
         "yahoo": "BESI.AS",
+        "gettex": "GETTEX:BSI",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "CHIP_POTENZA_PACKAGING",
         "role_desc": "Turbo High-Beta Packaging Chip AI (Senza Tetto)",
@@ -106,6 +111,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "ZALd_EQ": {
         "yahoo": "ZAL.DE",
+        "gettex": "GETTEX:ZAL",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "ECOMMERCE_CONSUMER",
         "role_desc": "Cecchino High-Beta E-Commerce DAX (Senza Tetto)",
@@ -116,6 +122,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "DTEd_EQ": {
         "yahoo": "DTE.DE",
+        "gettex": "GETTEX:DTE",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "TELECOMUNICAZIONI",
         "role_desc": "Incasso Veloce Intraday (Senza Tetto)",
@@ -126,6 +133,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "ALVd_EQ": {
         "yahoo": "ALV.DE",
+        "gettex": "GETTEX:ALV",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "ASSICURAZIONI_FINANZA",
         "role_desc": "Incasso Veloce Intraday (Senza Tetto)",
@@ -136,6 +144,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "SIEd_EQ": {
         "yahoo": "SIE.DE",
+        "gettex": "GETTEX:SIE",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "INDUSTRIA_INFRASTRUTTURE",
         "role_desc": "Incasso Veloce / Rotazione (Senza Tetto)",
@@ -146,6 +155,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "SAPd_EQ": {
         "yahoo": "SAP.DE",
+        "gettex": "GETTEX:SAP",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "SOFTWARE_CLOUD",
         "role_desc": "Cavalca-Onda Lunga & Gap Notturno Selettivo (Senza Tetto)",
@@ -156,6 +166,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "IFXd_EQ": {
         "yahoo": "IFX.DE",
+        "gettex": "GETTEX:IFX",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "CHIP_POTENZA_PACKAGING",
         "role_desc": "Cavalca-Onda Semiconduttori & Gap Notturno Selettivo (Senza Tetto)",
@@ -166,6 +177,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "ASMLa_EQ": {
         "yahoo": "ASML.AS",
+        "gettex": "GETTEX:ASME",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "CHIP_LITOGRAFIA_WAFER",
         "role_desc": "Cavalca-Onda AI/Chip & Gap Notturno Selettivo (Senza Tetto)",
@@ -176,6 +188,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "BAYNd_EQ": {
         "yahoo": "BAYN.DE",
+        "gettex": "GETTEX:BAYN",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "PHARMA_BIOTECH",
         "role_desc": "Turbo High-Beta Farmaceutico & Biotech DAX (Senza Tetto)",
@@ -186,6 +199,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "VNAd_EQ": {
         "yahoo": "VNA.DE",
+        "gettex": "GETTEX:VNA",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "REAL_ESTATE_TASSI",
         "role_desc": "Cecchino High-Beta Immobiliare & Sensibile ai Tassi (Senza Tetto)",
@@ -196,6 +210,7 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     },
     "AIRd_EQ": {
         "yahoo": "AIR.DE",
+        "gettex": "GETTEX:AIR",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "AVIAZIONE_CIVILE_GLOBALE",
         "role_desc": "Cavalca-Onda Aviazione Civile & Aerospazio (Senza Tetto)",
@@ -208,8 +223,8 @@ ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
 
 VERIFIED_UNIVERSE_CACHE_PATH = os.path.join(BASE_DIR, "t212_verified_universe.json")
 
-# BLINDATURA #20 (V8.8 Dynamic Radar "Stocks-In-Play" DAX 40 + AEX 25 in EUR a 0,00 EUR commissioni):
-# Candidati aggiuntivi certificati per ISIN su XETRA (Germania) ed Euronext Amsterdam (Olanda).
+# BLINDATURA #20 (V11.2 Dynamic Radar "Stocks-In-Play" DAX 40 + AEX 25 + 7 Big Tech USA in EUR a 0,00 EUR commissioni):
+# Candidati aggiuntivi certificati per ISIN su XETRA (Germania) ed Euronext Amsterdam (Olanda) con feed GETTEX 0s.
 CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
     {
         "fallback_ticker": "MTXd_EQ",
@@ -217,6 +232,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE000A0D9PT0",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "MTX.DE",
+        "gettex": "GETTEX:MTX",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "MOTORI_AEROSPAZIO",
         "role_desc": "Turbo High-Beta Motori Jet & Difesa DAX (Senza Tetto)",
@@ -231,6 +247,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "NL0000334118",
         "exchange": "Euronext Amsterdam",
         "yahoo": "ASM.AS",
+        "gettex": "GETTEX:AVS",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "CHIP_LITOGRAFIA_WAFER",
         "role_desc": "Turbo High-Beta Wafer & Chip AI Olanda (Senza Tetto)",
@@ -245,6 +262,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE0005140008",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "DBK.DE",
+        "gettex": "GETTEX:DBK",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "BANCHE_FINANZA",
         "role_desc": "Cecchino High-Beta Investment Banking DAX (Senza Tetto)",
@@ -259,6 +277,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE0008430026",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "MUV2.DE",
+        "gettex": "GETTEX:MUV2",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "ASSICURAZIONI_FINANZA",
         "role_desc": "Colosso Riassicurativo Globale DAX (Senza Tetto)",
@@ -273,6 +292,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE000DTR0CK8",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "DTG.DE",
+        "gettex": "GETTEX:DTG",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "VEICOLI_INDUSTRIALI",
         "role_desc": "Colosso Trasporti Pesanti & Mobilità DAX (Senza Tetto)",
@@ -287,6 +307,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE000A1EWWW0",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "ADS.DE",
+        "gettex": "GETTEX:ADS",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "CONSUMER_BRAND_GLOBALE",
         "role_desc": "Cavalca-Onda Sportswear & Brand Globale DAX (Senza Tetto)",
@@ -301,6 +322,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE0005439004",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "CON.DE",
+        "gettex": "GETTEX:CON",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "AUTOMOTIVE_COMPONENTI",
         "role_desc": "Colosso Componentistica & Pneumatici DAX (Senza Tetto)",
@@ -315,6 +337,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE0005785604",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "FRE.DE",
+        "gettex": "GETTEX:FRE",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "HEALTHCARE_OSPEDALI",
         "role_desc": "Colosso Cliniche & Biopharma Europeo DAX (Senza Tetto)",
@@ -329,6 +352,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE000A0WMPJ6",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "AIXA.DE",
+        "gettex": "GETTEX:AIXA",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "CHIP_POTENZA_PACKAGING",
         "role_desc": "Turbo High-Beta Impianti Epitassia SiC/GaN Chip DAX (Senza Tetto)",
@@ -343,6 +367,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE0006599905",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "MRK.DE",
+        "gettex": "GETTEX:MRK",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "PHARMA_BIOTECH",
         "role_desc": "Colosso Life Science & Chimica Semiconduttori DAX (Senza Tetto)",
@@ -357,6 +382,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE000SHL1006",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "SHL.DE",
+        "gettex": "GETTEX:SHL",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "MEDTECH_DIAGNOSTICA",
         "role_desc": "Colosso MedTech & Diagnostica AI DAX (Senza Tetto)",
@@ -371,6 +397,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE000ENAG999",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "EOAN.DE",
+        "gettex": "GETTEX:EOAN",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "UTILITIES_RETI_ELETTRICHE",
         "role_desc": "Incasso Veloce Difensivo Reti Elettriche Europee (Senza Tetto)",
@@ -385,6 +412,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE0007037129",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "RWE.DE",
+        "gettex": "GETTEX:RWE",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "ENERGIA_RINNOVABILE_POWER",
         "role_desc": "Colosso Generazione Elettrica & Rinnovabili DAX (Senza Tetto)",
@@ -399,6 +427,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE0005552004",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "DHL.DE",
+        "gettex": "GETTEX:DHL",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "LOGISTICA_GLOBALE",
         "role_desc": "Colosso Logistica & Spedizioni Mondiali DAX (Senza Tetto)",
@@ -413,6 +442,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE000BASF111",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "BAS.DE",
+        "gettex": "GETTEX:BAS",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "CHIMICA_INDUSTRIALE",
         "role_desc": "Colosso Chimica Industriale Globale DAX (Senza Tetto)",
@@ -427,6 +457,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "DE0005190003",
         "exchange": "XETRA (Francoforte)",
         "yahoo": "BMW.DE",
+        "gettex": "GETTEX:BMW",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "AUTOMOTIVE_PREMIUM",
         "role_desc": "Colosso Automotive Luxury DAX (Senza Tetto)",
@@ -441,6 +472,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "NL0011821202",
         "exchange": "Euronext Amsterdam",
         "yahoo": "INGA.AS",
+        "gettex": "GETTEX:INN1",
         "squad": "SQUADRA_1_CECCHINO_GIORNALIERO",
         "sector": "BANCHE_FINANZA",
         "role_desc": "Colosso Bancario Europeo AEX Olanda (Senza Tetto)",
@@ -455,6 +487,7 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "isin": "NL0013654783",
         "exchange": "Euronext Amsterdam",
         "yahoo": "PRX.AS",
+        "gettex": "GETTEX:1TY",
         "squad": "SQUADRA_2_CAVALCA_ONDA",
         "sector": "TECH_HOLDING_AI",
         "role_desc": "Turbo High-Beta Tech & AI Global Holding AEX (Senza Tetto)",
@@ -463,10 +496,116 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "shield_pullback_pct": 0.0016,
         "beta_tier": "TURBO_HIGH_BETA",
     },
+    # --- 7 BIG TECH USA QUOTATE IN EURO SU XETRA (0,00% FX Fee, 0,00% Tobin Tax, Feed GETTEX 0s) ---
+    {
+        "fallback_ticker": "NVDd_EQ",
+        "name": "NVIDIA Corp (EUR)",
+        "isin": "US67066G1040",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "NVD.DE",
+        "gettex": "GETTEX:NVD",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "CHIP_ACCELERATORI_AI",
+        "role_desc": "Turbo High-Beta GPU & AI Accelerators Big Tech USA in EUR (Senza Tetto)",
+        "ref_price_eur": 152.00,
+        "shield_activation_pct": 0.0082,
+        "shield_pullback_pct": 0.0019,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    {
+        "fallback_ticker": "MSFd_EQ",
+        "name": "Microsoft Corp (EUR)",
+        "isin": "US5949181045",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "MSF.DE",
+        "gettex": "GETTEX:MSF",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "SOFTWARE_CLOUD",
+        "role_desc": "Colosso Cloud Azure & AI Enterprise Big Tech USA in EUR (Senza Tetto)",
+        "ref_price_eur": 468.00,
+        "shield_activation_pct": 0.0070,
+        "shield_pullback_pct": 0.0016,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
+    {
+        "fallback_ticker": "APCd_EQ",
+        "name": "Apple Inc (EUR)",
+        "isin": "US0378331005",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "APC.DE",
+        "gettex": "GETTEX:APC",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "ECOSISTEMA_MOBILE_HARDWARE",
+        "role_desc": "Colosso Consumer Ecosystem & Silicon Big Tech USA in EUR (Senza Tetto)",
+        "ref_price_eur": 322.00,
+        "shield_activation_pct": 0.0068,
+        "shield_pullback_pct": 0.0015,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
+    {
+        "fallback_ticker": "AMZd_EQ",
+        "name": "Amazon.com Inc (EUR)",
+        "isin": "US0231351067",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "AMZ.DE",
+        "gettex": "GETTEX:AMZ",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "ECOMMERCE_CONSUMER",
+        "role_desc": "Turbo High-Beta AWS Cloud & Global E-Commerce USA in EUR (Senza Tetto)",
+        "ref_price_eur": 245.00,
+        "shield_activation_pct": 0.0074,
+        "shield_pullback_pct": 0.0017,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    {
+        "fallback_ticker": "ABEAd_EQ",
+        "name": "Alphabet Inc Class A (EUR)",
+        "isin": "US02079K3059",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "ABEA.DE",
+        "gettex": "GETTEX:ABEA",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "DIGITAL_ADS_SOCIAL_AI",
+        "role_desc": "Colosso Search, Gemini AI & Cloud Big Tech USA in EUR (Senza Tetto)",
+        "ref_price_eur": 273.00,
+        "shield_activation_pct": 0.0072,
+        "shield_pullback_pct": 0.0016,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
+    {
+        "fallback_ticker": "FB2Ad_EQ",
+        "name": "Meta Platforms Inc (EUR)",
+        "isin": "US30303M1027",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "FB2A.DE",
+        "gettex": "GETTEX:FB2A",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "DIGITAL_ADS_SOCIAL_AI",
+        "role_desc": "Turbo High-Beta Social AI & Digital Ads Big Tech USA in EUR (Senza Tetto)",
+        "ref_price_eur": 564.00,
+        "shield_activation_pct": 0.0078,
+        "shield_pullback_pct": 0.0018,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    {
+        "fallback_ticker": "AMDd_EQ",
+        "name": "Advanced Micro Devices Inc (EUR)",
+        "isin": "US0079031078",
+        "exchange": "XETRA (Francoforte)",
+        "yahoo": "AMD.DE",
+        "gettex": "GETTEX:AMD",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "CHIP_ACCELERATORI_AI",
+        "role_desc": "Turbo High-Beta Data Center CPU/GPU AI Big Tech USA in EUR (Senza Tetto)",
+        "ref_price_eur": 517.00,
+        "shield_activation_pct": 0.0082,
+        "shield_pullback_pct": 0.0019,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
 ]
 
 
-def discover_and_verify_eur_giants(client: Trading212Client) -> int:
+def discover_and_verify_eur_giants(client: Optional[Trading212Client]) -> int:
     """
     Interroga una sola volta il catalogo ufficiale di Trading 212 (/equity/metadata/instruments)
     o legge la cache locale verificata per attivare solo i ticker realmente negoziabili in EUR
@@ -481,7 +620,7 @@ def discover_and_verify_eur_giants(client: Trading212Client) -> int:
             verified_map = {}
 
     missing_isins = [c["isin"] for c in CANDIDATE_EUR_GIANTS if c["isin"] not in verified_map]
-    if missing_isins:
+    if missing_isins and client is not None:
         try:
             instruments = client._request("GET", "/equity/metadata/instruments")
             if isinstance(instruments, list):
@@ -512,8 +651,16 @@ def discover_and_verify_eur_giants(client: Trading212Client) -> int:
 
     added_count = 0
     for cand in CANDIDATE_EUR_GIANTS:
-        tkr = verified_map.get(cand["isin"]) or cand.get("fallback_ticker", "")
+        if cand["isin"] in verified_map:
+            tkr = verified_map[cand["isin"]]
+        else:
+            tkr = cand.get("fallback_ticker", "")
         if not tkr:
+            # Se l'ISIN è esplicitamente assente su T212 (""), rimuovilo anche se presente da sessioni precedenti
+            stale_fb = cand.get("fallback_ticker", "")
+            if stale_fb:
+                ASSET_PROFILES.pop(stale_fb, None)
+                EUR_ZERO_FEE_UNIVERSE.pop(stale_fb, None)
             continue
         EUR_ZERO_FEE_UNIVERSE[tkr] = {
             "name": cand["name"],
@@ -524,6 +671,7 @@ def discover_and_verify_eur_giants(client: Trading212Client) -> int:
         }
         ASSET_PROFILES[tkr] = {
             "yahoo": cand["yahoo"],
+            "gettex": cand.get("gettex", ""),
             "squad": cand["squad"],
             "sector": cand["sector"],
             "role_desc": cand["role_desc"],
@@ -668,8 +816,11 @@ class OvernightWaveRadar:
         return self.cached_radar
 
 
+GETTEX_SCANNER_URL = "https://scanner.tradingview.com/germany/scan"
+
+
 class QuantMarketScanner:
-    """Scanner quantitativo a 5 minuti con Fusione Zero-Latency (Tick Real-Time Trading 212 + Storico 5m)."""
+    """Scanner quantitativo a 5 minuti con Fusione Zero-Latency (Tick 0ms Trading 212 + Feed 0s GETTEX + Storico Volumi XETRA)."""
 
     def __init__(self, cache_path: Optional[str] = None) -> None:
         self.cache_path = cache_path
@@ -677,7 +828,10 @@ class QuantMarketScanner:
             tkr: float(prof["ref_price_eur"]) for tkr, prof in ASSET_PROFILES.items()
         }
         self.has_t212_realtime: Dict[str, bool] = {}
-        # Buffer di candele a 5 minuti costruite in tempo reale (0ms) dai prezzi live di Trading 212
+        self.has_gettex_realtime: Dict[str, bool] = {}
+        self.last_gettex_ts: Dict[str, float] = {}
+        self.last_gettex_batch_ts: float = 0.0
+        # Buffer di candele a 5 minuti costruite in tempo reale (0ms T212 / 0s GETTEX)
         self.realtime_5m_bars: Dict[str, Dict[int, Dict[str, float]]] = {
             tkr: {} for tkr in ASSET_PROFILES
         }
@@ -754,6 +908,85 @@ class QuantMarketScanner:
                     b["low"] = min(b["low"], px)
                     b["close"] = px
 
+    def refresh_gettex_live_quotes(self, force: bool = False) -> int:
+        """
+        Occhio Real-Time 0s GETTEX (Borsa di Monaco di Baviera):
+        Aggiorna in un'unica chiamata HTTP batch tutti i 39 Colossi in EUR con ritardo 0 secondi
+        (mode == 'streaming'), eliminando il ritardo di 15m di Yahoo Finance sulla panchina senza
+        toccare i volumi istituzionali XETRA usati per RVOL. Le posizioni già aperte su Trading 212
+        mantengono priorità assoluta sul prezzo esecutivo T212 (0ms).
+        """
+        now_ts = time.time()
+        for tkr_exp, ts_exp in list(self.last_gettex_ts.items()):
+            if (now_ts - ts_exp) > 90.0:
+                self.has_gettex_realtime[tkr_exp] = False
+
+        if not force and (now_ts - self.last_gettex_batch_ts) < 4.5:
+            return 0
+
+        gx_to_tkr = {
+            str(prof["gettex"]): tkr
+            for tkr, prof in ASSET_PROFILES.items()
+            if prof.get("gettex")
+        }
+        if not gx_to_tkr:
+            return 0
+
+        payload = json.dumps({
+            "symbols": {"tickers": list(gx_to_tkr.keys()), "query": {"types": []}},
+            "columns": ["close", "open|5", "high|5", "low|5", "close|5", "update_mode"],
+        }).encode("utf-8")
+        req = urllib.request.Request(
+            GETTEX_SCANNER_URL,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)",
+            },
+        )
+        now_dt = datetime.datetime.now(MARKET_TZ)
+        hm = now_dt.hour * 60 + now_dt.minute
+        mkt_open = now_dt.weekday() < 5 and (9 * 60 <= hm < 17 * 60 + 30)
+        bucket_5m = int(now_ts // 300) * 300
+        updated = 0
+        try:
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+            for row in raw.get("data", []):
+                gx_sym = str(row.get("s", ""))
+                vals = row.get("d", [])
+                tkr = gx_to_tkr.get(gx_sym)
+                if not tkr or len(vals) < 6 or vals[0] is None:
+                    continue
+                if str(vals[5]) != "streaming":
+                    continue
+                px = round(float(vals[0]), 4)
+                if px <= 0:
+                    continue
+                o5 = round(float(vals[1]) if vals[1] is not None else px, 4)
+                c5 = px
+                h5 = round(max(float(vals[2]) if vals[2] is not None else px, o5, c5), 4)
+                l5 = round(min(float(vals[3]) if vals[3] is not None else px, o5, c5), 4)
+                self.has_gettex_realtime[tkr] = True
+                self.last_gettex_ts[tkr] = now_ts
+                updated += 1
+                if not self.has_t212_realtime.get(tkr, False):
+                    self.live_prices[tkr] = px
+                    if mkt_open:
+                        bars = self.realtime_5m_bars.setdefault(tkr, {})
+                        if bucket_5m not in bars:
+                            bars[bucket_5m] = {"open": o5, "high": h5, "low": l5, "close": c5}
+                        else:
+                            b = bars[bucket_5m]
+                            b["high"] = max(b["high"], h5)
+                            b["low"] = min(b["low"], l5)
+                            b["close"] = c5
+            if updated > 0:
+                self.last_gettex_batch_ts = now_ts
+        except Exception:
+            pass
+        return updated
+
     def fetch_5m_metrics(
         self,
         ticker: str,
@@ -764,6 +997,10 @@ class QuantMarketScanner:
         ysymbol = prof["yahoo"]
         now_cet_bar = datetime.datetime.now(MARKET_TZ)
         today_date = now_cet_bar.date()
+        has_live_stream = bool(
+            self.has_t212_realtime.get(ticker, False)
+            or self.has_gettex_realtime.get(ticker, False)
+        )
         # V11.1 Range Dinamico: 5d fino alle 11:00 CET (continuità mattutina), 1d dopo le 11:00 quando ci sono >= 20 barre odierne (5x più leggero!)
         cached_prev = self.last_valid_bars.get(ticker)
         use_fast_1d = (
@@ -795,7 +1032,7 @@ class QuantMarketScanner:
                 result = data["chart"]["result"][0]
                 meta_info = result.get("meta", {})
                 reg_px = meta_info.get("regularMarketPrice")
-                if reg_px and not self.has_t212_realtime.get(ticker):
+                if reg_px and not has_live_stream:
                     self.live_prices[ticker] = round(float(reg_px), 4)
                 timestamps = result.get("timestamp", [])
                 quote = result["indicators"]["quote"][0]
@@ -880,7 +1117,8 @@ class QuantMarketScanner:
         if vols and vols[-1] <= 0.0:
             vols[-1] = avg_vol_est
 
-        # BLINDATURA #11 (V10.0 In-Place 5m Fusion 0ms): aggiorna il bucket corrente senza mai sdoppiare la candela!
+        # BLINDATURA #11 (V11.2 In-Place 5m Fusion 0ms/0s + Ponte Cold-Start Intraday):
+        # cuce senza sdoppiamenti le candele live di Trading 212 / GETTEX mantenendo intatto RVOL XETRA!
         rt_bars = self.realtime_5m_bars.get(ticker, {})
         for b_ts in sorted(rt_bars.keys()):
             b_bucket = int(b_ts // 300) * 300
@@ -893,6 +1131,22 @@ class QuantMarketScanner:
                     highs[-1] = max(highs[-1], b["high"])
                     lows[-1] = min(lows[-1], b["low"])
                 elif b_bucket > last_yahoo_ts and (not bar_timestamps or b_bucket > bar_timestamps[-1]):
+                    if bar_timestamps:
+                        prev_ts = bar_timestamps[-1]
+                        prev_dt = datetime.datetime.fromtimestamp(prev_ts, tz=MARKET_TZ)
+                        gap_steps = (b_bucket - prev_ts) // 300
+                        if prev_dt.date() == b_dt.date() and 2 <= gap_steps <= 4:
+                            p_start = closes[-1]
+                            p_end = float(b.get("open", b["close"]))
+                            for step_k in range(1, gap_steps):
+                                mid_ts = prev_ts + step_k * 300
+                                c_prev_step = closes[-1]
+                                c_step = round(p_start + (p_end - p_start) * (step_k / float(gap_steps)), 4)
+                                closes.append(c_step)
+                                highs.append(max(c_prev_step, c_step))
+                                lows.append(min(c_prev_step, c_step))
+                                vols.append(avg_vol_est)
+                                bar_timestamps.append(mid_ts)
                     closes.append(b["close"])
                     highs.append(b["high"])
                     lows.append(b["low"])
@@ -906,7 +1160,7 @@ class QuantMarketScanner:
             now_bucket = int(time.time() // 300) * 300
             if abs(last_c - closes[-1]) > 1e-4:
                 if (
-                    self.has_t212_realtime.get(ticker, False)
+                    has_live_stream
                     and mkt_open_now
                     and bar_timestamps
                     and now_bucket > bar_timestamps[-1]
@@ -1144,6 +1398,13 @@ class QuantMarketScanner:
             sine_phase = "ONDA_DISCENDENTE_O_DEBOLE"
             strong_for_overnight = False
 
+        if self.has_t212_realtime.get(ticker, False):
+            feed_source = "T212_LIVE_0MS"
+        elif self.has_gettex_realtime.get(ticker, False):
+            feed_source = "GETTEX_STREAMING_0S"
+        else:
+            feed_source = "YAHOO_FALLBACK_15M"
+
         return {
             "ticker": ticker,
             "name": EUR_ZERO_FEE_UNIVERSE[ticker]["name"],
@@ -1152,6 +1413,7 @@ class QuantMarketScanner:
             "beta_tier": beta_tier,
             "role_desc": prof["role_desc"],
             "live_price_eur": round(last_c, 4),
+            "price_feed_source": feed_source,
             "rsi_5m": rsi_14,
             "dip_from_high_pct": round(dip_from_high_pct, 2),
             "day_range_pct": round(day_range_pct, 2),
@@ -1185,11 +1447,12 @@ class QuantMarketScanner:
         active_tickers: Optional[List[str]] = None,
     ) -> Dict[str, Dict[str, Any]]:
         now_ts = time.time()
-        # Architettura Split-Speed Turbo V9.0 (6s Posizioni Aperte / 24s Radar Globale 29 Titoli):
-        # - Ogni 24s (o subito se c'è una cartuccia libera da investire: force=True) scansiona tutti i 29 Colossi.
-        # - Nei cicli intermedi da 6s aggiorna a latenza zero le sole cartucce aperte in portafoglio!
+        # Architettura Split-Speed Turbo V11.2 + GETTEX 0s (6s Posizioni Aperte / Radar Globale 39 Titoli):
+        # - In 1 singola chiamata HTTP batch aggiorna in streaming 0s tutti i 39 Colossi da GETTEX (Monaco).
+        # - Ogni 24s (o subito se c'è una cartuccia libera: force=True) ricalcola le metriche 5m di tutti i 39 Colossi.
         full_radar_due = force or not self.cached_metrics or (now_ts - self.last_scan_ts) >= 22.0
         if full_radar_due:
+            self.refresh_gettex_live_quotes(force=False)
             tickers = list(ASSET_PROFILES.keys())
             results: Dict[str, Dict[str, Any]] = {}
             with ThreadPoolExecutor(max_workers=20) as pool:
@@ -1833,11 +2096,12 @@ def run_cycle(
         if tkr_old not in pos_by_ticker:
             intel.peak_pnl_pct.pop(tkr_old, None)
             intel.position_open_time.pop(tkr_old, None)
+    scanner.has_t212_realtime.clear()
     for tkr, p in pos_by_ticker.items():
         cur_px = float(p.get("currentPrice", 0.0))
         scanner.update_t212_live_price(tkr, cur_px)
 
-    # 2. Scansione quantitativa Split-Speed (6s sulle cartucce aperte / 24s sui 32 Colossi o subito se slot libero)
+    # 2. Scansione quantitativa Split-Speed + GETTEX 0s (6s sulle cartucce aperte / 24s sui 39 Colossi o subito se slot libero)
     overnight_status = radar.evaluate_overnight_wave()
     dax_live_pct = float(overnight_status.get("dax_change_pct", 0.0))
     need_full_scan = len(pos_by_ticker) < bot.cartridges
@@ -2382,11 +2646,11 @@ def run_cycle(
         "cycle": cycle_num,
         "mode": "INSTITUTIONAL_V11_2_LTS_ZERO_CEROTTI",
         "blindature_attive_v6_istituzionali": [
-            "1. Blocco 1 Zero-Ghost Cache V11.2 (Cache 5m persistita su disco tra batch Cloud + Zero barre sintetiche su feed ritardati)",
+            "1. Occhio Real-Time 0s GETTEX + Zero-Ghost Cache V11.2 (39/39 titoli in streaming 0s Monaco + Cache 5m persistita + Volumi XETRA)",
             "2. Blocco 2 Intraday Puro Gap-Clean (ATR & Kaufman ER depurati dal gap notturno 17:25->09:00 + Asta 17:25 esclusa da RVOL)",
             "3. Marketable Limit Orders MiFID II (+1,00% cap anti-spike calettato su tick RTS 11, zero Market Order al buio)",
             f"4. Allocazione 4 Decimali & Kelly su LimitPrice (Budget: {compounded_budget_eur:.2f} EUR -> 4 Cartucce da {dynamic_cartridge_eur:.2f} EUR)",
-            "5. Matrice Markowitz 32 Colossi EUR Zero-Fee (Chip Litografia Wafer vs Chip Potenza Packaging, 4 settori distinti)",
+            f"5. Matrice Markowitz {len(ASSET_PROFILES)} Colossi EUR Zero-Fee (32 UE + 7 Big Tech USA in EUR, 0% FX/Tobin, 4 settori distinti)",
             "6. Curva Monotona Continua Salva-Utile (Funzione pura unica Motore == JSON, zero gradini ciechi fino allo Scudo Elastico)",
             "7. Airbag Simmetrico Elastico su ATR (~-0,54%..-0,72% oltre 8m + Taglio Catastrofico Istantaneo -1,35% sotto 8m)",
             "8. Orologio DST-Safe America/New_York (Stop Acquisti Pausa Pranzo 11:15-08:35 ET & Pre-Chiusura >=17:15 CET + Onda USA >=+0,25%)",
@@ -2437,13 +2701,13 @@ def main():
     args, _ = parser.parse_known_args()
 
     print(
-        "=== AVVIO DEMONE V11.2 LTS ZERO CEROTTI (MIFID LIMIT +1% + GAP-CLEAN ATR/ER + CONTINUOUS SHIELD + TRAILING VAULT) ===",
+        "=== AVVIO DEMONE V11.2 LTS ZERO CEROTTI (GETTEX 0s STREAMING + 39 COLOSSI UE/USA IN EUR + MIFID LIMIT +1%) ===",
         flush=True,
     )
     client = load_client()
     added_giants = discover_and_verify_eur_giants(client)
     print(
-        f"[RADAR DINAMICO V11.2] Universo EUR Zero-Fee attivo: {len(ASSET_PROFILES)} Colossi DAX40/AEX25 (+{added_giants} verificati via ISIN)",
+        f"[RADAR DINAMICO V11.2] Universo EUR Zero-Fee attivo: {len(ASSET_PROFILES)} Colossi (32 UE + 7 Big Tech USA in EUR, +{added_giants} verificati via ISIN, Feed GETTEX 0s)",
         flush=True,
     )
     bot = Trading212AutonomousBot(client=client, total_budget_eur=100.00, cartridges=4, annual_target_pct=0.30)
