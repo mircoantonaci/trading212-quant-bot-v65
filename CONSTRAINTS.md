@@ -7,7 +7,7 @@ Questo documento fissa gli **Invarianti Matematici Obbligatori** della piattafor
 python3 -m unittest discover -s tests -p "test_*.py" -v
 ```
 
-## I 18 Invarianti Bloccanti (`tests/test_quant_invariants.py`)
+## I 19 Invarianti Bloccanti (`tests/test_quant_invariants.py`)
 
 1. **Invariante #1 — Zero-Ghost su Timeout HTTP:**
    - Se Yahoo Finance non restituisce candele valide e non esiste cache in memoria (`last_valid_bars`), `quant_buy_score == 0.0`, `green_hook_confirmed == False`, `has_fresh_intraday_feed == False`, `rvol_ratio == 0.0`. È vietato cablare valori di fallback fittizi che generino punteggi > 0.
@@ -45,3 +45,5 @@ python3 -m unittest discover -s tests -p "test_*.py" -v
     - Il salto temporale `> 1800s` (`17:25 -> 09:00`) è escluso dal calcolo di `ATR 5m` e `Kaufman ER`; sui titoli in panchina privi di prezzo `0ms` Trading 212 è vietato fabbricare candele sintetiche `now_bucket` sul prezzo Yahoo ritardato di 15 minuti.
 18. **Invariante #18 — Trailing Daily High-Water-Mark Vault & Integrità LIFO / 730 Simmetrica:**
     - La Cassaforte Giornaliera lascia correre senza soffitto le sedute in trend (`>= +1,60 EUR`) e si attiva solo a fronte di un ritracciamento realizzato `>= 0,30 EUR` dal massimo di giornata. Le vendite parziali di ribilanciamento preservano i lotti LIFO residui (`zero lots.clear()`) e la riconciliazione di cassa mantiene sempre `plusvalenze >= 0` e `minusvalenze >= 0`.
+19. **Invariante #19 — Blocco Totale Nuovi Acquisti Pre-Chiusura (`>= 17:15 CET`) & Selettività Onda Notturna (`>= +0,25%`):**
+    - Tra le `17:15` e le `17:30 Europe/Rome` (`FASE_4_RADAR_SELETTORE_ONDA_NOTTURNA_E_WEEKEND`), `allow_new_buys == False` e lo `Switch Stagnazione (#9)` è disattivato: la liquidità incassata prima della chiusura resta protetta al 100% in EUR fino alle `09:05` del giorno successivo, mentre restano aperte overnight solo le posizioni forti già in portafoglio con spinta direzionale USA genuina (`us_avg_pct >= +0,25%`, Nasdaq e S&P500 entrambi positivi, oppure DAX `>= +0,45%` con VIX ultra-calmo).

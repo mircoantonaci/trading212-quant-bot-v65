@@ -634,8 +634,8 @@ class OvernightWaveRadar:
             or vix_level >= 24.0
         )
         is_positive_wave = us_and_vix_reliable and (
-            (us_avg_pct >= 0.10 and vix_calm_for_overnight)
-            or (us_avg_pct >= 0.0 and dax_pct >= 0.35 and vix_ultra_calm)
+            (nasdaq_pct > 0.0 and sp500_pct > 0.0 and us_avg_pct >= 0.25 and vix_calm_for_overnight)
+            or (us_avg_pct >= 0.10 and dax_pct >= 0.45 and vix_ultra_calm)
         )
 
         if is_positive_wave:
@@ -1373,9 +1373,9 @@ class HybridUncappedIntelligence:
         if 17 * 60 + 15 <= hm < 17 * 60 + 30:
             return {
                 "code": "FASE_4_RADAR_SELETTORE_ONDA_NOTTURNA_E_WEEKEND",
-                "description": "17:15-17:30: Selettore Vero/Falso Positivo + Evacuazione Totale su Pericolo USA + Scudo Weekend Venerdì",
+                "description": "17:15-17:30: Blocco Nuovi Acquisti Pre-Chiusura + Selettore Onda Notturna & Scudo Weekend Venerdì",
                 "market_open": True,
-                "allow_new_buys": True,
+                "allow_new_buys": False,
                 "is_pre_close_window": True,
                 "is_morning_gap_harvest": False,
                 "is_friday_pre_weekend": is_friday,
@@ -1610,7 +1610,8 @@ class HybridUncappedIntelligence:
         minutes_open = (time.time() - opened_at) / 60.0
         own_score = float(ticker_metrics.get("quant_buy_score", 50.0))
         if (
-            minutes_open >= 45.0
+            regime.get("allow_new_buys", True)
+            and minutes_open >= 45.0
             and 0.0008 <= pnl_pct <= 0.0024
             and new_peak < 0.0038
             and vwap_dist < -0.05
@@ -1689,18 +1690,6 @@ class HybridUncappedIntelligence:
         dax_c = float(overnight_status.get("dax_change_pct", 0.0))
         vix_c = float(overnight_status.get("vix_fear_change_pct", 0.0))
         vix_lvl_c = float(overnight_status.get("vix_level", 16.0))
-
-        if regime.get("is_pre_close_window", False):
-            if not (bool(overnight_status.get("allow_overnight_hold", False)) and bool(cand.get("strong_for_overnight", False))):
-                return False
-            if regime.get("is_friday_pre_weekend", False):
-                super_friday_ok = (
-                    nasdaq_c >= 0.50
-                    and (vix_c <= 0.0 or (vix_lvl_c < 16.5 and vix_c <= 3.0))
-                )
-                if not super_friday_ok:
-                    return False
-            return True
 
         vix_fear_5_c = (vix_c >= 5.0 and (vix_lvl_c >= 18.5 or vix_c >= 9.0)) or vix_lvl_c >= 26.0
         vix_crash_12_c = (vix_c >= 12.0 and vix_lvl_c >= 18.0) or vix_c >= 16.0 or vix_lvl_c >= 30.0
@@ -2400,7 +2389,7 @@ def run_cycle(
             "5. Matrice Markowitz 32 Colossi EUR Zero-Fee (Chip Litografia Wafer vs Chip Potenza Packaging, 4 settori distinti)",
             "6. Curva Monotona Continua Salva-Utile (Funzione pura unica Motore == JSON, zero gradini ciechi fino allo Scudo Elastico)",
             "7. Airbag Simmetrico Elastico su ATR (~-0,54%..-0,72% oltre 8m + Taglio Catastrofico Istantaneo -1,35% sotto 8m)",
-            "8. Orologio DST-Safe America/New_York (Stop totale Pausa Pranzo 11:15-08:35 ET + Selettore Onda Notturna 17:15)",
+            "8. Orologio DST-Safe America/New_York (Stop Acquisti Pausa Pranzo 11:15-08:35 ET & Pre-Chiusura >=17:15 CET + Onda USA >=+0,25%)",
             f"9. Trailing Daily Vault (Picco oggi: {today_peak_realized_eur:+.2f} EUR, Attiva su ritracciamento >=0,30 EUR: {daily_vault_active}) + Riconciliazione 730 Simmetrica",
         ],
         "regime_mercato_attivo": regime,

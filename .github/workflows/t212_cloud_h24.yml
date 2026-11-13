@@ -48,7 +48,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: "🧪 Verifica Bloccante dei 18 Invarianti Matematici (V11.2 LTS Zero Cerotti)"
+      - name: "🧪 Verifica Bloccante dei 19 Invarianti Matematici (V11.2 LTS Zero Cerotti)"
         run: |
           python3 -m unittest discover -s tests -p "test_*.py" -v
 

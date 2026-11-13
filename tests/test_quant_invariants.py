@@ -600,6 +600,66 @@ class TestQuantInvariantsV11(unittest.TestCase):
         cur_day_pullback = 2.05
         self.assertTrue(peak_day >= daemon.DAILY_VAULT_TRIGGER_EUR and round(peak_day - cur_day_pullback, 2) >= daemon.DAILY_VAULT_GIVEBACK_EUR)
 
+    def test_19_pre_close_1715_buy_freeze_and_strict_overnight_wave(self):
+        """Invariante #19: dalle 17:15 CET stop totale nuovi acquisti (e Switch Stagnazione spento) + Onda USA >= +0,25%."""
+        intel = daemon.HybridUncappedIntelligence()
+        dt_1714 = datetime.datetime(2026, 11, 12, 17, 14, 0, tzinfo=daemon.MARKET_TZ)
+        dt_1715 = datetime.datetime(2026, 11, 12, 17, 15, 0, tzinfo=daemon.MARKET_TZ)
+        reg_1714 = intel.get_intraday_regime(dt_1714)
+        reg_1715 = intel.get_intraday_regime(dt_1715)
+        self.assertTrue(reg_1714["allow_new_buys"])
+        self.assertFalse(reg_1715["allow_new_buys"])
+        self.assertTrue(reg_1715["is_pre_close_window"])
+
+        elite_cand = {
+            "ticker": "ASMLa_EQ", "live_price_eur": 1350.0, "vwap_dist_pct": 0.20,
+            "has_fresh_intraday_feed": True, "rvol_ratio": 1.60, "quant_buy_score": 92.0,
+            "rsi_5m": 55.0, "green_hook_confirmed": True, "atr_5m_volatility_pct": 0.22,
+            "day_range_pct": 1.8, "kaufman_efficiency_ratio": 0.65, "strong_for_overnight": True,
+        }
+        ov_strong = {
+            "allow_overnight_hold": True, "nasdaq_change_pct": 0.80, "sp500_change_pct": 0.60,
+            "dax_change_pct": 0.50, "vix_fear_change_pct": -2.0, "vix_level": 15.0,
+        }
+        self.assertTrue(intel.is_eligible_entry_candidate(elite_cand, reg_1714, ov_strong))
+        self.assertFalse(intel.is_eligible_entry_candidate(elite_cand, reg_1715, ov_strong))
+
+        # Switch Stagnazione (#9) NON deve mai vendere per ruotare quando allow_new_buys == False (es. Pausa Pranzo o >= 17:15)
+        reg_lunch = intel.get_intraday_regime(datetime.datetime(2026, 11, 12, 12, 0, 0, tzinfo=daemon.MARKET_TZ))
+        intel.position_open_time["SAPd_EQ"] = datetime.datetime.now().timestamp() - 3600.0
+        intel.peak_pnl_pct["SAPd_EQ"] = 0.0020
+        stag_metrics = {
+            "atr_5m_volatility_pct": 0.18, "elastic_shield_act_raw": 0.0068, "elastic_shield_pull_raw": 0.0016,
+            "fase_onda_sinusoidale": "ONDA_DISCENDENTE_O_DEBOLE", "strong_for_overnight": False,
+            "green_hook_confirmed": False, "vwap_dist_pct": -0.12, "rsi_5m": 44.0, "quant_buy_score": 18.0,
+        }
+        reason_1714 = intel.evaluate_uncapped_exit(
+            "SAPd_EQ", 0.0018, reg_1714, 92.0, ov_strong, stag_metrics, 0.0, True, False
+        )
+        self.assertIn("BLINDATURA #9", reason_1714 or "")
+        intel.peak_pnl_pct["SAPd_EQ"] = 0.0020
+        reason_lunch = intel.evaluate_uncapped_exit(
+            "SAPd_EQ", 0.0018, reg_lunch, 92.0, ov_strong, stag_metrics, 0.0, True, False
+        )
+        self.assertIsNone(reason_lunch)
+        intel.peak_pnl_pct["SAPd_EQ"] = 0.0020
+        reason_1715 = intel.evaluate_uncapped_exit(
+            "SAPd_EQ", 0.0018, reg_1715, 92.0, ov_strong, stag_metrics, 0.0, True, False
+        )
+        self.assertIsNone(reason_1715)
+
+        # Verifica selettività Onda Notturna USA (>= +0.25% media ponderata con entrambi gli indici positivi)
+        radar = daemon.OvernightWaveRadar()
+        lukewarm_map = {"%5EGSPC": (0.12, 5900.0, True), "%5EIXIC": (0.15, 19000.0, True), "%5EGDAXI": (0.10, 19200.0, True), "%5EVIX": (0.2, 16.5, True)}
+        with patch.object(radar, "_fetch_index_snapshot", side_effect=lambda s: lukewarm_map[s]):
+            res_flat = radar.evaluate_overnight_wave(force=True)
+        self.assertFalse(res_flat["allow_overnight_hold"])
+
+        strong_map = {"%5EGSPC": (0.25, 5920.0, True), "%5EIXIC": (0.35, 19100.0, True), "%5EGDAXI": (0.20, 19250.0, True), "%5EVIX": (-1.2, 15.8, True)}
+        with patch.object(radar, "_fetch_index_snapshot", side_effect=lambda s: strong_map[s]):
+            res_strong = radar.evaluate_overnight_wave(force=True)
+        self.assertTrue(res_strong["allow_overnight_hold"])
+
 
 if __name__ == "__main__":
     unittest.main()
