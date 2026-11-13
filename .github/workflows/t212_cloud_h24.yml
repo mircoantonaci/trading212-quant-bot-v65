@@ -1,4 +1,4 @@
-name: "🛡️ Trading 212 Autonomous Quant Bot V11.4 LTS (Cloud H24 Zero Cerotti)"
+name: "🛡️ Trading 212 Autonomous Quant Bot V11.5 LTS (Cloud H24 Zero Cerotti)"
 
 on:
   schedule:
@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   quant-bot-v11:
-    name: "Motore Continuo V11.4 Zero Cerotti (09:00-17:36 Europe/Rome)"
+    name: "Motore Continuo V11.5 Zero Cerotti (09:00-17:36 Europe/Rome)"
     runs-on: ubuntu-latest
     timeout-minutes: 330
     env:
@@ -48,7 +48,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: "🧪 Verifica Bloccante dei 27 Invarianti Matematici (V11.4 LTS Clean Engine + Signed ER + Climax + Rotazione 0s)"
+      - name: "🧪 Verifica Bloccante dei 28 Invarianti Matematici (V11.5 LTS ATR Taper + C0 Bilaterale + Execution Purity)"
         run: |
           python3 -m unittest discover -s tests -p "test_*.py" -v
 
@@ -81,7 +81,7 @@ jobs:
           BATCH=50
           DONE=0
 
-          echo "🚀 Avvio Sessione Continua V11.4 Zero Cerotti per max $TOTAL_CYCLES cicli da 6s (Ora Borsa: $(date))"
+          echo "🚀 Avvio Sessione Continua V11.5 Zero Cerotti per max $TOTAL_CYCLES cicli da 6s (Ora Borsa: $(date))"
           while [ "$DONE" -lt "$TOTAL_CYCLES" ]; do
             HOUR=$(date +%H)
             MIN=$(date +%M)
@@ -105,7 +105,7 @@ jobs:
             # Checkpoint atomico su GitHub: in rebase '-X theirs' preserva SEMPRE lo stato locale appena calcolato!
             git add trading212_state.json registro_fiscale_730.json dashboard_v6_5.html
             if ! git diff --cached --quiet; then
-              git commit -m "chore(state): checkpoint V11.4 portafoglio & 730 ($(date +%H:%M) Europe/Rome) [skip ci]"
+              git commit -m "chore(state): checkpoint V11.5 portafoglio & 730 ($(date +%H:%M) Europe/Rome) [skip ci]"
               if ! git push origin main; then
                 git pull --rebase -X theirs origin main || git rebase --abort || true
                 git push origin main || true
@@ -130,6 +130,6 @@ jobs:
           if [ "$RELAY" != "false" ] && [ "$HM" -ge 735 ] && [ "$HM" -le 1005 ]; then
             REMAINING_MIN=$((1058 - HM))
             NEXT_CYCLES=$((REMAINING_MIN * 10 + 60))
-            echo "⚡ Attivazione Staffetta Pomeridiana V11.4 ($NEXT_CYCLES cicli da 6s fino alle 17:36 Europe/Rome)..."
+            echo "⚡ Attivazione Staffetta Pomeridiana V11.5 ($NEXT_CYCLES cicli da 6s fino alle 17:36 Europe/Rome)..."
             gh workflow run t212_cloud_h24.yml --repo "${{ github.repository }}" -f cycles="$NEXT_CYCLES" -f relay_afternoon="false" || true
           fi

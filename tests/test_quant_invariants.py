@@ -1215,7 +1215,7 @@ class TestQuantInvariantsV11(unittest.TestCase):
 
         self.assertEqual(len(tight_broker.limit_buys), 1)
         self.assertEqual(tight_broker.limit_buys[0][0], "ASMLa_EQ")
-        self.assertEqual(st_rot["mode"], "INSTITUTIONAL_V11_4_LTS_ZERO_CEROTTI")
+        self.assertEqual(st_rot["mode"], "INSTITUTIONAL_V11_5_LTS_ZERO_CEROTTI")
 
         # 5) Persistenza su disco di OvernightWaveRadar attraverso i riavvii batch Cloud:
         tmp_radar_cache = "/tmp/test_v114_radar_cache.json"
@@ -1234,6 +1234,159 @@ class TestQuantInvariantsV11(unittest.TestCase):
         finally:
             if os.path.exists(tmp_radar_cache):
                 os.remove(tmp_radar_cache)
+
+    def test_28_v115_scale_invariant_taper_bilateral_c0_shield_and_execution_purity(self):
+        """Invariante #28: Taper VWAP scale-invariant su ATR, continuità C0 bilaterale + scudo senza buchi, retry 5m puro, eventual-consistency fill e guardia GETTEX :00."""
+        real_dt = datetime.datetime
+        mkt_dt = real_dt(2026, 11, 13, 10, 55, 6, tzinfo=daemon.MARKET_TZ)
+        now_ts = mkt_dt.timestamp()
+        bucket_now = int(now_ts // 300) * 300
+
+        # 1) Taper VWAP Scale-Invariant proporzionale all'ATR 5m (ATR ~0.13%, esperimento controllato a parità esatta di RSI/ATR/ER):
+        #    ultime 15 barre IDENTICHE (stesso RSI ~56, stesso ATR ~0.13%, stesso ER ~0.43), prime 8 barre mattutine diverse solo sul livello VWAP!
+        sc_fresh = daemon.QuantMarketScanner()
+        sc_stretched = daemon.QuantMarketScanner()
+        base_ts = [bucket_now - (23 - i) * 300 for i in range(23)]
+        tail_15 = [100.00, 99.96, 100.02, 99.98, 100.04, 99.99, 100.05, 100.01, 100.06, 100.02, 100.07, 100.03, 100.08, 100.06, 100.13]
+        c_fresh = [100.02] * 8 + tail_15
+        c_str = [99.10] * 8 + tail_15
+        h_fresh = [c + 0.065 for c in c_fresh]
+        l_fresh = [c - 0.065 for c in c_fresh]
+        h_str = [c + 0.065 for c in c_str]
+        l_str = [c - 0.065 for c in c_str]
+        vols_23 = [4000.0] * 23
+        raw_fresh = json.dumps({"chart": {"result": [{"meta": {"regularMarketPrice": c_fresh[-1]}, "timestamp": base_ts, "indicators": {"quote": [{"open": [c - 0.03 for c in c_fresh], "close": c_fresh, "high": h_fresh, "low": l_fresh, "volume": vols_23}]}}]}}).encode("utf-8")
+        raw_str = json.dumps({"chart": {"result": [{"meta": {"regularMarketPrice": c_str[-1]}, "timestamp": base_ts, "indicators": {"quote": [{"open": [c - 0.03 for c in c_str], "close": c_str, "high": h_str, "low": l_str, "volume": vols_23}]}}]}}).encode("utf-8")
+        sc_fresh.has_gettex_realtime["SAPd_EQ"] = True
+        sc_fresh.last_gettex_ts["SAPd_EQ"] = now_ts
+        sc_fresh.live_prices["SAPd_EQ"] = c_fresh[-1]
+        sc_stretched.has_gettex_realtime["SAPd_EQ"] = True
+        sc_stretched.last_gettex_ts["SAPd_EQ"] = now_ts
+        sc_stretched.live_prices["SAPd_EQ"] = c_str[-1]
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=now_ts):
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(raw_fresh)):
+                m_fresh = sc_fresh.fetch_5m_metrics("SAPd_EQ")
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(raw_str)):
+                m_str = sc_stretched.fetch_5m_metrics("SAPd_EQ")
+        self.assertGreater(m_str["vwap_dist_pct"], 0.30)
+        self.assertLess(m_str["vwap_dist_pct"], 0.48)
+        self.assertGreater(m_fresh["quant_buy_score"], m_str["quant_buy_score"] + 2.5)
+
+        # 2) Continuità Bilaterale C0 Esatta su peak == shield_act + Monotonicità Universale + Flash-Gap < -0.05% su UNCAPPED_SHIELD_2:
+        intel = daemon.HybridUncappedIntelligence()
+        for shield_act, shield_pull, atr_raw in [
+            (0.0085, 0.0020, 0.0020),
+            (0.0112, 0.0028, 0.0026),
+            (0.0062, 0.0028, 0.0016),  # Caso critico: shield_act - shield_pull = 0.0034 < 0.0040!
+            (0.0060, 0.0045, 0.0018),  # Caso estremo: shield_act - shield_pull < breakeven_floor!
+        ]:
+            prev_fl = -1.0
+            for step in range(35, 240):
+                pk = round(step * 0.0001, 4)
+                _, fl = intel.compute_profit_protection_floor(pk, shield_act, shield_pull, atr_raw, False)
+                if fl is not None:
+                    self.assertGreaterEqual(fl, prev_fl, f"Non monotona per ({shield_act}, {shield_pull}) a peak={pk}")
+                    prev_fl = fl
+            _, fl_left = intel.compute_profit_protection_floor(round(shield_act - 0.0001, 4), shield_act, shield_pull, atr_raw, False)
+            _, fl_at = intel.compute_profit_protection_floor(shield_act, shield_act, shield_pull, atr_raw, False)
+            self.assertAlmostEqual(fl_left, fl_at, delta=0.0003)
+
+        # Flash-gap violento da picco +0.90% direttamente a -0.14% (< -0.05%) con UNCAPPED_SHIELD_2 armato -> DEVE incassare/uscire subito!
+        intel.peak_pnl_pct["SAPd_EQ"] = 0.0090
+        reg_open = {"is_morning_gap_harvest": False, "is_pre_close_window": False, "is_friday_pre_weekend": False}
+        m_shield = {"atr_5m_volatility_pct": 0.18, "elastic_shield_act_raw": 0.0068, "elastic_shield_pull_raw": 0.0070, "green_hook_confirmed": False, "vwap_dist_pct": -0.15, "rsi_5m": 40.0}
+        exit_flash = intel.evaluate_uncapped_exit("SAPd_EQ", -0.0014, reg_open, 0.0, {}, m_shield, 0.0, False)
+        self.assertIsNotNone(exit_flash)
+        self.assertIn("SCUDO MOBILE", exit_flash)
+
+        # 3) Cooldown Retry 5m Puro: uno stop-loss scaduto (>65m fa) seguito da ordine LIMIT annullato su spike
+        #    NON deve riattivare 50 minuti di ban, né sync_from_tax_data deve sovrascrivere una vendita verde recente (<15m)!
+        intel_cd = daemon.HybridUncappedIntelligence()
+        today_iso = mkt_dt.date().isoformat()
+        tx_cd = {
+            "v11_clean_epoch_ts": daemon.V11_CLEAN_EPOCH_TS,
+            "operazioni_chiuse": [
+                {"ticker": "EOANd_EQ", "timestamp": real_dt.fromtimestamp(now_ts - 4000.0, tz=daemon.MARKET_TZ).isoformat(timespec="seconds"), "sell_price_eur": 12.80, "risultato_fiscale_eur": -0.18},
+                {"ticker": "SAPd_EQ", "timestamp": real_dt.fromtimestamp(now_ts - 180.0, tz=daemon.MARKET_TZ).isoformat(timespec="seconds"), "sell_price_eur": 200.60, "risultato_fiscale_eur": 0.25},
+            ],
+        }
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=now_ts):
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            intel_cd.sync_from_tax_data(tx_cd)
+            self.assertTrue(intel_cd.can_buy_ticker("EOANd_EQ", 13.00))  # 66.7m > 60m -> scaduto!
+            intel_cd.register_buy_retry("EOANd_EQ", 13.00)
+            intel_cd.register_buy_retry("SAPd_EQ", 200.00)  # Retry dopo dip -0.30% da 200.60
+            intel_cd.sync_from_tax_data(tx_cd)
+            # Subito dopo il retry, entrambi sono in micro-cooldown a parità di prezzo (zero loop 6s su SAPd_EQ!):
+            self.assertFalse(intel_cd.can_buy_ticker("EOANd_EQ", 13.00))
+            self.assertFalse(intel_cd.can_buy_ticker("SAPd_EQ", 200.00))
+        # Dopo 5m + 5s (305s), EOANd_EQ torna acquistabile (NON bloccato per altri 50 minuti!):
+        with patch("time.time", return_value=now_ts + 305.0):
+            self.assertTrue(intel_cd.can_buy_ticker("EOANd_EQ", 13.00))
+
+        # 4) Eventual-Consistency Fill Re-Check + Persistenza 4 decimali peak_pnl_pct + Guardia GETTEX barra congelata :00:
+        sc_gx = daemon.QuantMarketScanner()
+        prev_b5 = bucket_now - 300
+        sc_gx.realtime_5m_bars["IFXd_EQ"] = {prev_b5: {"open": 30.00, "high": 30.40, "low": 29.95, "close": 30.35, "has_true_open": True}}
+        gx_payload = json.dumps({"data": [{"s": "GETTEX:IFX", "d": [30.35, 30.00, 30.40, 29.95, 100, "streaming"]}]}).encode("utf-8")
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=now_ts), patch("urllib.request.urlopen", return_value=_FakeHTTPResp(gx_payload)):
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            sc_gx.refresh_gettex_live_quotes(force=True)
+        # Poiché GETTEX non ha ancora scambiato nel nuovo bucket (stessa quadrupla o/h/l/c della candela precedente), non clona il corpo verde passato!
+        self.assertEqual(sc_gx.realtime_5m_bars["IFXd_EQ"][bucket_now]["open"], 30.35)
+        self.assertFalse(sc_gx.realtime_5m_bars["IFXd_EQ"][bucket_now]["has_true_open"])
+
+        class _EventualConsistencyBroker:
+            def __init__(self):
+                self.pos_calls = 0
+                self.filled = False
+
+            def get_open_positions(self):
+                self.pos_calls += 1
+                # Al primo check dopo place_limit_order simula 250ms di lag eventual-consistency, al re-check espone il fill reale!
+                if self.filled and self.pos_calls >= 4:
+                    return [{"ticker": "SAPd_EQ", "quantity": 0.1200, "averagePrice": 208.00, "currentPrice": 208.00, "ppl": 0.0}]
+                return []
+
+            def get_pending_orders(self):
+                return []
+
+            def get_account_cash(self):
+                return {"result": 0.0, "free": 100.0}
+
+            def place_limit_order(self, ticker, quantity, limit_price, time_validity="DAY"):
+                self.filled = True
+                return {"id": "ORD_LAG_OK"}
+
+            def cancel_order(self, order_id):
+                raise AssertionError("Non deve cancellare un ordine già eseguito sul book!")
+
+        ec_broker = _EventualConsistencyBroker()
+        bot_ec = daemon.Trading212AutonomousBot(client=ec_broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
+        bot_ec.tax_tracker = ItalianTaxTracker730(filepath=self._tmp_tax_path)
+        intel_ec = daemon.HybridUncappedIntelligence()
+        intel_ec.prev_open_snapshot.clear()
+        sc_ec = daemon.QuantMarketScanner()
+        sc_ec.scan_all = lambda **kw: {
+            "SAPd_EQ": {"ticker": "SAPd_EQ", "name": "SAP", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "SOFTWARE_CLOUD", "live_price_eur": 208.0, "rsi_5m": 54.0, "vwap_dist_pct": 0.10, "atr_5m_volatility_pct": 0.20, "day_range_pct": 1.6, "rvol_ratio": 1.4, "quant_buy_score": 82.0, "green_hook_confirmed": True, "entry_hook_confirmed": True, "strong_for_overnight": True, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT"},
+        }
+
+        class _DummyRadar28:
+            def evaluate_overnight_wave(self):
+                return {"verdict": "OK", "allow_overnight_hold": True, "nasdaq_change_pct": 0.3, "sp500_change_pct": 0.2, "dax_change_pct": 0.2, "vix_fear_change_pct": -1.0, "vix_level": 15.5}
+
+        with patch.object(daemon, "LIMIT_FILL_POLL_SEC", 0.0), patch("datetime.datetime") as mock_dt, patch("time.time", return_value=now_ts):
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            st_ec = daemon.run_cycle(bot_ec, intel_ec, sc_ec, _DummyRadar28(), 1)
+        self.assertEqual(len(st_ec["cartucce_4x25_eur"]), 1)
+        self.assertEqual(st_ec["cartucce_4x25_eur"][0]["status"], "APPENA_ACQUISTATA_V11_5_LIMIT_PROTETTO")
+        self.assertIn("SAPd_EQ", bot_ec.tax_tracker.data.get("lotti_aperti_lifo", {}))
 
 
 if __name__ == "__main__":

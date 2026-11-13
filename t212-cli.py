@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-t212-cli.py — CLI Project Manager per Trading 212 Autonomous Quant Bot (V11.4 LTS Zero Cerotti)
+t212-cli.py — CLI Project Manager per Trading 212 Autonomous Quant Bot (V11.5 LTS Zero Cerotti)
 ========================================================================================================
 Progetto Standalone: /Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e
 
@@ -93,7 +93,7 @@ def fmt_px(val: float) -> str:
 
 def cmd_status() -> None:
     print("\n" + "═" * 90)
-    print(" 🛡️  TRADING 212 AUTONOMOUS QUANT BOT — V11.4 LTS ZERO CEROTTI (ISTITUZIONALE)")
+    print(" 🛡️  TRADING 212 AUTONOMOUS QUANT BOT — V11.5 LTS ZERO CEROTTI (ISTITUZIONALE)")
     print("═" * 90)
 
     pids = get_daemon_pids()
@@ -109,7 +109,7 @@ def cmd_status() -> None:
 
     updated_at = state.get("timestamp", "N/D")
     cycle = state.get("cycle", 0)
-    arch = state.get("mode", "INSTITUTIONAL_V11_4_LTS_ZERO_CEROTTI")
+    arch = state.get("mode", "INSTITUTIONAL_V11_5_LTS_ZERO_CEROTTI")
     val_100 = float(state.get("valore_totale_portafoglio_100e_eur", 100.0))
     net_profit = float(state.get("guadagno_totale_netto_eur", 0.0))
     realized_net = float(state.get("profitto_realizzato_in_cassa_eur", 0.0))
@@ -172,7 +172,7 @@ def cmd_status() -> None:
     scanner = state.get("classifica_scanner_quantitativo_5m", [])
     if scanner:
         print("\n" + "─" * 90)
-        print(f" 📡 SCANNER V11.2 ZERO CEROTTI ({len(scanner)} COLOSSI EUR • LINEARE MONOTONO + KAUFMAN ER + 0ms)")
+        print(f" 📡 SCANNER V11.5 ZERO CEROTTI ({len(scanner)} COLOSSI EUR • TAPER ATR + SIGNED ER + GETTEX 0s)")
         print("─" * 90)
         for item in scanner:
             tk = item.get("ticker", "")
@@ -364,7 +364,7 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trading 212 Autonomous Quant Bot — V11.2 LTS Zero Cerotti</title>
+  <title>Trading 212 Autonomous Quant Bot — V11.5 LTS Zero Cerotti</title>
   <style>
     :root {{
       --bg: #080b11;
@@ -475,10 +475,10 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
   <div class="container">
     <div class="header">
       <div>
-        <h1>🛡️ Trading 212 Autonomous Quant Bot — V11.4 LTS Zero Cerotti</h1>
+        <h1>🛡️ Trading 212 Autonomous Quant Bot — V11.5 LTS Zero Cerotti</h1>
         <p>Conto ID: 52318994 (EUR) • 39 Colossi Zero-Fee (GETTEX 0s + T212 0ms) • Ordini LIMIT MiFID II • Ciclo #{cycle} ({updated_at[:19]})</p>
       </div>
-      <div class="status-pill">🟢 MOTORE V11.4 ATTIVO (0ms Zero-Latency)</div>
+      <div class="status-pill">🟢 MOTORE V11.5 ATTIVO (0ms Zero-Latency)</div>
     </div>
 
     <div class="kpi-grid">
@@ -537,20 +537,20 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
       <tbody>{closed_rows}</tbody>
     </table>
 
-    <div class="section-title">🏛️ Architettura Istituzionale V11.4 LTS Zero Cerotti</div>
+    <div class="section-title">🏛️ Architettura Istituzionale V11.5 LTS Zero Cerotti</div>
     <div class="shields-grid">
-      <div class="shield-item"><strong>1. Curva Continua Salva-Utile</strong>Pavimento Lipschitz-continuo monotono col picco fino allo Scudo Mobile Senza Tetto (zero gradini morti).</div>
-      <div class="shield-item"><strong>2. Filtro Uncino Verde Puro</strong>Richiede candela verde o minimo crescente reale (zero candele sintetiche sui dati ritardati).</div>
+      <div class="shield-item"><strong>1. Curva Bilaterale C0 Salva-Utile</strong>Pavimento C0-continuo monotono col picco fino allo Scudo Mobile Senza Tetto (zero salti sinistri e zero buchi su flash-gap).</div>
+      <div class="shield-item"><strong>2. Taper VWAP Scale-Invariant ATR</strong>Attenuazione proporzionale a 1,30x ATR (premia i lanci freschi vicino a VWAP rispetto agli inseguimenti tirati).</div>
       <div class="shield-item"><strong>3. Raccolto Gap 09:00–09:30</strong>Stringe il ritracciamento a 0,14% sui gap di apertura mattutini >= +0,52%.</div>
       <div class="shield-item"><strong>4. Radar Onda Notturna 17:15</strong>Incrocia Nasdaq, S&P500, DAX e VIX (con protezione anti-timeout) per filtrare l'overnight.</div>
       <div class="shield-item"><strong>5. Scudo Weekend Venerdì</strong>Protegge il capitale dalle 63 ore di chiusura mercati del fine settimana.</div>
       <div class="shield-item"><strong>6. Interesse Composto Kelly</strong>Reinveste gli utili netti aumentando ogni cartuccia a {fmt_eur(dyn_slot)}.</div>
       <div class="shield-item"><strong>7. Vincolo Markowitz 12+ Settori</strong>4 cartucce su 4 sotto-filiere industriali distinte (Litografia vs Packaging separati).</div>
-      <div class="shield-item"><strong>8. ATR 5m & Kaufman ER Intraday Puri</strong>Esclude i salti notturni >30m per misurare la vera volatilità e pulizia del trend a 5m.</div>
-      <div class="shield-item"><strong>9. Ordini LIMIT +1,00% MiFID II</strong>Tetto anti-spike su tick regolamentari LB6 con auto-cancel se scappato (zero Market ciechi).</div>
+      <div class="shield-item"><strong>8. ATR 5m & Signed Kaufman ER</strong>Esclude salti notturni >30m e crolli rettilinei 50m per misurare vera volatilità e direzione a 5m.</div>
+      <div class="shield-item"><strong>9. Ordini LIMIT +1,00% MiFID II</strong>Tetto anti-spike su tick regolamentari RTS 11 con Eventual-Consistency Fill Re-Check e retry puro 5m.</div>
       <div class="shield-item"><strong>10. Cassaforte Giornaliera Mobile</strong>Lascia correre le giornate di forte trend oltre +1,60 € e blinda solo su ritracciamento >= 0,30 €.</div>
-      <div class="shield-item"><strong>11. Fusione Zero-Latency 0ms</strong>Inietta i prezzi live Trading 212 sulle posizioni aperte per uscite al millisecondo.</div>
-      <div class="shield-item"><strong>12. Pausa Pranzo & Macro USA</strong>Zero nuovi ingressi nel deserto di liquidità 11:15–08:35 ET (apertura/dati macro USA).</div>
+      <div class="shield-item"><strong>11. Fusione 0s GETTEX + 0ms T212</strong>Streaming 0s Monaco con guardia barra congelata :00 + peso VWAP proporzionale al tempo.</div>
+      <div class="shield-item"><strong>12. Cecchino Mezzogiorno & Macro USA</strong>Max 2/4 slot su esplosioni 0s RVOL>=2,2x tra 11:15–08:27 ET e stop totale dati macro USA 08:28–08:35 ET.</div>
     </div>
   </div>
 </body>
@@ -585,7 +585,7 @@ def cmd_start() -> None:
             stderr=subprocess.STDOUT,
             start_new_session=True,
         )
-    print(f"🚀 Demone V11.4 avviato in background (PID: {proc.pid}) | Log: {DAEMON_LOG}")
+    print(f"🚀 Demone V11.5 avviato in background (PID: {proc.pid}) | Log: {DAEMON_LOG}")
 
 
 def cmd_stop() -> None:
@@ -612,13 +612,13 @@ def cmd_export() -> None:
                 continue
             fpath = PROJECT_DIR / rel
             if fpath.exists():
-                zf.write(fpath, arcname=f"trading212-quant-v114/{rel}")
+                zf.write(fpath, arcname=f"trading212-quant-v115/{rel}")
     print(f"📦 Pacchetto ZIP locale (senza credenziali) esportato in: {zip_path} ({zip_path.stat().st_size:,} bytes)")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="CLI Manager per Trading 212 Autonomous Quant Bot V11.4 LTS Zero Cerotti"
+        description="CLI Manager per Trading 212 Autonomous Quant Bot V11.5 LTS Zero Cerotti"
     )
     parser.add_argument(
         "command",
