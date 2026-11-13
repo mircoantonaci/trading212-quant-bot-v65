@@ -6,16 +6,6 @@
   "valore_finale_stimato_quadro_w_eur": 100.86,
   "giorni_detenzione_ivafe": 365,
   "lotti_aperti_lifo": {
-    "MUV2d_EQ": [
-      {
-        "timestamp": "2026-11-13T15:00:38",
-        "ticker": "MUV2d_EQ",
-        "isin": "DE0008430026",
-        "quantity": 0.0418,
-        "price_eur": 592.823,
-        "total_eur": 24.78
-      }
-    ],
     "EOANd_EQ": [
       {
         "timestamp": "2026-11-13T15:50:18",
@@ -1649,11 +1639,20 @@
       "corrispettivo_eur": 25.04,
       "costo_lifo_eur": 24.88,
       "risultato_fiscale_eur": 0.16
+    },
+    {
+      "timestamp": "2026-11-13T16:40:01",
+      "ticker": "MUV2d_EQ",
+      "quantity": 0.0418,
+      "sell_price_eur": 594.8,
+      "corrispettivo_eur": 24.86,
+      "costo_lifo_eur": 24.78,
+      "risultato_fiscale_eur": 0.08
     }
   ],
-  "totale_corrispettivi_vendita_eur": 4366.33,
-  "totale_costi_carico_lifo_eur": 4369.52,
-  "plusvalenze_lorde_eur": 14.15,
+  "totale_corrispettivi_vendita_eur": 4391.19,
+  "totale_costi_carico_lifo_eur": 4394.3,
+  "plusvalenze_lorde_eur": 14.24,
   "minusvalenze_lorde_eur": 16.41,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
