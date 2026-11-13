@@ -380,10 +380,11 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertEqual(reg_nyse["code"], "FASE_3_ONDA_WALL_STREET_SENZA_TETTO")
         self.assertTrue(reg_nyse["us_market_live"])
 
-        # Durante Pausa Pranzo (12:15 CET), V11.2 Zero Cerotti blocca il 100% dei nuovi acquisti (anche RVOL >= 1.8x)
+        # Durante Pausa Pranzo (12:15 CET), il Cecchino Mezzogiorno impone max 2 slot e blocca il 100% dei setup ordinari o con RVOL < 2.20x
         lunch_dt = datetime.datetime(2026, 11, 12, 12, 15, 0, tzinfo=daemon.MARKET_TZ)
         reg_lunch = intel.get_intraday_regime(lunch_dt)
-        self.assertFalse(reg_lunch["allow_new_buys"])
+        self.assertTrue(reg_lunch["is_midday_sniper_window"])
+        self.assertEqual(reg_lunch["max_active_slots"], 2)
         ordinary_cand = {
             "ticker": "SAPd_EQ", "live_price_eur": 210.0, "vwap_dist_pct": 0.15,
             "has_fresh_intraday_feed": True, "rvol_ratio": 0.90, "quant_buy_score": 74.0,
@@ -820,6 +821,48 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertEqual(m_amd["quant_buy_score"], 0.0)
         self.assertTrue(m_mrk["green_hook_confirmed"])
         self.assertGreater(m_mrk["quant_buy_score"], 65.0)
+
+    def test_23_midday_extraordinary_explosion_sniper_max_2_slots_and_0s_gate(self):
+        """Invariante #23: tra 11:15 e 08:27 ET ammette solo esplosioni 0s (Breakout o Valle AMD 14:27), vieta Yahoo 15m e blocca a max 2/4 slot."""
+        intel = daemon.HybridUncappedIntelligence()
+        midday_dt = datetime.datetime(2026, 11, 13, 14, 27, 0, tzinfo=daemon.MARKET_TZ)
+        macro_dt = datetime.datetime(2026, 11, 13, 14, 29, 0, tzinfo=daemon.MARKET_TZ)
+        reg_mid = intel.get_intraday_regime(midday_dt)
+        reg_macro = intel.get_intraday_regime(macro_dt)
+        self.assertTrue(reg_mid["allow_new_buys"])
+        self.assertTrue(reg_mid["is_midday_sniper_window"])
+        self.assertEqual(reg_mid["max_active_slots"], 2)
+        # Durante lo shock dati macro USA (14:28-14:35 CET / 08:28-08:35 ET), blocco totale (0 nuovi acquisti)
+        self.assertFalse(reg_macro["allow_new_buys"])
+
+        ov_ok = {"allow_overnight_hold": True, "nasdaq_change_pct": 0.2, "sp500_change_pct": 0.2, "dax_change_pct": 0.2, "vix_fear_change_pct": -1.0, "vix_level": 16.0}
+        # 1) Caso reale AMDd_EQ ore 14:27:55 (GETTEX 0s, Score 89.9, RVOL 2.40x, RSI 33.3, True Green Hook) -> APPROVATO!
+        amd_1427 = {
+            "ticker": "AMDd_EQ", "live_price_eur": 517.80, "price_feed_source": "GETTEX_STREAMING_0S",
+            "vwap_dist_pct": 0.04, "has_fresh_intraday_feed": True, "rvol_ratio": 2.40,
+            "quant_buy_score": 89.9, "rsi_5m": 33.3, "green_hook_confirmed": True, "breakout_5m": False,
+            "atr_5m_volatility_pct": 0.294, "day_range_pct": 2.26, "kaufman_efficiency_ratio": 0.25,
+            "strong_for_overnight": False,
+        }
+        self.assertTrue(intel.is_eligible_entry_candidate(amd_1427, reg_mid, ov_ok))
+        # Bloccato durante la finestra shock macro 14:28-14:35
+        self.assertFalse(intel.is_eligible_entry_candidate(amd_1427, reg_macro, ov_ok))
+        # Bloccato al 100% se il feed cadesse in fallback su Yahoo 15m ritardato!
+        amd_delayed = dict(amd_1427, price_feed_source="YAHOO_FALLBACK_15M")
+        self.assertFalse(intel.is_eligible_entry_candidate(amd_delayed, reg_mid, ov_ok))
+
+        # 2) Breakout 5m puro (GETTEX 0s, Score 84.5, RVOL 2.50x, breakout_5m=True, ER=0.52, VWAP +0.22%) -> APPROVATO!
+        brk_mid = {
+            "ticker": "NVDd_EQ", "live_price_eur": 153.50, "price_feed_source": "GETTEX_STREAMING_0S",
+            "vwap_dist_pct": 0.22, "has_fresh_intraday_feed": True, "rvol_ratio": 2.50,
+            "quant_buy_score": 84.5, "rsi_5m": 58.0, "green_hook_confirmed": True, "breakout_5m": True,
+            "atr_5m_volatility_pct": 0.28, "day_range_pct": 2.40, "kaufman_efficiency_ratio": 0.52,
+            "strong_for_overnight": True,
+        }
+        self.assertTrue(intel.is_eligible_entry_candidate(brk_mid, reg_mid, ov_ok))
+        # Senza breakout_5m a mezzogiorno (con RSI > 38) -> BLOCCATO!
+        no_brk_mid = dict(brk_mid, breakout_5m=False)
+        self.assertFalse(intel.is_eligible_entry_candidate(no_brk_mid, reg_mid, ov_ok))
 
 
 if __name__ == "__main__":

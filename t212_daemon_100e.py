@@ -1461,6 +1461,7 @@ class QuantMarketScanner:
             "quant_buy_score": quant_score,
             "fase_onda_sinusoidale": sine_phase,
             "green_hook_confirmed": green_hook_confirmed,
+            "breakout_5m": breakout_candle,
             "strong_for_overnight": strong_for_overnight,
             "yahoo_today_bars": yahoo_today_bars,
             "has_fresh_intraday_feed": bool(has_valid_bars and (yahoo_today_bars >= 2 or len(today_indices) >= 2)),
@@ -1693,14 +1694,16 @@ class HybridUncappedIntelligence:
             }
         if hm >= 11 * 60 + 15 and ny_hm < 8 * 60 + 28:
             return {
-                "code": "FASE_2_SCUDO_DESERTO_MEZZOGIORNO_11_15_14_35",
-                "description": "11:15 CET - 08:28 ET: Scudo Pausa Pranzo Europea — gestione/incasso posizioni aperte, stop totale nuovi acquisti nel deserto di volumi",
+                "code": "FASE_2_CACCIA_ESPLOSIONI_MEZZOGIORNO_MAX2",
+                "description": "11:15 CET - 08:27 ET: Cecchino Esplosioni Straordinarie 0s (Max 2/4 Cartucce su Breakout RVOL>=2,2x o Valle Score>=88; 2 slot riservati al pomeriggio)",
                 "market_open": True,
-                "allow_new_buys": False,
+                "allow_new_buys": True,
                 "is_pre_close_window": False,
                 "is_morning_gap_harvest": False,
                 "is_friday_pre_weekend": False,
                 "is_lunch_desert_window": True,
+                "is_midday_sniper_window": True,
+                "max_active_slots": 2,
                 "us_market_live": False,
             }
         if not us_open:
@@ -1908,6 +1911,7 @@ class HybridUncappedIntelligence:
         own_score = float(ticker_metrics.get("quant_buy_score", 50.0))
         if (
             regime.get("allow_new_buys", True)
+            and not regime.get("is_lunch_desert_window", False)
             and minutes_open >= 45.0
             and 0.0008 <= pnl_pct <= 0.0024
             and new_peak < 0.0038
@@ -1981,6 +1985,30 @@ class HybridUncappedIntelligence:
             return False
         if cand_atr_pct < 0.13 and cand_day_range < 1.40:
             return False
+
+        # V11.2 Invariante #23 (Cecchino Esplosioni Straordinarie 11:15 CET - 08:27 ET, Max 2/4 Slot):
+        # richiede obbligatoriamente feed real-time 0s (GETTEX/T212, mai Yahoo 15m) + uno dei 2 setup straordinari validati (+3,11 EUR / 5gg):
+        # 1) Breakout 5m puro: Score >= 82, RVOL >= 2.20x, breakout_5m, Kaufman ER >= 0.45, VWAP in [0.00%, +0.45%]
+        # 2) Rimbalzo da Valle con volumi forti: Score >= 88, RVOL >= 2.20x, RSI <= 38.0
+        if regime.get("is_midday_sniper_window", False):
+            feed_src = str(cand.get("price_feed_source", ""))
+            if feed_src not in ("GETTEX_STREAMING_0S", "T212_LIVE_0MS"):
+                return False
+            cand_er = float(cand.get("kaufman_efficiency_ratio", 0.0))
+            is_midday_breakout = (
+                score >= 82.0
+                and cand_rvol >= 2.20
+                and bool(cand.get("breakout_5m", False))
+                and cand_er >= 0.45
+                and 0.0 <= cand_vwap_dist <= 0.45
+            )
+            is_midday_valley = (
+                score >= 88.0
+                and cand_rvol >= 2.20
+                and rsi_5m <= 38.0
+            )
+            if not (is_midday_breakout or is_midday_valley):
+                return False
 
         nasdaq_c = float(overnight_status.get("nasdaq_change_pct", 0.0))
         sp500_c = float(overnight_status.get("sp500_change_pct", 0.0))
@@ -2432,8 +2460,12 @@ def run_cycle(
         regime["allow_new_buys"] = False
         regime["code"] = "TARGET_30PCT_RAGGIUNTO_CONTO_IN_CASSAFORTE"
 
+    effective_slot_cap = min(
+        bot.cartridges,
+        int(regime.get("max_active_slots", bot.cartridges)),
+    )
     max_investable_before_4th = round(compounded_budget_eur - 18.00, 2)
-    if regime["allow_new_buys"] and active_count < bot.cartridges and invested_100e <= max_investable_before_4th:
+    if regime["allow_new_buys"] and active_count < effective_slot_cap and invested_100e <= max_investable_before_4th:
         active_sectors = {
             c.get("settore_markowitz")
             for c in cartridge_statuses
@@ -2451,7 +2483,7 @@ def run_cycle(
             pass
 
         for cand in ranked_candidates:
-            if active_count >= bot.cartridges or invested_100e > max_investable_before_4th:
+            if active_count >= effective_slot_cap or invested_100e > max_investable_before_4th:
                 break
             tkr = cand["ticker"]
             if tkr in pos_by_ticker or tkr in pending_by_ticker or tkr in live_broker_tickers:
