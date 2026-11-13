@@ -15,6 +15,36 @@
         "price_eur": 60.68,
         "total_eur": 24.8788
       }
+    ],
+    "SIEd_EQ": [
+      {
+        "timestamp": "2026-11-13T09:20:18",
+        "ticker": "SIEd_EQ",
+        "isin": "DE0007236101",
+        "quantity": 0.0888,
+        "price_eur": 277.3649,
+        "total_eur": 24.63
+      }
+    ],
+    "VNAd_EQ": [
+      {
+        "timestamp": "2026-11-13T09:20:23",
+        "ticker": "VNAd_EQ",
+        "isin": "DE000A1ML7J1",
+        "quantity": 1.47,
+        "price_eur": 16.8367,
+        "total_eur": 24.75
+      }
+    ],
+    "AIRd_EQ": [
+      {
+        "timestamp": "2026-11-13T09:20:29",
+        "ticker": "AIRd_EQ",
+        "isin": "NL0000235190",
+        "quantity": 0.1201,
+        "price_eur": 205.8285,
+        "total_eur": 24.72
+      }
     ]
   },
   "operazioni_chiuse": [
