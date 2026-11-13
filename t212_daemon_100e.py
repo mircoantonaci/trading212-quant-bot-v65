@@ -721,6 +721,21 @@ class OvernightWaveRadar:
                     self.last_check_ts = float(raw.get("last_check_ts", 0.0))
             except Exception:
                 pass
+        if not self.cached_radar and os.path.exists(BOT_STATE_PATH):
+            try:
+                with open(BOT_STATE_PATH, "r", encoding="utf-8") as f_st:
+                    st_raw = json.load(f_st)
+                st_ts = str(st_raw.get("timestamp", ""))
+                ov_raw = st_raw.get("radar_onda_notturna_wall_street")
+                if st_ts and isinstance(ov_raw, dict) and ov_raw.get("verdict"):
+                    dt_st = datetime.datetime.fromisoformat(st_ts)
+                    if dt_st.tzinfo is None:
+                        dt_st = dt_st.replace(tzinfo=MARKET_TZ)
+                    if abs(time.time() - dt_st.timestamp()) <= 900.0:
+                        self.cached_radar = ov_raw
+                        self.last_check_ts = dt_st.timestamp()
+            except Exception:
+                pass
 
     def _fetch_index_snapshot(self, symbol: str) -> Tuple[float, float, bool]:
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=5m&range=1d"
@@ -1948,15 +1963,21 @@ class HybridUncappedIntelligence:
             climax_ratio = min(1.0, max(0.0, (peak_pnl_pct - shield_act) / max(0.0040, shield_act * 1.2)))
             eff_pull = max(0.0012, round(shield_pull * (1.0 - 0.22 * climax_ratio), 4))
             return ("UNCAPPED_SHIELD_2", max(min_shield_floor, round(peak_pnl_pct - eff_pull, 4)))
-        if peak_pnl_pct >= 0.0058:
-            # V11.5 Continuità Bilaterale C0 Esatta + Monotonicità Incondizionata su [0,58%, shield_act]:
-            # raccorda linearmente il pavimento protetto (+0,40%) al valore esatto (shield_act - shield_pull) senza salti sinistri!
+        curve_onset = (
+            min(0.0058, round((breakeven_trigger + shield_act) * 0.5, 4))
+            if shield_act > breakeven_trigger
+            else 0.0058
+        )
+        if shield_act > curve_onset and peak_pnl_pct >= curve_onset:
+            # V11.5 Continuità Bilaterale C0 Esatta anche su titoli difensivi (shield_act < 0,58%, es. DTE/EOAN):
+            # raccorda linearmente il pavimento protetto fino a (shield_act - shield_pull) senza salti sul bordo!
             eff_pull_0 = max(0.0012, round(shield_pull, 4))
             raw_upper = max(min_shield_floor, round(shield_act - eff_pull_0, 4))
-            lower_anchor = max(breakeven_floor, min(0.0040, raw_upper))
+            base_low = breakeven_floor if curve_onset < 0.0058 else 0.0040
+            lower_anchor = max(breakeven_floor, min(base_low, raw_upper))
             upper_anchor = max(lower_anchor, raw_upper)
-            span = max(1e-6, shield_act - 0.0058)
-            t_ratio = min(1.0, max(0.0, (peak_pnl_pct - 0.0058) / span))
+            span = max(1e-6, shield_act - curve_onset)
+            t_ratio = min(1.0, max(0.0, (peak_pnl_pct - curve_onset) / span))
             cont_floor = round(lower_anchor + t_ratio * (upper_anchor - lower_anchor), 4)
             return ("CONTINUOUS_CURVE_1B", cont_floor)
         if peak_pnl_pct >= breakeven_trigger:
@@ -2016,8 +2037,8 @@ class HybridUncappedIntelligence:
                 f"di +{new_peak*100:.2f}% e incassato su inversione a {pnl_pct*100:+.2f}%"
             )
 
-        # BLINDATURA #1 (Stadio 1B - Curva Continua Monotona Salva-Utile V11.2, zero scalini ciechi):
-        if stage_code == "CONTINUOUS_CURVE_1B" and stage_floor is not None and -0.0005 <= pnl_pct <= stage_floor:
+        # BLINDATURA #1 (Stadio 1B - Curva Continua Monotona Salva-Utile V11.5, senza buchi anche su flash-gap < -0,05%):
+        if stage_code == "CONTINUOUS_CURVE_1B" and stage_floor is not None and pnl_pct <= stage_floor:
             strong_above_vwap_hold = (
                 vwap_dist >= 0.10
                 and cur_rsi_5m >= 44.0
@@ -2386,10 +2407,11 @@ def run_cycle(
     now = now_rome.replace(tzinfo=None)
     regime = intel.get_intraday_regime(now_rome)
 
-    # 1. Leggi posizioni aperte e ordini pendenti da Trading 212 (con pulizia ordini LIMIT orfani anche a 4/4 all'avvio batch)
+    # 1. Leggi posizioni aperte e ordini pendenti da Trading 212 (con pulizia ordini LIMIT orfani all'avvio e sweep periodico anche a 4/4)
     positions = client.get_open_positions()
     first_pending_sweep = not getattr(bot, "_pending_swept_once", False)
-    if len(positions) < bot.cartridges or getattr(bot, "_had_pending_orders", False) or first_pending_sweep:
+    periodic_pending_sweep = (cycle_num % 10 == 0)
+    if len(positions) < bot.cartridges or getattr(bot, "_had_pending_orders", False) or first_pending_sweep or periodic_pending_sweep:
         setattr(bot, "_pending_swept_once", True)
         time.sleep(0.10)
         raw_pending = client.get_pending_orders()
@@ -2469,9 +2491,10 @@ def run_cycle(
     if lifo_dirty:
         bot.tax_tracker.save()
 
-    # BLINDATURA #6: Interesse Composto Automatico di Kelly (Auto-Compounding sul totale storico)
+    # BLINDATURA #6: Interesse Composto Automatico di Kelly (Auto-Compounding sul totale storico multi-anno)
     realized_net_eur = round(
-        float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
+        float(bot.tax_tracker.data.get("profitto_storico_anni_precedenti_eur", 0.0))
+        + float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
         - float(bot.tax_tracker.data.get("minusvalenze_lorde_eur", 0.0)),
         2,
     )
@@ -2536,18 +2559,19 @@ def run_cycle(
         cost_eur = round(qty_open * avg_price, 2)
         pnl_pct = (cur_price - avg_price) / avg_price if avg_price > 0 else 0.0
 
-        # Auto-Sync LIFO lot 1:1 con posizione reale Trading 212 (elimina automaticamente lotti duplicati o disallineati)
+        # Auto-Sync LIFO lot con posizione reale Trading 212 (preserva più tranche LIFO valide, ripara solo disallineamenti di quantità/prezzo medio)
         if qty_open > 0 and avg_price > 0:
             open_lots = bot.tax_tracker.data.get("lotti_aperti_lifo", {}).get(tkr, [])
             tot_lifo_qty = sum(float(l.get("quantity", 0.0)) for l in open_lots)
+            tot_lifo_cost = sum(float(l.get("quantity", 0.0)) * float(l.get("price_eur", avg_price)) for l in open_lots)
+            lifo_wavg_px = (tot_lifo_cost / tot_lifo_qty) if tot_lifo_qty > 1e-7 else avg_price
             if not open_lots:
                 bot.tax_tracker.record_buy(tkr, qty_open, avg_price)
                 intel.peak_pnl_pct[tkr] = max(0.0, pnl_pct)
                 intel.position_open_time[tkr] = time.time()
             elif (
-                len(open_lots) != 1
-                or abs(tot_lifo_qty - qty_open) > 1e-4
-                or abs(float(open_lots[-1].get("price_eur", avg_price)) - avg_price) / avg_price > 0.0025
+                abs(tot_lifo_qty - qty_open) > 1e-4
+                or abs(lifo_wavg_px - avg_price) / avg_price > 0.0025
             ):
                 preserved_ts = open_lots[-1].get("timestamp") or now_rome.isoformat(timespec="seconds")
                 bot.tax_tracker.data["lotti_aperti_lifo"][tkr] = [{
@@ -2728,7 +2752,8 @@ def run_cycle(
             if float(post_sync_free) < min_expected_free:
                 setattr(bot, "_t212_free_cash", round(float(pre_sell_free_cash) + freed_cash_in_cycle, 2))
         realized_net_eur = round(
-            float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
+            float(bot.tax_tracker.data.get("profitto_storico_anni_precedenti_eur", 0.0))
+            + float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
             - float(bot.tax_tracker.data.get("minusvalenze_lorde_eur", 0.0)),
             2,
         )
@@ -2962,6 +2987,7 @@ def run_cycle(
                     if broker_free is not None:
                         setattr(bot, "_t212_free_cash", max(0.0, float(broker_free) - reserved_eur))
                     setattr(bot, "_had_pending_orders", True)
+                    intel.register_buy_retry(tkr, live_px)
                     pending_by_ticker[tkr] = {"id": ord_id, "ticker": tkr, "quantity": qty_to_buy, "type": "LIMIT"}
                     live_broker_tickers.add(tkr)
                     invested_100e += reserved_eur
@@ -2985,6 +3011,7 @@ def run_cycle(
                     reserved_eur = round(qty_to_buy * limit_px, 2)
                     if broker_free is not None:
                         setattr(bot, "_t212_free_cash", max(0.0, float(broker_free) - reserved_eur))
+                    setattr(bot, "_had_pending_orders", True)
                     intel.register_buy_retry(tkr, live_px)
                     live_broker_tickers.add(tkr)
                     invested_100e += reserved_eur
@@ -2999,6 +3026,7 @@ def run_cycle(
                         f"SCUDO ANTI-SPIKE LIMIT (+1,00%): ordine {tkr} annullato perché ask reale > {limit_px:.4f} EUR (zero slippage subito)"
                     )
             except Exception as e:
+                setattr(bot, "_had_pending_orders", True)
                 intel.register_buy_retry(tkr, live_px)
                 actions_taken.append(f"Passaggio al candidato High-Beta successivo ({tkr}: {e})")
 
@@ -3007,7 +3035,8 @@ def run_cycle(
         _sync_certified_cash_safe(bot, min_interval_sec=2.2)
 
     realized_net_eur = round(
-        float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
+        float(bot.tax_tracker.data.get("profitto_storico_anni_precedenti_eur", 0.0))
+        + float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
         - float(bot.tax_tracker.data.get("minusvalenze_lorde_eur", 0.0)),
         2,
     )
@@ -3033,7 +3062,8 @@ def run_cycle(
             bot.tax_tracker.data["target_30pct_raggiunto_blocco_attivo"] = True
             bot.tax_tracker.save()
             realized_net_eur = round(
-                float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
+                float(bot.tax_tracker.data.get("profitto_storico_anni_precedenti_eur", 0.0))
+                + float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
                 - float(bot.tax_tracker.data.get("minusvalenze_lorde_eur", 0.0)),
                 2,
             )

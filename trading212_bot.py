@@ -232,13 +232,12 @@ class ItalianTaxTracker730:
         remaining_to_sell = sell_qty
         cost_basis_eur = 0.0
 
-        # Allinea in-place il prezzo di carico LIFO al prezzo medio reale certificato da Trading 212
-        # senza mai svuotare i lotti residui durante una vendita parziale di ribilanciamento:
-        if fallback_avg_price_eur and fallback_avg_price_eur > 0 and lots:
+        # Allinea in-place il prezzo di carico al prezzo medio certificato T212 SOLO su singolo lotto (1 cartuccia),
+        # preservando intatti i prezzi storici distinti delle singole tranche in caso di più lotti LIFO (Art. 67-68 TUIR):
+        if fallback_avg_price_eur and fallback_avg_price_eur > 0 and len(lots) == 1:
             real_avg = round(float(fallback_avg_price_eur), 4)
-            for existing_lot in lots:
-                existing_lot["price_eur"] = real_avg
-                existing_lot["total_eur"] = round(float(existing_lot["quantity"]) * real_avg, 4)
+            lots[0]["price_eur"] = real_avg
+            lots[0]["total_eur"] = round(float(lots[0]["quantity"]) * real_avg, 4)
 
         while remaining_to_sell > 1e-7 and lots:
             last_lot = lots[-1]
@@ -301,16 +300,48 @@ class ItalianTaxTracker730:
 
     def reconcile_certified_cash_result(self, certified_net_eur: float) -> bool:
         """
-        Riconcilia in modo atomico, simmetrico e monotono il risultato realizzato certificato
-        dal broker (/equity/account/cash -> result) mantenendo sempre allineati:
-        - plusvalenze_lorde_eur (>= 0)
-        - minusvalenze_lorde_eur (>= 0)
-        - imponibile_netto_eur e imposta_sostitutiva_26_eur
+        Riconcilia in modo atomico, simmetrico e isolato per Anno Fiscale il risultato realizzato
+        certificato dal broker (/equity/account/cash -> result cumulativo lifetime):
+        - Archivia automaticamente l'anno chiuso al cambio d'anno solare (1° Gennaio) salvando
+          l'offset `baseline_result_inizio_anno_eur` (zero doppia tassazione sugli anni pregressi!)
+        - Mantiene sempre `plusvalenze_lorde_eur >= 0` e `minusvalenze_lorde_eur >= 0`
         """
-        t212_net = round(float(certified_net_eur), 2)
+        t212_lifetime_net = round(float(certified_net_eur), 2)
+        cur_year = datetime.datetime.now(MARKET_TZ).year
+        stored_year = int(self.data.get("anno_fiscale", cur_year))
+        if cur_year > stored_year:
+            old_plus = float(self.data.get("plusvalenze_lorde_eur", 0.0))
+            old_minus = float(self.data.get("minusvalenze_lorde_eur", 0.0))
+            old_net = round(old_plus - old_minus, 2)
+            prev_hist = float(self.data.get("profitto_storico_anni_precedenti_eur", 0.0))
+            prior_baseline = float(self.data.get("baseline_result_inizio_anno_eur", 0.0))
+            arch = self.data.setdefault("archivio_anni_precedenti", {})
+            arch[str(stored_year)] = {
+                "plusvalenze_lorde_eur": round(old_plus, 2),
+                "minusvalenze_lorde_eur": round(old_minus, 2),
+                "imponibile_netto_eur": round(max(0.0, old_net), 2),
+                "imposta_sostitutiva_26_eur": round(max(0.0, old_net) * 0.26, 2),
+            }
+            self.data["profitto_storico_anni_precedenti_eur"] = round(prev_hist + old_net, 2)
+            self.data["baseline_result_inizio_anno_eur"] = round(prior_baseline + old_net, 2)
+            self.data["zainetto_minusvalenze_pregresse_eur"] = round(
+                max(0.0, float(self.data.get("zainetto_minusvalenze_pregresse_eur", 0.0)) + max(0.0, old_minus - old_plus)),
+                2,
+            )
+            self.data["anno_fiscale"] = cur_year
+            self.data["totale_corrispettivi_vendita_eur"] = 0.00
+            self.data["totale_costi_carico_lifo_eur"] = 0.00
+            self.data["plusvalenze_lorde_eur"] = 0.00
+            self.data["minusvalenze_lorde_eur"] = 0.00
+            self.data["imponibile_netto_eur"] = 0.00
+            self.data["imposta_sostitutiva_26_eur"] = 0.00
+            self.save()
+
+        year_baseline = float(self.data.get("baseline_result_inizio_anno_eur", 0.0))
+        t212_year_net = round(t212_lifetime_net - year_baseline, 2)
         cur_plus = float(self.data.get("plusvalenze_lorde_eur", 0.0))
         cur_minus = float(self.data.get("minusvalenze_lorde_eur", 0.0))
-        diff = round(t212_net - (cur_plus - cur_minus), 2)
+        diff = round(t212_year_net - (cur_plus - cur_minus), 2)
         if abs(diff) < 0.01:
             return False
 
@@ -319,9 +350,10 @@ class ItalianTaxTracker730:
         else:
             self.data["minusvalenze_lorde_eur"] = round(max(0.0, cur_minus + abs(diff)), 2)
 
+        prior_loss_carry = float(self.data.get("zainetto_minusvalenze_pregresse_eur", 0.0))
         net_taxable = max(
             0.0,
-            float(self.data["plusvalenze_lorde_eur"]) - float(self.data["minusvalenze_lorde_eur"]),
+            float(self.data["plusvalenze_lorde_eur"]) - float(self.data["minusvalenze_lorde_eur"]) - prior_loss_carry,
         )
         self.data["imponibile_netto_eur"] = round(net_taxable, 2)
         self.data["imposta_sostitutiva_26_eur"] = round(net_taxable * 0.26, 2)

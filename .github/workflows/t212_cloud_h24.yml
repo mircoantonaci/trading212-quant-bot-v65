@@ -48,7 +48,23 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: "🧪 Verifica Bloccante dei 28 Invarianti Matematici (V11.5 LTS ATR Taper + C0 Bilaterale + Execution Purity)"
+      - name: "📅 Calcola Chiave Cache Intraday (Staffetta Mattina -> Pomeriggio)"
+        id: cache-key
+        run: |
+          echo "today=$(date +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          echo "stamp=$(date +%Y-%m-%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+
+      - name: "♻️ Ripristina Cache Candele 5m & Radar dalla Sessione Precedente (Zero Cold-Start Staffetta 12:25)"
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            .scanner_5m_cache.json
+            .radar_wave_cache.json
+          key: t212-intraday-cache-${{ runner.os }}-${{ steps.cache-key.outputs.stamp }}
+          restore-keys: |
+            t212-intraday-cache-${{ runner.os }}-${{ steps.cache-key.outputs.today }}-
+
+      - name: "🧪 Verifica Bloccante dei 29 Invarianti Matematici (V11.5 LTS Cross-Model Verified)"
         run: |
           python3 -m unittest discover -s tests -p "test_*.py" -v
 
@@ -117,6 +133,15 @@ jobs:
 
           python3 t212-cli.py status
           python3 t212-cli.py tax-730
+
+      - name: "💾 Salva Cache Candele 5m & Radar per la Staffetta Pomeridiana (Zero Git Bloat)"
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            .scanner_5m_cache.json
+            .radar_wave_cache.json
+          key: t212-intraday-cache-${{ runner.os }}-${{ steps.cache-key.outputs.stamp }}
 
       - name: "🔁 Auto-Staffetta Istantanea Turno Pomeridiano (12:25 -> 17:36 Europe/Rome)"
         if: "!cancelled()"

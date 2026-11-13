@@ -1388,6 +1388,79 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertEqual(st_ec["cartucce_4x25_eur"][0]["status"], "APPENA_ACQUISTATA_V11_5_LIMIT_PROTETTO")
         self.assertIn("SAPd_EQ", bot_ec.tax_tracker.data.get("lotti_aperti_lifo", {}))
 
+    def test_29_cross_model_defensive_c0_onset_multi_tranche_lifo_and_annual_tax_isolation(self):
+        """Invariante #29: C0 bilaterale anche per shield_act < 0.58% (DTE/EOAN), flash-drop 1B, LIFO multi-tranche TUIR, isolamento anno fiscale 730 e guardia ordini orfani."""
+        intel = daemon.HybridUncappedIntelligence()
+        # 1) Titolo difensivo con shield_act = 0.0048 (< 0.0058): continuità C0 senza salto da +0.18% a +0.36% sul bordo 0.0048!
+        prev_fl = -1.0
+        for step in range(40, 60):
+            pk = round(step * 0.0001, 4)
+            _, fl = intel.compute_profit_protection_floor(pk, 0.0048, 0.0012, 0.0014, False)
+            if fl is not None:
+                self.assertGreaterEqual(fl, prev_fl)
+                prev_fl = fl
+        _, fl_47 = intel.compute_profit_protection_floor(0.0047, 0.0048, 0.0012, 0.0014, False)
+        _, fl_48 = intel.compute_profit_protection_floor(0.0048, 0.0048, 0.0012, 0.0014, False)
+        self.assertLessEqual(abs(fl_48 - fl_47), 0.0007)  # rampa lineare continua (non salto secco di +18 bps!)
+
+        # Curva 1B (peak = +0.64%, shield_act = +0.95%) intercetta anche un flash-drop istantaneo a -0.10% (< -0.05%)!
+        intel.peak_pnl_pct["EOANd_EQ"] = 0.0064
+        reg_open = {"is_morning_gap_harvest": False, "is_pre_close_window": False, "is_friday_pre_weekend": False}
+        m_1b = {"atr_5m_volatility_pct": 0.16, "elastic_shield_act_raw": 0.0095, "elastic_shield_pull_raw": 0.0020, "green_hook_confirmed": False, "vwap_dist_pct": -0.12, "rsi_5m": 41.0}
+        exit_1b = intel.evaluate_uncapped_exit("EOANd_EQ", -0.0010, reg_open, 0.0, {}, m_1b, 0.0, False)
+        self.assertIsNotNone(exit_1b)
+        self.assertIn("BLINDATURA #1B", exit_1b)
+
+        # 2) Integrità LIFO Multi-Tranche (Art. 67-68 TUIR): 10 az @ 10€ + 10 az @ 20€ (avg 15€), vendita 10 az @ 22€ -> utile LIFO = +20.00€, residuo 10 az @ 10.00€!
+        tmp_lifo = "/tmp/test_v115_multitranche_lifo.json"
+        if os.path.exists(tmp_lifo):
+            os.remove(tmp_lifo)
+        try:
+            tr = ItalianTaxTracker730(filepath=tmp_lifo)
+            tr.record_buy("SAPd_EQ", 10.0, 10.00)
+            tr.record_buy("SAPd_EQ", 10.0, 20.00)
+            op_lifo = tr.record_sell("SAPd_EQ", 10.0, 22.00, fallback_avg_price_eur=15.00)
+            self.assertAlmostEqual(op_lifo["risultato_fiscale_eur"], 20.00, places=2)
+            rem = tr.data["lotti_aperti_lifo"]["SAPd_EQ"]
+            self.assertEqual(len(rem), 1)
+            self.assertAlmostEqual(rem[0]["price_eur"], 10.00, places=4)
+
+            # 3) Isolamento Anno Fiscale al 1° Gennaio (Rollover 2026 -> 2027 senza doppia tassazione sugli utili 2026!):
+            tr.data["anno_fiscale"] = 2026
+            tr.data["plusvalenze_lorde_eur"] = 1000.00
+            tr.data["minusvalenze_lorde_eur"] = 0.00
+            tr.save()
+            real_dt = datetime.datetime
+            jan_2027 = real_dt(2027, 1, 4, 10, 0, 0, tzinfo=daemon.MARKET_TZ)
+            with patch("trading212_bot.datetime.datetime") as mock_bot_dt:
+                mock_bot_dt.now.side_effect = lambda tz=None: jan_2027.astimezone(tz) if tz else jan_2027.replace(tzinfo=None)
+                tr.reconcile_certified_cash_result(1100.00)  # 1000€ del 2026 + 100€ realizzati nel 2027!
+            self.assertEqual(tr.data["anno_fiscale"], 2027)
+            self.assertAlmostEqual(tr.data["baseline_result_inizio_anno_eur"], 1000.00, places=2)
+            self.assertAlmostEqual(tr.data["plusvalenze_lorde_eur"], 100.00, places=2)
+            self.assertAlmostEqual(tr.data["profitto_storico_anni_precedenti_eur"], 1000.00, places=2)
+        finally:
+            if os.path.exists(tmp_lifo):
+                os.remove(tmp_lifo)
+
+        # 4) Seed cross-VM di OvernightWaveRadar da BOT_STATE_PATH quando .radar_wave_cache.json è assente nella staffetta 12:25:
+        tmp_st_radar = "/tmp/test_v115_state_radar_seed.json"
+        now_dt = datetime.datetime.now(daemon.MARKET_TZ)
+        with open(tmp_st_radar, "w", encoding="utf-8") as f:
+            json.dump({
+                "timestamp": now_dt.replace(tzinfo=None).isoformat(timespec="seconds"),
+                "radar_onda_notturna_wall_street": {"verdict": "ONDA_POSITIVA_STAFFETTA", "allow_overnight_hold": True, "nasdaq_change_pct": 0.5, "sp500_change_pct": 0.4, "dax_change_pct": 0.3, "vix_fear_change_pct": -1.5, "vix_level": 15.0},
+            }, f)
+        try:
+            with patch.object(daemon, "BOT_STATE_PATH", tmp_st_radar):
+                r_relay = daemon.OvernightWaveRadar(cache_path="/tmp/nonexistent_radar_cache_v115.json")
+                with patch.object(r_relay, "_fetch_index_snapshot", side_effect=AssertionError("Deve riusare il seed fresco <120s da BOT_STATE_PATH!")):
+                    v_rel = r_relay.evaluate_overnight_wave(force=False)
+                self.assertEqual(v_rel["verdict"], "ONDA_POSITIVA_STAFFETTA")
+        finally:
+            if os.path.exists(tmp_st_radar):
+                os.remove(tmp_st_radar)
+
 
 if __name__ == "__main__":
     unittest.main()
