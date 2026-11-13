@@ -6,16 +6,6 @@
   "valore_finale_stimato_quadro_w_eur": 100.86,
   "giorni_detenzione_ivafe": 365,
   "lotti_aperti_lifo": {
-    "ADYENa_EQ": [
-      {
-        "timestamp": "2026-11-13T14:47:09",
-        "ticker": "ADYENa_EQ",
-        "isin": "NL0012969182",
-        "quantity": 0.0287,
-        "price_eur": 862.3693,
-        "total_eur": 24.75
-      }
-    ],
     "MUV2d_EQ": [
       {
         "timestamp": "2026-11-13T15:00:38",
@@ -44,6 +34,16 @@
         "quantity": 1.27,
         "price_eur": 19.5354,
         "total_eur": 24.81
+      }
+    ],
+    "ZALd_EQ": [
+      {
+        "timestamp": "2026-11-13T15:55:23",
+        "ticker": "ZALd_EQ",
+        "isin": "DE000ZAL1111",
+        "quantity": 0.86,
+        "price_eur": 28.7558,
+        "total_eur": 24.73
       }
     ]
   },
@@ -1631,12 +1631,21 @@
       "corrispettivo_eur": 24.83,
       "costo_lifo_eur": 24.74,
       "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-13T15:55:02",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.0287,
+      "sell_price_eur": 868.6,
+      "corrispettivo_eur": 24.93,
+      "costo_lifo_eur": 24.75,
+      "risultato_fiscale_eur": 0.18
     }
   ],
-  "totale_corrispettivi_vendita_eur": 4316.36,
-  "totale_costi_carico_lifo_eur": 4319.89,
-  "plusvalenze_lorde_eur": 13.81,
-  "minusvalenze_lorde_eur": 16.4,
+  "totale_corrispettivi_vendita_eur": 4341.29,
+  "totale_costi_carico_lifo_eur": 4344.64,
+  "plusvalenze_lorde_eur": 13.99,
+  "minusvalenze_lorde_eur": 16.41,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
