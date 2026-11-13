@@ -35,6 +35,16 @@
         "price_eur": 205.5694,
         "total_eur": 24.73
       }
+    ],
+    "APCd_EQ": [
+      {
+        "timestamp": "2026-11-13T16:58:32",
+        "ticker": "APCd_EQ",
+        "isin": "US0378331005",
+        "quantity": 0.0761,
+        "price_eur": 325.4928,
+        "total_eur": 24.77
+      }
     ]
   },
   "operazioni_chiuse": [
