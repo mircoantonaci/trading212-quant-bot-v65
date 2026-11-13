@@ -35,6 +35,16 @@
         "price_eur": 59.8537,
         "total_eur": 24.54
       }
+    ],
+    "SAPd_EQ": [
+      {
+        "timestamp": "2026-11-13T16:42:19",
+        "ticker": "SAPd_EQ",
+        "isin": "DE0007164600",
+        "quantity": 0.1158,
+        "price_eur": 213.9896,
+        "total_eur": 24.78
+      }
     ]
   },
   "operazioni_chiuse": [
