@@ -864,6 +864,123 @@ class TestQuantInvariantsV11(unittest.TestCase):
         no_brk_mid = dict(brk_mid, breakout_5m=False)
         self.assertFalse(intel.is_eligible_entry_candidate(no_brk_mid, reg_mid, ov_ok))
 
+    def test_24_anti_dead_cat_micro_tick_sub_vwap_downtrend_and_fresh_rotation_scan(self):
+        """Invariante #24: blocca dead-cat tick +0,02% post-candela rossa / rottura sotto VWAP (caso SAP 15:35) senza toccare gli Scudi, e forza scan 0s su rotazione."""
+        real_dt = datetime.datetime
+        mkt_dt = real_dt(2026, 11, 13, 15, 35, 50, tzinfo=daemon.MARKET_TZ)
+        now_epoch = mkt_dt.timestamp()
+        last_yahoo_bucket = int(real_dt(2026, 11, 13, 15, 20, 0, tzinfo=daemon.MARKET_TZ).timestamp())
+        base_ts = last_yahoo_bucket - 19 * 300
+        # Discesa progressiva da 214.55 -> 213.65 su Yahoo + candela 15:30 rossa pesante (214.30 -> 213.05)
+        closes_sap = [
+            214.2, 214.3, 214.5, 214.45, 214.55, 214.3, 214.05, 213.9, 213.8, 213.55,
+            213.65, 213.75, 213.65, 213.7, 213.65, 213.6, 213.65, 213.7, 213.65, 213.65,
+        ]
+        yahoo_sap = _make_yahoo_payload(closes_sap, vols=[5000.0] * 20, base_ts=base_ts)
+
+        scanner = daemon.QuantMarketScanner()
+        b_1525 = int(real_dt(2026, 11, 13, 15, 25, 0, tzinfo=daemon.MARKET_TZ).timestamp())
+        b_1530 = int(real_dt(2026, 11, 13, 15, 30, 0, tzinfo=daemon.MARKET_TZ).timestamp())
+        scanner.realtime_5m_bars["SAPd_EQ"] = {
+            b_1525: {"open": 213.65, "high": 213.80, "low": 213.60, "close": 213.75},
+            b_1530: {"open": 214.30, "high": 214.45, "low": 213.05, "close": 213.05},
+        }
+        # Alle 15:35:50 la nuova candela 15:35 fa solo un micro-tick +0.05 EUR (213.05 -> 213.10) sotto VWAP:
+        gx_dead_cat = json.dumps({
+            "data": [
+                {"s": "GETTEX:SAP", "d": [213.10, 213.05, 213.12, 213.05, 213.10, "streaming"]},
+            ]
+        }).encode("utf-8")
+
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=now_epoch):
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(gx_dead_cat)):
+                scanner.refresh_gettex_live_quotes(force=True)
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(yahoo_sap)):
+                m_sap_dead = scanner.fetch_5m_metrics("SAPd_EQ")
+
+        # ISOLAMENTO SCUDI vs INGRESSO:
+        # 1) green_hook_confirmed resta True (zero alterazione degli Scudi 1A/1B/Airbag sulle posizioni già aperte!)
+        self.assertTrue(m_sap_dead["green_hook_confirmed"])
+        # 2) entry_hook_confirmed è False e quant_buy_score == 0.0 (zero falsi ingressi su micro-tick / rottura sotto VWAP!)
+        self.assertFalse(m_sap_dead["entry_hook_confirmed"])
+        self.assertEqual(m_sap_dead["quant_buy_score"], 0.0)
+
+        # Verifica rotazione 4 -> 3 a metà ciclo: DEVE forzare scan_all(force=True) prima del BUY!
+        class _RotationBroker:
+            def __init__(self):
+                self.positions = [
+                    {"ticker": "MRKd_EQ", "quantity": 0.16, "averagePrice": 150.0, "currentPrice": 148.5, "ppl": -0.24},
+                    {"ticker": "ADYENa_EQ", "quantity": 0.03, "averagePrice": 860.0, "currentPrice": 862.0, "ppl": 0.06},
+                    {"ticker": "PRXa_EQ", "quantity": 0.70, "averagePrice": 35.5, "currentPrice": 35.6, "ppl": 0.07},
+                    {"ticker": "MUV2d_EQ", "quantity": 0.04, "averagePrice": 592.0, "currentPrice": 593.0, "ppl": 0.04},
+                ]
+                self.limit_buys = []
+
+            def get_open_positions(self):
+                return list(self.positions)
+
+            def get_pending_orders(self):
+                return []
+
+            def get_account_cash(self):
+                return {"result": 0.0, "free": 25.5}
+
+            def place_market_order(self, ticker: str, quantity: float):
+                if quantity < 0:
+                    self.positions = [p for p in self.positions if p["ticker"] != ticker]
+                return {"id": "SELL_ROT"}
+
+            def place_limit_order(self, ticker: str, quantity: float, limit_price: float, time_validity: str = "DAY"):
+                self.limit_buys.append(ticker)
+                self.positions.append({"ticker": ticker, "quantity": quantity, "averagePrice": limit_price, "currentPrice": limit_price, "ppl": 0.0})
+                return {"id": "BUY_ROT"}
+
+            def cancel_order(self, order_id):
+                return None
+
+        rot_broker = _RotationBroker()
+        bot = daemon.Trading212AutonomousBot(client=rot_broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
+        bot.tax_tracker = ItalianTaxTracker730(filepath=self._tmp_tax_path)
+        for p_init in rot_broker.positions:
+            bot.tax_tracker.record_buy(p_init["ticker"], p_init["quantity"], p_init["averagePrice"])
+        bot.tax_tracker.data["lotti_aperti_lifo"]["MRKd_EQ"][0]["timestamp"] = "2026-11-13T15:15:00"
+        bot.tax_tracker.save()
+        intel = daemon.HybridUncappedIntelligence()
+        intel.prev_open_snapshot.clear()
+        intel.position_open_time["MRKd_EQ"] = now_epoch - 1200.0  # Aperta da 20m a -1.00% -> scatta Airbag!
+        rot_scanner = daemon.QuantMarketScanner()
+        scan_force_flags = []
+
+        def _fake_scan_all(**kwargs):
+            f_flag = bool(kwargs.get("force", False))
+            scan_force_flags.append(f_flag)
+            # Alla prima scansione (stantia, force=False) SAP aveva erroneamente score 87;
+            # alla scansione fresca 0s post-vendita (force=True) SAP è crollata a 0 e vince EOANd_EQ (78.0)!
+            sap_sc = 0.0 if f_flag else 87.0
+            sap_eh = False if f_flag else True
+            return {
+                "MRKd_EQ": {"ticker": "MRKd_EQ", "name": "Merck", "squad": "SQUADRA_1_CECCHINO_GIORNALIERO", "sector": "PHARMA_BIOTECH", "live_price_eur": 148.5, "rsi_5m": 32.0, "vwap_dist_pct": -0.40, "atr_5m_volatility_pct": 0.15, "day_range_pct": 1.6, "rvol_ratio": 1.2, "quant_buy_score": 0.0, "green_hook_confirmed": False, "entry_hook_confirmed": False, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "COLTELLO_IN_CADUTA_ATTENDERE_UNCINO_VERDE"},
+                "SAPd_EQ": {"ticker": "SAPd_EQ", "name": "SAP", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "SOFTWARE_CLOUD", "live_price_eur": 212.7, "rsi_5m": 31.0, "vwap_dist_pct": -0.30, "atr_5m_volatility_pct": 0.20, "day_range_pct": 1.5, "rvol_ratio": 1.8, "quant_buy_score": sap_sc, "green_hook_confirmed": False, "entry_hook_confirmed": sap_eh, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "COLTELLO_IN_CADUTA_ATTENDERE_UNCINO_VERDE"},
+                "EOANd_EQ": {"ticker": "EOANd_EQ", "name": "E.ON", "squad": "SQUADRA_1_CECCHINO_GIORNALIERO", "sector": "UTILITIES_RETI_ELETTRICHE", "live_price_eur": 19.50, "rsi_5m": 58.0, "vwap_dist_pct": 0.22, "atr_5m_volatility_pct": 0.15, "day_range_pct": 1.6, "rvol_ratio": 1.3, "quant_buy_score": 78.0, "green_hook_confirmed": True, "entry_hook_confirmed": True, "strong_for_overnight": True, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT"},
+            }
+
+        rot_scanner.scan_all = _fake_scan_all
+
+        class _DummyRadar24:
+            def evaluate_overnight_wave(self):
+                return {"verdict": "OK", "allow_overnight_hold": True, "nasdaq_change_pct": 0.2, "sp500_change_pct": 0.2, "dax_change_pct": 0.2, "vix_fear_change_pct": -1.0, "vix_level": 16.0}
+
+        with patch.object(daemon, "LIMIT_FILL_POLL_SEC", 0.0), patch("datetime.datetime") as mock_dt, patch("time.time", return_value=now_epoch):
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            daemon.run_cycle(bot, intel, rot_scanner, _DummyRadar24(), 1)
+
+        self.assertEqual(scan_force_flags, [False, True])
+        self.assertEqual(rot_broker.limit_buys, ["EOANd_EQ"])
+
 
 if __name__ == "__main__":
     unittest.main()

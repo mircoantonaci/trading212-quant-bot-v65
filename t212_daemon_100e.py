@@ -1248,6 +1248,10 @@ class QuantMarketScanner:
                 breakout_candle = (closes[-1] > highs[-2]) if len(highs) >= 2 else False
                 higher_low = closes[-1] >= cur_open_09
                 green_hook_confirmed = not falling_knife and closes[-1] >= cur_open_09
+                entry_hook_confirmed = (
+                    green_hook_confirmed
+                    and (closes[-1] - cur_open_09) >= (closes[-1] * 0.0005)
+                )
             else:
                 cur_open = (
                     opens[-1]
@@ -1258,13 +1262,26 @@ class QuantMarketScanner:
                 falling_knife = (closes[-1] < closes[ref_idx_2] and closes[ref_idx_2] < closes[ref_idx_3])
                 breakout_candle = (closes[-1] > highs[ref_idx_2]) if len(highs) >= 2 else False
                 higher_low = (lows[-1] >= lows[ref_idx_2]) if len(lows) >= 2 else True
-                # V11.2 Invariante #22 (True Green Hook Zero-Cerotti):
-                # vieta qualsiasi ingresso su candela 5m rossa (close < open) o in ripiegamento dal picco precedente (close < prev_close),
-                # eliminando il falso positivo post-spike generato da `or higher_low`.
+                # V11.2 Invariante #22 (True Green Hook Zero-Cerotti, condiviso con gli Scudi di Uscita):
+                # vieta qualsiasi ingresso su candela 5m rossa (close < open) o in ripiegamento dal picco precedente (close < prev_close).
                 green_hook_confirmed = (
                     not falling_knife
                     and closes[-1] >= closes[ref_idx_2]
                     and closes[-1] >= cur_open
+                )
+                # V11.2 Invariante #24 (Anti-Micro-Tick post-Candela Rossa SOLO per nuovi ingressi, zero impatto sugli Scudi):
+                # esige almeno +0,05% (1 spread Bid-Ask) sopra open/prev_close e, se la candela 5m precedente era rossa,
+                # il recupero strutturale di almeno il 30% del corpo ribassista precedente (blocca i dead-cat tick da +0,02% a :00).
+                prev_open_r2 = (
+                    opens[ref_idx_2]
+                    if len(opens) == len(closes) and opens[ref_idx_2] > 0
+                    else closes[ref_idx_3]
+                )
+                prev_red_drop = max(0.0, prev_open_r2 - closes[ref_idx_2])
+                min_entry_body = max(prev_red_drop * 0.30, closes[-1] * 0.0005)
+                entry_hook_confirmed = (
+                    green_hook_confirmed
+                    and (closes[-1] - min(cur_open, closes[ref_idx_2])) >= min_entry_body
                 )
             slope_rising = (closes[-1] >= closes[ref_idx_3])
             slope_15m_pct = ((closes[-1] - closes[ref_idx_4]) / closes[ref_idx_4] * 100.0) if closes[ref_idx_4] > 0 else 0.0
@@ -1330,6 +1347,7 @@ class QuantMarketScanner:
             breakout_candle = False
             higher_low = False
             green_hook_confirmed = False
+            entry_hook_confirmed = False
             slope_rising = False
             slope_15m_pct = 0.0
             slope_30m_pct = 0.0
@@ -1338,9 +1356,9 @@ class QuantMarketScanner:
             atr_5m_pct = 0.0
             kaufman_er = 0.0
 
-        # V11.0 Blocco 2 — RANKING LINEARE ADDITIVO PURO "ZERO CEROTTI" (Validato Walk-Forward: +3,06 EUR / 5gg, 5/5 verdi):
+        # V11.0 Blocco 2 — RANKING LINEARE ADDITIVO PURO "ZERO CEROTTI" (Validato Walk-Forward 0s: +5,06 EUR / 5gg, 5/5 verdi):
         # 1) Setup Momentum Istituzionale sul pavimento VWAP (-0,15% .. +0,48%, RSI 42..66)
-        if has_valid_bars and vwap_dist_pct >= -0.15 and 42.0 <= rsi_14 <= 66.0 and green_hook_confirmed:
+        if has_valid_bars and vwap_dist_pct >= -0.15 and 42.0 <= rsi_14 <= 66.0 and entry_hook_confirmed:
             vwap_extension_taper = max(0.0, (vwap_dist_pct - 0.48) * 32.0)
             score_momentum = (
                 68.0
@@ -1351,8 +1369,16 @@ class QuantMarketScanner:
         else:
             score_momentum = 0.0
 
-        # 2) Setup Institutional VWAP Pullback (-0,35% .. +0,48%, RSI 32..64, trend 30m sano)
-        if has_valid_bars and vwap_dist_pct >= -0.35 and 32.0 <= rsi_14 <= 64.0 and green_hook_confirmed and slope_30m_pct >= -0.45:
+        # 2) Setup Institutional VWAP Pullback (-0,35% .. +0,48%, RSI 32..64, trend 30m sano, mai in rottura ribassista sotto VWAP)
+        sub_vwap_downtrend = (vwap_dist_pct < -0.05 and slope_15m_pct < -0.10)
+        if (
+            has_valid_bars
+            and vwap_dist_pct >= -0.35
+            and not sub_vwap_downtrend
+            and 32.0 <= rsi_14 <= 64.0
+            and entry_hook_confirmed
+            and slope_30m_pct >= -0.45
+        ):
             pullback_ext_taper = max(0.0, (vwap_dist_pct - 0.48) * 32.0)
             score_pullback = (
                 54.0
@@ -1461,6 +1487,7 @@ class QuantMarketScanner:
             "quant_buy_score": quant_score,
             "fase_onda_sinusoidale": sine_phase,
             "green_hook_confirmed": green_hook_confirmed,
+            "entry_hook_confirmed": entry_hook_confirmed,
             "breakout_5m": breakout_candle,
             "strong_for_overnight": strong_for_overnight,
             "yahoo_today_bars": yahoo_today_bars,
@@ -1975,7 +2002,13 @@ class HybridUncappedIntelligence:
         score = float(cand.get("quant_buy_score", 0.0))
         rsi_5m = float(cand.get("rsi_5m", 100.0))
         min_required_score = 62.0 if daily_vault_active else BASE_MIN_BUY_SCORE
-        if rsi_5m > 66.0 or score < min_required_score or not bool(cand.get("green_hook_confirmed", False)):
+        entry_hook_ok = bool(cand.get("entry_hook_confirmed", cand.get("green_hook_confirmed", False)))
+        if (
+            rsi_5m > 66.0
+            or score < min_required_score
+            or not bool(cand.get("green_hook_confirmed", False))
+            or not entry_hook_ok
+        ):
             return False
 
         cand_atr_pct = float(cand.get("atr_5m_volatility_pct", 0.0))
@@ -2444,16 +2477,6 @@ def run_cycle(
 
     # 5. INGRESSO LINEARE CON MARKETABLE LIMIT ORDER (+1,00% ANTI-SPIKE MiFID II), ZERO MARKET ORDER AL BUIO
     active_count = len(cartridge_statuses)
-    ranked_candidates = sorted(
-        quant_metrics.values(),
-        key=lambda m: (
-            float(m["quant_buy_score"]),
-            round(float(m.get("atr_5m_volatility_pct", 0.0)), 3),
-            float(m.get("rvol_ratio", 0.0)),
-        ),
-        reverse=True,
-    )
-
     pre_entry_equity = round(bot.total_budget_eur + realized_net_eur + unrealized_pnl_100e, 2)
     if pre_entry_equity >= bot.target_equity_eur:
         regime = dict(regime)
@@ -2465,6 +2488,32 @@ def run_cycle(
         int(regime.get("max_active_slots", bot.cartridges)),
     )
     max_investable_before_4th = round(compounded_budget_eur - 18.00, 2)
+    # V11.2 Invariante #24 (Zero Rotazioni su Cache Stantia): se a inizio ciclo le cartucce erano piene
+    # (need_full_scan == False) e una vendita a metà ciclo ha liberato uno slot, forza una scansione
+    # fresca a 0s su tutta la panchina prima di ordinare i candidati d'acquisto!
+    if (
+        regime["allow_new_buys"]
+        and active_count < effective_slot_cap
+        and invested_100e <= max_investable_before_4th
+        and not need_full_scan
+    ):
+        quant_metrics = scanner.scan_all(
+            tax_data=bot.tax_tracker.data,
+            dax_change_pct=dax_live_pct,
+            force=True,
+            active_tickers=list(pos_by_ticker.keys()),
+        )
+
+    ranked_candidates = sorted(
+        quant_metrics.values(),
+        key=lambda m: (
+            float(m["quant_buy_score"]),
+            round(float(m.get("atr_5m_volatility_pct", 0.0)), 3),
+            float(m.get("rvol_ratio", 0.0)),
+        ),
+        reverse=True,
+    )
+
     if regime["allow_new_buys"] and active_count < effective_slot_cap and invested_100e <= max_investable_before_4th:
         active_sectors = {
             c.get("settore_markowitz")

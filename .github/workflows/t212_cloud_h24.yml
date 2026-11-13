@@ -48,7 +48,7 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: "🧪 Verifica Bloccante dei 23 Invarianti Matematici (V11.2 LTS Zero Cerotti + GETTEX 0s + True Green Hook)"
+      - name: "🧪 Verifica Bloccante dei 24 Invarianti Matematici (V11.2 LTS Zero Cerotti + GETTEX 0s + True Green Hook)"
         run: |
           python3 -m unittest discover -s tests -p "test_*.py" -v
 
