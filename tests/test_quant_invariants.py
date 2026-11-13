@@ -788,16 +788,21 @@ class TestQuantInvariantsV11(unittest.TestCase):
         yahoo_amd = _make_yahoo_payload(closes_amd, vols=[4500.0] * 20, base_ts=base_ts)
 
         scanner = daemon.QuantMarketScanner()
+        b_1425 = int(real_dt(2026, 11, 13, 14, 25, 0, tzinfo=daemon.MARKET_TZ).timestamp())
         b_1430 = int(real_dt(2026, 11, 13, 14, 30, 0, tzinfo=daemon.MARKET_TZ).timestamp())
         scanner.realtime_5m_bars["AMDd_EQ"] = {
             b_1430: {"open": 519.20, "high": 522.40, "low": 519.20, "close": 522.10},
+        }
+        scanner.realtime_5m_bars["MRKd_EQ"] = {
+            b_1425: {"open": 149.50, "high": 149.55, "low": 149.30, "close": 149.35, "has_true_open": True},
+            b_1430: {"open": 149.35, "high": 149.48, "low": 149.32, "close": 149.42, "has_true_open": True},
         }
         # Alle 14:38:28 la candela 14:35 è ROSSA (open=522.10 -> close=520.80, ma low=520.50 >= 519.20!).
         # Col vecchio `or higher_low` passava erroneamente; col True Green Hook V11.2 DEVE essere bloccata (Score == 0.0)!
         gx_amd_reversal = json.dumps({
             "data": [
                 {"s": "GETTEX:AMD", "d": [520.80, 522.10, 522.10, 520.50, 520.80, "streaming"]},
-                {"s": "GETTEX:MRK", "d": [149.82, 149.50, 149.86, 149.48, 149.82, "streaming"]},
+                {"s": "GETTEX:MRK", "d": [149.68, 149.42, 149.72, 149.40, 149.68, "streaming"]},
             ]
         }).encode("utf-8")
 
@@ -980,6 +985,115 @@ class TestQuantInvariantsV11(unittest.TestCase):
 
         self.assertEqual(scan_force_flags, [False, True])
         self.assertEqual(rot_broker.limit_buys, ["EOANd_EQ"])
+
+    def test_25_clean_rvol_no_v0_667x_inflation_no_1300_auction_and_zero_synthetic_bridge(self):
+        """Invariante #25: RVOL immune a barra Yahoo v=0 (zero 6,67x), asta XETRA 13:00 esclusa, mediana anti-odd-lot e zero barre sintetiche."""
+        real_dt = datetime.datetime
+        # 1) Barra finale Yahoo appena aperta da 40s con volume=0 + asta XETRA 13:00 da 380.000 pezzi + odd-lot da 2 pezzi
+        b_1300 = int(real_dt(2026, 11, 13, 13, 0, 0, tzinfo=daemon.MARKET_TZ).timestamp())
+        base_ts = b_1300 - 10 * 300
+        ts_list = [base_ts + i * 300 for i in range(19)] + [base_ts + 19 * 300 + 40]
+        closes = [100.0 + i * 0.04 for i in range(20)]
+        vols = [10000.0] * 20
+        vols[10] = 380000.0  # Asta XETRA 13:00 (Mittagsauktion 38x) -> deve essere esclusa!
+        vols[12] = 2.0       # Odd-lot anomalo -> med_anchor evita crollo del denominatore!
+        vols[19] = 0.0       # Ultima barra Yahoo parziale con volume=0 -> NON deve moltiplicare vols[18] per 6.67x!
+        raw_y = json.dumps({
+            "chart": {
+                "result": [{
+                    "meta": {"regularMarketPrice": closes[-1]},
+                    "timestamp": ts_list,
+                    "indicators": {"quote": [{
+                        "open": closes,
+                        "close": closes,
+                        "high": [c * 1.0015 for c in closes],
+                        "low": [c * 0.9985 for c in closes],
+                        "volume": vols,
+                    }]},
+                }]
+            }
+        }).encode("utf-8")
+
+        mkt_dt = real_dt(2026, 11, 13, 14, 15, 20, tzinfo=daemon.MARKET_TZ)
+        now_epoch = mkt_dt.timestamp()
+        scanner = daemon.QuantMarketScanner(cache_path=self._tmp_scan_cache)
+        gx_payload = json.dumps({
+            "data": [
+                {"s": "GETTEX:SAP", "d": [210.42, 210.80, 210.90, 210.35, 210.42, "streaming"]},
+            ]
+        }).encode("utf-8")
+
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=now_epoch):
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            # Posizione aperta su T212 a metà candela (210.40) mentre il vero open :00 su GETTEX era 210.80 (candela rossa reale!)
+            scanner.update_t212_live_price("SAPd_EQ", 210.40)
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(gx_payload)):
+                scanner.refresh_gettex_live_quotes(force=True)
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(raw_y)):
+                m = scanner.fetch_5m_metrics("SAPd_EQ")
+
+            # RVOL deve essere ~1.0x..1.2x (MAI 6.67x e MAI contaminato dai 380k delle 13:00!)
+            self.assertGreaterEqual(m["rvol_ratio"], 0.95)
+            self.assertLessEqual(m["rvol_ratio"], 1.35)
+            # Zero candele sintetiche interpolate: solo i 20 bucket Yahoo + 1 bucket reale 14:15 (= 21 barre esatte)
+            b_now = int(now_epoch // 300) * 300
+            self.assertEqual(scanner.realtime_5m_bars["SAPd_EQ"][b_now]["open"], 210.80)
+            self.assertEqual(scanner.realtime_5m_bars["SAPd_EQ"][b_now]["close"], 210.40)  # Priorità 0ms T212 preservata!
+            self.assertFalse(m["green_hook_confirmed"])  # Riconosce che 210.40 < vero open 210.80!
+
+            # Persistenza coda real-time 0s in trading212_state.json per nuove VM Cloud
+            with open(self._tmp_bot_state, "w", encoding="utf-8") as f_st:
+                json.dump({
+                    "timestamp": "2026-11-13T14:15:20",
+                    "realtime_5m_tail": scanner.export_realtime_tail(max_buckets=8),
+                }, f_st)
+            fresh_vm_scanner = daemon.QuantMarketScanner(cache_path="/tmp/test_v11_nonexistent_vm_cache.json")
+            self.assertIn(b_now, fresh_vm_scanner.realtime_5m_bars["SAPd_EQ"])
+            self.assertEqual(fresh_vm_scanner.realtime_5m_bars["SAPd_EQ"][b_now]["open"], 210.80)
+
+    def test_26_atr_proportional_vwap_physics_snail_gate_valley_hook_and_loser_reentry(self):
+        """Invariante #26: blocca lumache ATR<0,115% e tetti VWAP sproporzionati (caso E.ON 15:50), ripristina Valley Hook RSI 24..32 e filtra rientri perdenti/rumorosi."""
+        daemon.discover_and_verify_eur_giants(None)
+        intel = daemon.HybridUncappedIntelligence()
+        reg_pm = {"allow_new_buys": True, "is_midday_sniper_window": False, "us_market_live": True}
+        ov_ok = {"allow_overnight_hold": True, "nasdaq_change_pct": 0.1, "sp500_change_pct": 0.1, "dax_change_pct": 0.1, "vix_fear_change_pct": -0.5, "vix_level": 16.0}
+
+        # 1) Caso reale EOANd_EQ ore 15:50: ATR 0.098% (< 0.115%), VWAP +0.42% (+4.3x ATR), day_range 1.66% -> BLOCCATO!
+        eoan_snail = {
+            "ticker": "EOANd_EQ", "live_price_eur": 19.53, "price_feed_source": "GETTEX_STREAMING_0S",
+            "vwap_dist_pct": 0.42, "has_fresh_intraday_feed": True, "rvol_ratio": 1.40,
+            "quant_buy_score": 81.4, "rsi_5m": 58.6, "green_hook_confirmed": True, "entry_hook_confirmed": True,
+            "atr_5m_volatility_pct": 0.098, "day_range_pct": 1.66, "kaufman_efficiency_ratio": 0.56,
+            "had_loss_today": False, "strong_for_overnight": True,
+        }
+        self.assertFalse(intel.is_eligible_entry_candidate(eoan_snail, reg_pm, ov_ok))
+
+        # 2) Caso APCd_EQ ore 16:58: ATR 0.177%, VWAP +0.53% (> max_vwap_entry 0.50%) -> BLOCCATO!
+        apc_stretched = dict(eoan_snail, ticker="APCd_EQ", atr_5m_volatility_pct=0.177, vwap_dist_pct=0.53)
+        self.assertFalse(intel.is_eligible_entry_candidate(apc_stretched, reg_pm, ov_ok))
+
+        # 3) Caso E.ON sano in vera spinta: ATR 0.145%, VWAP +0.18% (<= 3.5*0.145 = 0.50%) -> APPROVATO!
+        eoan_healthy = dict(eoan_snail, atr_5m_volatility_pct=0.145, vwap_dist_pct=0.18)
+        self.assertTrue(intel.is_eligible_entry_candidate(eoan_healthy, reg_pm, ov_ok))
+
+        # 4) Caso reale SAPd_EQ ore 16:42: aveva già perso oggi (had_loss_today=True) e tenta rientro con ER=0.04 (<0.30) -> BLOCCATO!
+        sap_choppy_reentry = dict(eoan_healthy, ticker="SAPd_EQ", atr_5m_volatility_pct=0.29, had_loss_today=True, kaufman_efficiency_ratio=0.04, vwap_dist_pct=0.12)
+        self.assertFalse(intel.is_eligible_entry_candidate(sap_choppy_reentry, reg_pm, ov_ok))
+        sap_clean_reclaim = dict(sap_choppy_reentry, kaufman_efficiency_ratio=0.38, vwap_dist_pct=0.12)
+        self.assertTrue(intel.is_eligible_entry_candidate(sap_clean_reclaim, reg_pm, ov_ok))
+
+        # 5) Valley Hook ipervenduto genuino (RSI ~ 27.5 in [24, 64] sul supporto VWAP senza crollo 30m) -> Score > 75!
+        scanner = daemon.QuantMarketScanner()
+        valley_closes = [
+            100.0, 100.05, 100.1, 100.12, 100.1, 100.08, 100.05, 100.0, 99.95, 99.90,
+            99.85, 99.82, 99.80, 99.78, 99.76, 99.74, 99.72, 99.70, 99.68, 99.84,
+        ]
+        with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(_make_yahoo_payload(valley_closes))):
+            m_val = scanner.fetch_5m_metrics("SAPd_EQ")
+        self.assertLess(m_val["rsi_5m"], 32.0)
+        self.assertGreaterEqual(m_val["rsi_5m"], 24.0)
+        self.assertGreater(m_val["quant_buy_score"], 75.0)
 
 
 if __name__ == "__main__":

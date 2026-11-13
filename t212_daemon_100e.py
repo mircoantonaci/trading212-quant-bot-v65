@@ -26,6 +26,7 @@ from concurrent.futures import ThreadPoolExecutor
 import datetime
 import json
 import os
+import statistics
 import sys
 import time
 import urllib.request
@@ -844,32 +845,74 @@ class QuantMarketScanner:
             self.load_disk_cache()
 
     def load_disk_cache(self) -> None:
-        if not self.cache_path or not os.path.exists(self.cache_path):
+        if not self.cache_path:
+            return
+        today_iso = datetime.datetime.now(MARKET_TZ).date().isoformat()
+        # 1) Ripristina la coda real-time 0s (ultimi 40m) da trading212_state.json anche su nuove VM Cloud (zero cold-start!)
+        if os.path.exists(BOT_STATE_PATH):
+            try:
+                with open(BOT_STATE_PATH, "r", encoding="utf-8") as f_st:
+                    st_raw = json.load(f_st)
+                if str(st_raw.get("timestamp", "")).startswith(today_iso):
+                    for tkr, bmap in st_raw.get("realtime_5m_tail", {}).items():
+                        if isinstance(bmap, dict):
+                            dest = self.realtime_5m_bars.setdefault(tkr, {})
+                            for k, v in bmap.items():
+                                b_ts = int(k)
+                                if (
+                                    isinstance(v, dict)
+                                    and "close" in v
+                                    and datetime.datetime.fromtimestamp(b_ts, tz=MARKET_TZ).date().isoformat() == today_iso
+                                ):
+                                    dest[b_ts] = {
+                                        "open": float(v["open"]),
+                                        "high": float(v["high"]),
+                                        "low": float(v["low"]),
+                                        "close": float(v["close"]),
+                                        "has_true_open": bool(v.get("has_true_open", True)),
+                                    }
+            except Exception:
+                pass
+        if not os.path.exists(self.cache_path):
             return
         try:
             with open(self.cache_path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
-            today_iso = datetime.datetime.now(MARKET_TZ).date().isoformat()
             if raw.get("date") != today_iso:
                 return
             for tkr, bmap in raw.get("realtime_5m_bars", {}).items():
                 if isinstance(bmap, dict):
-                    self.realtime_5m_bars[tkr] = {
-                        int(k): {
-                            "open": float(v["open"]),
-                            "high": float(v["high"]),
-                            "low": float(v["low"]),
-                            "close": float(v["close"]),
-                        }
-                        for k, v in bmap.items()
-                        if isinstance(v, dict) and "close" in v
-                    }
+                    dest = self.realtime_5m_bars.setdefault(tkr, {})
+                    for k, v in bmap.items():
+                        if isinstance(v, dict) and "close" in v:
+                            dest[int(k)] = {
+                                "open": float(v["open"]),
+                                "high": float(v["high"]),
+                                "low": float(v["low"]),
+                                "close": float(v["close"]),
+                                "has_true_open": bool(v.get("has_true_open", False)),
+                            }
             for tkr, cb in raw.get("last_valid_bars", {}).items():
                 if isinstance(cb, dict) and cb.get("closes"):
                     cb["bar_timestamps"] = [int(ts) for ts in cb.get("bar_timestamps", [])]
+                    cb["yahoo_nonzero_buckets"] = [int(ts) for ts in cb.get("yahoo_nonzero_buckets", [])]
                     self.last_valid_bars[tkr] = cb
         except Exception:
             pass
+
+    def export_realtime_tail(self, max_buckets: int = 8) -> Dict[str, Dict[str, Dict[str, Any]]]:
+        today_d = datetime.datetime.now(MARKET_TZ).date()
+        out: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        for tkr, bmap in self.realtime_5m_bars.items():
+            if not bmap:
+                continue
+            valid_keys = sorted(
+                k for k in bmap.keys()
+                if datetime.datetime.fromtimestamp(int(k), tz=MARKET_TZ).date() == today_d
+            )[-max_buckets:]
+            if valid_keys:
+                out[tkr] = {str(k): bmap[k] for k in valid_keys}
+        return out
 
     def save_disk_cache(self) -> None:
         if not self.cache_path:
@@ -975,7 +1018,26 @@ class QuantMarketScanner:
                     self.live_prices[tkr] = px
                     if mkt_open:
                         bars = self.realtime_5m_bars.setdefault(tkr, {})
-                        bars[bucket_5m] = {"open": o5, "high": h5, "low": l5, "close": c5}
+                        bars[bucket_5m] = {
+                            "open": o5,
+                            "high": h5,
+                            "low": l5,
+                            "close": c5,
+                            "has_true_open": True,
+                        }
+                elif mkt_open:
+                    # Posizione aperta su T212: mantiene priorità assoluta sul prezzo esecutivo 0ms T212 per close/live_prices,
+                    # ma sincronizza il vero open :00 e l'inviluppo high/low 5m da GETTEX (immune a riavvii/acquisti intra-barra)!
+                    bars = self.realtime_5m_bars.setdefault(tkr, {})
+                    cur_t212_px = self.live_prices.get(tkr, c5)
+                    prev_b = bars.get(bucket_5m)
+                    bars[bucket_5m] = {
+                        "open": o5,
+                        "high": max(float(prev_b["high"]) if prev_b else cur_t212_px, h5, o5, cur_t212_px),
+                        "low": min(float(prev_b["low"]) if prev_b else cur_t212_px, l5, o5, cur_t212_px),
+                        "close": cur_t212_px,
+                        "has_true_open": True,
+                    }
             if updated > 0:
                 self.last_gettex_batch_ts = now_ts
         except Exception:
@@ -1048,8 +1110,12 @@ class QuantMarketScanner:
                         ts_int = int(ts)
                         bucket_ts = int(ts_int // 300) * 300
                         b_dt_v = datetime.datetime.fromtimestamp(bucket_ts, tz=MARKET_TZ)
-                        is_closing_auction_spike = (b_dt_v.hour == 17 and b_dt_v.minute >= 25)
-                        if v_f > 0.0 and not is_closing_auction_spike:
+                        # Esclude sia l'asta di chiusura XETRA (>=17:25) sia l'asta di mezzogiorno XETRA Mittagsauktion (13:00-13:04)
+                        is_auction_spike = (
+                            (b_dt_v.hour == 17 and b_dt_v.minute >= 25)
+                            or (b_dt_v.hour == 13 and b_dt_v.minute < 5)
+                        )
+                        if v_f > 0.0 and not is_auction_spike:
                             if yahoo_nonzero_buckets and yahoo_nonzero_buckets[-1] == bucket_ts:
                                 yahoo_nonzero_vols[-1] = max(yahoo_nonzero_vols[-1], v_f)
                             else:
@@ -1085,8 +1151,10 @@ class QuantMarketScanner:
                 "lows": list(lows),
                 "vols": list(vols),
                 "yahoo_nonzero_vols": list(yahoo_nonzero_vols),
+                "yahoo_nonzero_buckets": list(yahoo_nonzero_buckets),
                 "bar_timestamps": list(bar_timestamps),
                 "last_yahoo_ts": last_yahoo_ts,
+                "raw_last_yahoo_ts": raw_last_yahoo_ts,
                 "yahoo_today_bars": yahoo_today_bars,
                 "cached_date": today_date.isoformat(),
             }
@@ -1098,18 +1166,21 @@ class QuantMarketScanner:
             lows = list(cached_b["lows"])
             vols = list(cached_b["vols"])
             yahoo_nonzero_vols = list(cached_b["yahoo_nonzero_vols"])
+            yahoo_nonzero_buckets = [int(x) for x in cached_b.get("yahoo_nonzero_buckets", [])]
             bar_timestamps = list(cached_b["bar_timestamps"])
             last_yahoo_ts = int(cached_b["last_yahoo_ts"])
+            raw_last_yahoo_ts = int(cached_b.get("raw_last_yahoo_ts", last_yahoo_ts))
             yahoo_today_bars = (
                 int(cached_b["yahoo_today_bars"])
                 if cached_b.get("cached_date") == today_date.isoformat()
                 else 0
             )
 
-        # V10.0: Volume medio reale calcolato SOLO sulle candele Yahoo completate con volume > 0
+        # V10.0: Volume medio reale calcolato SOLO sulle candele Yahoo completate con volume > 0 (ancorato alla mediana contro odd-lot)
         if len(yahoo_nonzero_vols) >= 2:
             base_v_slice = yahoo_nonzero_vols[-11:-1] if len(yahoo_nonzero_vols) >= 3 else yahoo_nonzero_vols[:-1]
-            avg_vol_est = sum(base_v_slice) / len(base_v_slice)
+            mean_v_est = sum(base_v_slice) / len(base_v_slice)
+            avg_vol_est = max(mean_v_est, statistics.median(base_v_slice) * 0.50) if len(base_v_slice) >= 3 else mean_v_est
         elif yahoo_nonzero_vols:
             avg_vol_est = yahoo_nonzero_vols[-1]
         else:
@@ -1119,8 +1190,8 @@ class QuantMarketScanner:
         if vols and vols[-1] <= 0.0:
             vols[-1] = avg_vol_est
 
-        # BLINDATURA #11 (V11.2 In-Place 5m Fusion 0ms/0s + Ponte Cold-Start Intraday):
-        # cuce senza sdoppiamenti le candele live di Trading 212 / GETTEX mantenendo intatto RVOL XETRA!
+        # BLINDATURA #11 (V11.3 In-Place 5m Fusion 0ms/0s — ZERO Candele Interpolate Sintetiche!):
+        # cuce esclusivamente le candele reali registrate da Trading 212 / GETTEX mantenendo intatto RVOL XETRA.
         rt_bars = self.realtime_5m_bars.get(ticker, {})
         for b_ts in sorted(rt_bars.keys()):
             b_bucket = int(b_ts // 300) * 300
@@ -1133,30 +1204,13 @@ class QuantMarketScanner:
                         len(opens) == len(closes)
                         and "open" in b
                         and float(b["open"]) > 0
-                        and not self.has_t212_realtime.get(ticker, False)
+                        and (not self.has_t212_realtime.get(ticker, False) or bool(b.get("has_true_open", False)))
                     ):
                         opens[-1] = float(b["open"])
                     closes[-1] = b["close"]
                     highs[-1] = max(highs[-1], b["high"], opens[-1] if opens else b["high"])
                     lows[-1] = min(lows[-1], b["low"], opens[-1] if opens else b["low"])
                 elif b_bucket > last_yahoo_ts and (not bar_timestamps or b_bucket > bar_timestamps[-1]):
-                    if bar_timestamps:
-                        prev_ts = bar_timestamps[-1]
-                        prev_dt = datetime.datetime.fromtimestamp(prev_ts, tz=MARKET_TZ)
-                        gap_steps = (b_bucket - prev_ts) // 300
-                        if prev_dt.date() == b_dt.date() and 2 <= gap_steps <= 4:
-                            p_start = closes[-1]
-                            p_end = float(b.get("open", b["close"]))
-                            for step_k in range(1, gap_steps):
-                                mid_ts = prev_ts + step_k * 300
-                                c_prev_step = closes[-1]
-                                c_step = round(p_start + (p_end - p_start) * (step_k / float(gap_steps)), 4)
-                                opens.append(c_prev_step)
-                                closes.append(c_step)
-                                highs.append(max(c_prev_step, c_step))
-                                lows.append(min(c_prev_step, c_step))
-                                vols.append(avg_vol_est)
-                                bar_timestamps.append(mid_ts)
                     bar_open_f = float(b.get("open", closes[-1] if closes else b["close"]))
                     opens.append(bar_open_f)
                     closes.append(b["close"])
@@ -1287,12 +1341,17 @@ class QuantMarketScanner:
             slope_15m_pct = ((closes[-1] - closes[ref_idx_4]) / closes[ref_idx_4] * 100.0) if closes[ref_idx_4] > 0 else 0.0
             slope_30m_pct = ((closes[-1] - closes[ref_idx_7]) / closes[ref_idx_7] * 100.0) if closes[ref_idx_7] > 0 else slope_15m_pct
             if len(yahoo_nonzero_vols) >= 3:
-                # V11.1 RVOL Istituzionale Senza Bias di Candela Parziale:
-                # 1) Se l'ultima candela Yahoo è ancora in formazione (0 < offset < 270s), proietta il ritmo reale sui 300s;
-                # 2) Confronta il picco delle ultime 2 candele (cattura sia breakout sia Bull-Flag stretta) contro le 10 candele chiuse precedenti!
+                # V11.3 RVOL Istituzionale Microstructure-Clean (Zero distorsione v=0, Asta 13:00/17:25 esclusa, Mediana anti-odd-lot):
+                # 1) Proietta sui 300s SOLO se l'ultimo volume non-nullo appartiene davvero al bucket Yahoo parziale corrente (mai se v=0!);
+                # 2) Confronta il picco delle ultime 2 candele contro le 10 candele chiuse precedenti ancorate a max(mean, 0.5*median).
                 intra_bar_offset = raw_last_yahoo_ts - last_yahoo_ts if raw_last_yahoo_ts > last_yahoo_ts else 0
                 last_raw_v = yahoo_nonzero_vols[-1]
-                if 0 < intra_bar_offset < 270:
+                last_nz_is_partial = bool(
+                    yahoo_nonzero_buckets
+                    and yahoo_nonzero_buckets[-1] == last_yahoo_ts
+                    and 0 < intra_bar_offset < 270
+                )
+                if last_nz_is_partial:
                     scaled_last_v = last_raw_v * (300.0 / max(45.0, float(intra_bar_offset)))
                 else:
                     scaled_last_v = last_raw_v
@@ -1302,7 +1361,15 @@ class QuantMarketScanner:
                 else:
                     recent_v_base = yahoo_nonzero_vols[:-1]
                     eff_vol = scaled_last_v
-                avg_recent_vol = sum(recent_v_base) / len(recent_v_base) if recent_v_base else eff_vol
+                if recent_v_base:
+                    mean_rec_v = sum(recent_v_base) / len(recent_v_base)
+                    avg_recent_vol = (
+                        max(mean_rec_v, statistics.median(recent_v_base) * 0.50)
+                        if len(recent_v_base) >= 3
+                        else mean_rec_v
+                    )
+                else:
+                    avg_recent_vol = eff_vol
                 volume_drying_up = (eff_vol < avg_recent_vol * 0.85)
                 rvol_ratio = round(eff_vol / avg_recent_vol, 2) if avg_recent_vol > 0 else 1.0
             else:
@@ -1356,9 +1423,15 @@ class QuantMarketScanner:
             atr_5m_pct = 0.0
             kaufman_er = 0.0
 
-        # V11.0 Blocco 2 — RANKING LINEARE ADDITIVO PURO "ZERO CEROTTI" (Validato Walk-Forward 0s: +5,06 EUR / 5gg, 5/5 verdi):
-        # 1) Setup Momentum Istituzionale sul pavimento VWAP (-0,15% .. +0,48%, RSI 42..66)
-        if has_valid_bars and vwap_dist_pct >= -0.15 and 42.0 <= rsi_14 <= 66.0 and entry_hook_confirmed:
+        # V11.3 Blocco 2 — RANKING LINEARE ADDITIVO PURO "ZERO CEROTTI" (Validato Walk-Forward 0s: +6,34 EUR / 5gg, 5/5 verdi, WR 62,0%, MaxDD -1,03 EUR):
+        # 1) Setup Momentum Istituzionale sul pavimento VWAP (-0,15% .. +0,48%, RSI 42..66, onda direzionale pulita ER >= 0,15)
+        if (
+            has_valid_bars
+            and vwap_dist_pct >= -0.15
+            and 42.0 <= rsi_14 <= 66.0
+            and entry_hook_confirmed
+            and kaufman_er >= 0.15
+        ):
             vwap_extension_taper = max(0.0, (vwap_dist_pct - 0.48) * 32.0)
             score_momentum = (
                 68.0
@@ -1369,13 +1442,16 @@ class QuantMarketScanner:
         else:
             score_momentum = 0.0
 
-        # 2) Setup Institutional VWAP Pullback (-0,35% .. +0,48%, RSI 32..64, trend 30m sano, mai in rottura ribassista sotto VWAP)
-        sub_vwap_downtrend = (vwap_dist_pct < -0.05 and slope_15m_pct < -0.10)
+        # 2) Setup Institutional VWAP Pullback & Valley Hook (-0,35% .. +0,48%, RSI 24..64, mai in scivolamento ribassista 15m/30m sotto VWAP)
+        sub_vwap_downtrend = (
+            (vwap_dist_pct < -0.05 and slope_15m_pct < -0.10)
+            or (vwap_dist_pct < -0.15 and slope_30m_pct < -0.20)
+        )
         if (
             has_valid_bars
             and vwap_dist_pct >= -0.35
             and not sub_vwap_downtrend
-            and 32.0 <= rsi_14 <= 64.0
+            and 24.0 <= rsi_14 <= 64.0
             and entry_hook_confirmed
             and slope_30m_pct >= -0.45
         ):
@@ -1393,13 +1469,14 @@ class QuantMarketScanner:
         base_setup_score = max(score_momentum, score_pullback)
         beta_tier = prof.get("beta_tier", "CORE_BLUE_CHIP")
 
-        # 3) Bonus Lineare di Velocità ATR (0..10 pt) — ZERO distorsione moltiplicativa 1,55x e ZERO saturazione a 100!
+        # 3) Bonus/Penalità Simmetrico Lineare di Velocità ATR (-6..+10 pt) — penalizza le lumache morte < 0,12% ATR senza scalini!
         atr_pct_100 = atr_5m_pct * 100.0
-        velocity_bonus = round(min(10.0, max(0.0, (atr_pct_100 - 0.12) * 45.0)), 1)
+        velocity_bonus = round(min(10.0, max(-6.0, (atr_pct_100 - 0.12) * 45.0)), 1)
         profit_velocity_mult = round(1.0 + (velocity_bonus / 100.0), 2)
 
         # 4) Memoria Giornaliera Pulita Post-Epoca V11 (Zero penalità storiche sporche dei giorni/motori precedenti!)
         memory_bonus = 0.0
+        had_loss_today = False
         if tax_data and "operazioni_chiuse" in tax_data:
             epoch_str = str(tax_data.get("v11_clean_epoch_ts", V11_CLEAN_EPOCH_TS))
             today_prefix = datetime.datetime.now(MARKET_TZ).date().isoformat()
@@ -1415,6 +1492,7 @@ class QuantMarketScanner:
                 today_losses = sum(1 for op in today_ops if float(op.get("risultato_fiscale_eur", 0.0)) < 0.0)
                 if last_today_pnl < 0.0:
                     memory_bonus = -22.0
+                    had_loss_today = True
                 elif today_wins >= 2 and today_losses == 0:
                     memory_bonus = 2.0
 
@@ -1483,7 +1561,10 @@ class QuantMarketScanner:
             "profit_velocity_mult": profit_velocity_mult,
             "kaufman_efficiency_ratio": kaufman_er,
             "rvol_ratio": rvol_ratio,
+            "slope_15m_pct": round(slope_15m_pct, 2),
+            "slope_30m_pct": round(slope_30m_pct, 2),
             "memory_730_bonus": memory_bonus,
+            "had_loss_today": had_loss_today,
             "quant_buy_score": quant_score,
             "fase_onda_sinusoidale": sine_phase,
             "green_hook_confirmed": green_hook_confirmed,
@@ -1512,9 +1593,11 @@ class QuantMarketScanner:
         # Architettura Split-Speed Turbo V11.2 + GETTEX 0s (6s Posizioni Aperte / Radar Globale 39 Titoli):
         # - In 1 singola chiamata HTTP batch aggiorna in streaming 0s tutti i 39 Colossi da GETTEX (Monaco).
         # - Ogni 24s (o subito se c'è una cartuccia libera: force=True) ricalcola le metriche 5m di tutti i 39 Colossi.
+        # Aggiorna sempre in batch 0s i 39 Colossi da GETTEX (throttled a >=4.5s) anche a 4/4 cartucce piene:
+        # mantiene continua la serie realtime_5m_bars e sincronizza il vero open :00 sulle posizioni aperte!
+        self.refresh_gettex_live_quotes(force=False)
         full_radar_due = force or not self.cached_metrics or (now_ts - self.last_scan_ts) >= 22.0
         if full_radar_due:
-            self.refresh_gettex_live_quotes(force=False)
             tickers = list(ASSET_PROFILES.keys())
             results: Dict[str, Dict[str, Any]] = {}
             with ThreadPoolExecutor(max_workers=20) as pool:
@@ -2013,10 +2096,18 @@ class HybridUncappedIntelligence:
 
         cand_atr_pct = float(cand.get("atr_5m_volatility_pct", 0.0))
         cand_day_range = float(cand.get("day_range_pct", 0.0))
-        max_vwap_entry = 0.50 if cand_atr_pct >= 0.23 else 0.65
+        cand_er = float(cand.get("kaufman_efficiency_ratio", 0.0))
+        # V11.3 Fisica Elastica ATR-VWAP: vieta le lumache morte (<0,115% ATR corrente) e scala il tetto VWAP
+        # proporzionalmente alla volatilità reale (min(0,50%, max(0,28%, 3,5 * ATR)), mai invertito a 0,65%!).
+        if cand_atr_pct < 0.115:
+            return False
+        max_vwap_entry = min(0.50, max(0.28, round(cand_atr_pct * 3.5, 4)))
         if cand_vwap_dist > max_vwap_entry or cand_vwap_dist < -0.35:
             return False
         if cand_atr_pct < 0.13 and cand_day_range < 1.40:
+            return False
+        # Un titolo che ha già chiuso in perdita oggi può rientrare (dopo i 60m) solo se ha riconquistato il VWAP con onda pulita (ER >= 0,30)
+        if bool(cand.get("had_loss_today", False)) and (cand_er < 0.30 or cand_vwap_dist < 0.0):
             return False
 
         # V11.2 Invariante #23 (Cecchino Esplosioni Straordinarie 11:15 CET - 08:27 ET, Max 2/4 Slot):
@@ -2666,6 +2757,8 @@ def run_cycle(
                         time.sleep(0.20)
                 elif still_pending:
                     reserved_eur = round(qty_to_buy * limit_px, 2)
+                    if broker_free is not None:
+                        setattr(bot, "_t212_free_cash", max(0.0, float(broker_free) - reserved_eur))
                     setattr(bot, "_had_pending_orders", True)
                     pending_by_ticker[tkr] = {"id": ord_id, "ticker": tkr, "quantity": qty_to_buy, "type": "LIMIT"}
                     live_broker_tickers.add(tkr)
@@ -2686,15 +2779,15 @@ def run_cycle(
                     slot_idx += 1
                 else:
                     intel.last_sell_price[tkr] = live_px
-                    intel.last_sell_was_loss[tkr] = False
-                    intel.last_sell_time[tkr] = time.time() - 600.0
+                    intel.last_sell_was_loss[tkr] = bool(intel.last_sell_was_loss.get(tkr, False))
+                    intel.last_sell_time[tkr] = max(intel.last_sell_time.get(tkr, 0.0), time.time() - 600.0)
                     actions_taken.append(
                         f"SCUDO ANTI-SPIKE LIMIT (+1,00%): ordine {tkr} annullato perché ask reale > {limit_px:.4f} EUR (zero slippage subito)"
                     )
             except Exception as e:
                 intel.last_sell_price[tkr] = live_px
-                intel.last_sell_was_loss[tkr] = False
-                intel.last_sell_time[tkr] = time.time() - 600.0
+                intel.last_sell_was_loss[tkr] = bool(intel.last_sell_was_loss.get(tkr, False))
+                intel.last_sell_time[tkr] = max(intel.last_sell_time.get(tkr, 0.0), time.time() - 600.0)
                 actions_taken.append(f"Passaggio al candidato High-Beta successivo ({tkr}: {e})")
 
     # Se nel ciclo sono stati eseguiti ordini reali, riallinea la cassa certificata Trading 212 nel rispetto del rate-limit
@@ -2794,6 +2887,7 @@ def run_cycle(
             "last_sell_time": intel.last_sell_time,
             "last_sell_was_loss": intel.last_sell_was_loss,
         },
+        "realtime_5m_tail": scanner.export_realtime_tail(max_buckets=8),
         "cartucce_4x25_eur": cartridge_statuses,
         "ultime_azioni_bot": actions_taken,
         "riepilogo_fiscale_730": bot.tax_tracker.generate_730_summary(virtual_100e_equity),
