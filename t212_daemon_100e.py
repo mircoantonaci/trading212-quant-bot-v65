@@ -45,6 +45,7 @@ from trading212_bot import (
 
 CREDENTIALS_PATH = os.path.join(BASE_DIR, "t212_credentials.json")
 SCANNER_CACHE_PATH = os.path.join(BASE_DIR, ".scanner_5m_cache.json")
+TAX_TRACKER_PATH = os.path.join(BASE_DIR, "registro_fiscale_730.json")
 V11_CLEAN_EPOCH_TS = "2026-11-12T15:30:00"
 PRUDENT_MIN_RVOL = 0.20
 LINEAR_ELITE_SCORE = 80.0
@@ -974,13 +975,7 @@ class QuantMarketScanner:
                     self.live_prices[tkr] = px
                     if mkt_open:
                         bars = self.realtime_5m_bars.setdefault(tkr, {})
-                        if bucket_5m not in bars:
-                            bars[bucket_5m] = {"open": o5, "high": h5, "low": l5, "close": c5}
-                        else:
-                            b = bars[bucket_5m]
-                            b["high"] = max(b["high"], h5)
-                            b["low"] = min(b["low"], l5)
-                            b["close"] = c5
+                        bars[bucket_5m] = {"open": o5, "high": h5, "low": l5, "close": c5}
             if updated > 0:
                 self.last_gettex_batch_ts = now_ts
         except Exception:
@@ -1016,6 +1011,7 @@ class QuantMarketScanner:
             url,
             headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)"},
         )
+        opens: List[float] = []
         closes: List[float] = []
         highs: List[float] = []
         lows: List[float] = []
@@ -1036,15 +1032,18 @@ class QuantMarketScanner:
                     self.live_prices[ticker] = round(float(reg_px), 4)
                 timestamps = result.get("timestamp", [])
                 quote = result["indicators"]["quote"][0]
-                for ts, c, h, l, v in zip(
+                raw_opens = quote.get("open") or []
+                for idx_q, (ts, c, h, l, v) in enumerate(zip(
                     timestamps,
                     quote.get("close", []),
                     quote.get("high", []),
                     quote.get("low", []),
                     quote.get("volume", []),
-                ):
+                )):
                     if c is not None and h is not None and l is not None:
                         c_f, h_f, l_f = float(c), float(h), float(l)
+                        o_raw = raw_opens[idx_q] if idx_q < len(raw_opens) else None
+                        o_f = float(o_raw) if o_raw is not None else (closes[-1] if closes else c_f)
                         v_f = float(v or 0.0)
                         ts_int = int(ts)
                         bucket_ts = int(ts_int // 300) * 300
@@ -1064,6 +1063,7 @@ class QuantMarketScanner:
                             if v_f > 0.0:
                                 vols[-1] = v_f
                         else:
+                            opens.append(o_f)
                             closes.append(c_f)
                             highs.append(h_f)
                             lows.append(l_f)
@@ -1079,6 +1079,7 @@ class QuantMarketScanner:
         # V11.0 Blocco 1 (Zero-Ghost Cache): salva serie valida o ripristina da cache reale in caso di timeout HTTP Yahoo
         if len(closes) >= 6:
             self.last_valid_bars[ticker] = {
+                "opens": list(opens),
                 "closes": list(closes),
                 "highs": list(highs),
                 "lows": list(lows),
@@ -1092,6 +1093,7 @@ class QuantMarketScanner:
         elif ticker in self.last_valid_bars:
             cached_b = self.last_valid_bars[ticker]
             closes = list(cached_b["closes"])
+            opens = list(cached_b.get("opens") or closes)
             highs = list(cached_b["highs"])
             lows = list(cached_b["lows"])
             vols = list(cached_b["vols"])
@@ -1127,9 +1129,16 @@ class QuantMarketScanner:
             if b_dt.weekday() < 5 and (9 * 60 <= b_hm < 17 * 60 + 30):
                 b = rt_bars[b_ts]
                 if bar_timestamps and b_bucket == bar_timestamps[-1]:
+                    if (
+                        len(opens) == len(closes)
+                        and "open" in b
+                        and float(b["open"]) > 0
+                        and not self.has_t212_realtime.get(ticker, False)
+                    ):
+                        opens[-1] = float(b["open"])
                     closes[-1] = b["close"]
-                    highs[-1] = max(highs[-1], b["high"])
-                    lows[-1] = min(lows[-1], b["low"])
+                    highs[-1] = max(highs[-1], b["high"], opens[-1] if opens else b["high"])
+                    lows[-1] = min(lows[-1], b["low"], opens[-1] if opens else b["low"])
                 elif b_bucket > last_yahoo_ts and (not bar_timestamps or b_bucket > bar_timestamps[-1]):
                     if bar_timestamps:
                         prev_ts = bar_timestamps[-1]
@@ -1142,14 +1151,17 @@ class QuantMarketScanner:
                                 mid_ts = prev_ts + step_k * 300
                                 c_prev_step = closes[-1]
                                 c_step = round(p_start + (p_end - p_start) * (step_k / float(gap_steps)), 4)
+                                opens.append(c_prev_step)
                                 closes.append(c_step)
                                 highs.append(max(c_prev_step, c_step))
                                 lows.append(min(c_prev_step, c_step))
                                 vols.append(avg_vol_est)
                                 bar_timestamps.append(mid_ts)
+                    bar_open_f = float(b.get("open", closes[-1] if closes else b["close"]))
+                    opens.append(bar_open_f)
                     closes.append(b["close"])
-                    highs.append(b["high"])
-                    lows.append(b["low"])
+                    highs.append(max(b["high"], bar_open_f, b["close"]))
+                    lows.append(min(b["low"], bar_open_f, b["close"]))
                     vols.append(avg_vol_est)
                     bar_timestamps.append(b_bucket)
 
@@ -1165,9 +1177,11 @@ class QuantMarketScanner:
                     and bar_timestamps
                     and now_bucket > bar_timestamps[-1]
                 ):
+                    prev_c_spot = closes[-1]
+                    opens.append(prev_c_spot)
                     closes.append(last_c)
-                    highs.append(max(last_c, closes[-2]))
-                    lows.append(min(last_c, closes[-2]))
+                    highs.append(max(last_c, prev_c_spot))
+                    lows.append(min(last_c, prev_c_spot))
                     vols.append(avg_vol_est)
                     bar_timestamps.append(now_bucket)
                 else:
@@ -1220,18 +1234,38 @@ class QuantMarketScanner:
             ref_idx_4 = max(first_today_idx, len(closes) - 4)
             ref_idx_7 = max(first_today_idx, len(closes) - 7)
             if len(today_indices) == 1 and ref_idx_2 == len(closes) - 1:
-                bar_mid_open = (highs[-1] + lows[-1]) / 2.0
-                price_turning_down = closes[-1] < bar_mid_open
-                falling_knife = closes[-1] < bar_mid_open and (highs[-1] - lows[-1]) > 0 and closes[-1] <= (lows[-1] + 0.25 * (highs[-1] - lows[-1]))
+                cur_open_09 = (
+                    opens[-1]
+                    if len(opens) == len(closes) and opens[-1] > 0
+                    else ((highs[-1] + lows[-1]) / 2.0)
+                )
+                price_turning_down = closes[-1] < cur_open_09
+                falling_knife = (
+                    closes[-1] < cur_open_09
+                    and (highs[-1] - lows[-1]) > 0
+                    and closes[-1] <= (lows[-1] + 0.25 * (highs[-1] - lows[-1]))
+                )
                 breakout_candle = (closes[-1] > highs[-2]) if len(highs) >= 2 else False
-                higher_low = closes[-1] >= bar_mid_open
-                green_hook_confirmed = not falling_knife and higher_low
+                higher_low = closes[-1] >= cur_open_09
+                green_hook_confirmed = not falling_knife and closes[-1] >= cur_open_09
             else:
-                price_turning_down = (closes[-1] < closes[ref_idx_2])
+                cur_open = (
+                    opens[-1]
+                    if len(opens) == len(closes) and opens[-1] > 0
+                    else closes[ref_idx_2]
+                )
+                price_turning_down = (closes[-1] < closes[ref_idx_2]) or (closes[-1] < cur_open)
                 falling_knife = (closes[-1] < closes[ref_idx_2] and closes[ref_idx_2] < closes[ref_idx_3])
                 breakout_candle = (closes[-1] > highs[ref_idx_2]) if len(highs) >= 2 else False
                 higher_low = (lows[-1] >= lows[ref_idx_2]) if len(lows) >= 2 else True
-                green_hook_confirmed = not falling_knife and (closes[-1] >= closes[ref_idx_2] or higher_low)
+                # V11.2 Invariante #22 (True Green Hook Zero-Cerotti):
+                # vieta qualsiasi ingresso su candela 5m rossa (close < open) o in ripiegamento dal picco precedente (close < prev_close),
+                # eliminando il falso positivo post-spike generato da `or higher_low`.
+                green_hook_confirmed = (
+                    not falling_knife
+                    and closes[-1] >= closes[ref_idx_2]
+                    and closes[-1] >= cur_open
+                )
             slope_rising = (closes[-1] >= closes[ref_idx_3])
             slope_15m_pct = ((closes[-1] - closes[ref_idx_4]) / closes[ref_idx_4] * 100.0) if closes[ref_idx_4] > 0 else 0.0
             slope_30m_pct = ((closes[-1] - closes[ref_idx_7]) / closes[ref_idx_7] * 100.0) if closes[ref_idx_7] > 0 else slope_15m_pct
@@ -1562,7 +1596,7 @@ class HybridUncappedIntelligence:
                             self.prev_open_snapshot[tkr] = (avg_p, cur_p)
             except Exception:
                 pass
-        tax_path = os.path.join(BASE_DIR, "registro_fiscale_730.json")
+        tax_path = TAX_TRACKER_PATH
         if os.path.exists(tax_path):
             try:
                 with open(tax_path, "r", encoding="utf-8") as f:

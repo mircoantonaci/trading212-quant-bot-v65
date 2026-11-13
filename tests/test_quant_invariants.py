@@ -54,6 +54,28 @@ class _FakeHTTPResp:
 
 class TestQuantInvariantsV11(unittest.TestCase):
 
+    def setUp(self):
+        self._tmp_bot_state = "/tmp/test_v11_hermetic_state.json"
+        self._tmp_scan_cache = "/tmp/test_v11_hermetic_scanner_cache.json"
+        self._tmp_tax_path = "/tmp/test_v11_hermetic_tax.json"
+        for p in (self._tmp_bot_state, self._tmp_scan_cache, self._tmp_tax_path):
+            if os.path.exists(p):
+                os.remove(p)
+        self._p_state = patch.object(daemon, "BOT_STATE_PATH", self._tmp_bot_state)
+        self._p_cache = patch.object(daemon, "SCANNER_CACHE_PATH", self._tmp_scan_cache)
+        self._p_tax = patch.object(daemon, "TAX_TRACKER_PATH", self._tmp_tax_path)
+        self._p_state.start()
+        self._p_cache.start()
+        self._p_tax.start()
+
+    def tearDown(self):
+        self._p_tax.stop()
+        self._p_cache.stop()
+        self._p_state.stop()
+        for p in (self._tmp_bot_state, self._tmp_scan_cache, self._tmp_tax_path):
+            if os.path.exists(p):
+                os.remove(p)
+
     def test_01_zero_ghost_on_empty_or_timeout_yahoo(self):
         """Invariante #1: su timeout HTTP senza cache, Score == 0.0 e zero numeri fittizi."""
         scanner = daemon.QuantMarketScanner()
@@ -749,6 +771,55 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertEqual(daemon.ASSET_PROFILES["ABEAd_EQ"]["sector"], daemon.ASSET_PROFILES["FB2Ad_EQ"]["sector"])
         self.assertEqual(daemon.ASSET_PROFILES["MSFd_EQ"]["sector"], daemon.ASSET_PROFILES["SAPd_EQ"]["sector"])
         self.assertEqual(daemon.ASSET_PROFILES["AMZd_EQ"]["sector"], daemon.ASSET_PROFILES["ZALd_EQ"]["sector"])
+
+    def test_22_true_green_hook_blocks_post_spike_red_candle_reversals(self):
+        """Invariante #22: True Green Hook blocca candele 5m rosse/in discesa post-spike (caso reale AMDd_EQ 14:38) e promuove vere candele verdi (MRKd_EQ)."""
+        real_dt = datetime.datetime
+        mkt_dt = real_dt(2026, 11, 13, 14, 38, 28, tzinfo=daemon.MARKET_TZ)
+        now_epoch = mkt_dt.timestamp()
+        # Yahoo fermo alle 14:20 CET; ponte + candela 14:30 esplosiva 519.20 -> 522.10 EUR
+        last_yahoo_bucket = int(real_dt(2026, 11, 13, 14, 20, 0, tzinfo=daemon.MARKET_TZ).timestamp())
+        base_ts = last_yahoo_bucket - 19 * 300
+        closes_amd = [
+            518.5, 518.8, 519.0, 518.7, 518.4, 518.6, 518.9, 519.1, 518.8, 518.5,
+            518.2, 518.4, 518.0, 517.8, 517.5, 517.2, 516.9, 516.6, 516.5, 517.8,
+        ]
+        yahoo_amd = _make_yahoo_payload(closes_amd, vols=[4500.0] * 20, base_ts=base_ts)
+
+        scanner = daemon.QuantMarketScanner()
+        b_1430 = int(real_dt(2026, 11, 13, 14, 30, 0, tzinfo=daemon.MARKET_TZ).timestamp())
+        scanner.realtime_5m_bars["AMDd_EQ"] = {
+            b_1430: {"open": 519.20, "high": 522.40, "low": 519.20, "close": 522.10},
+        }
+        # Alle 14:38:28 la candela 14:35 è ROSSA (open=522.10 -> close=520.80, ma low=520.50 >= 519.20!).
+        # Col vecchio `or higher_low` passava erroneamente; col True Green Hook V11.2 DEVE essere bloccata (Score == 0.0)!
+        gx_amd_reversal = json.dumps({
+            "data": [
+                {"s": "GETTEX:AMD", "d": [520.80, 522.10, 522.10, 520.50, 520.80, "streaming"]},
+                {"s": "GETTEX:MRK", "d": [149.82, 149.50, 149.86, 149.48, 149.82, "streaming"]},
+            ]
+        }).encode("utf-8")
+
+        closes_mrk = [
+            149.2, 149.3, 149.4, 149.3, 149.5, 149.4, 149.2, 149.3, 149.4, 149.3,
+            149.1, 149.2, 149.3, 149.2, 149.1, 149.2, 149.3, 149.4, 149.45, 149.50,
+        ]
+        yahoo_mrk = _make_yahoo_payload(closes_mrk, vols=[3200.0] * 20, base_ts=base_ts)
+
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=now_epoch):
+            mock_dt.now.side_effect = lambda tz=None: mkt_dt.astimezone(tz) if tz else mkt_dt.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(gx_amd_reversal)):
+                scanner.refresh_gettex_live_quotes(force=True)
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(yahoo_amd)):
+                m_amd = scanner.fetch_5m_metrics("AMDd_EQ")
+            with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(yahoo_mrk)):
+                m_mrk = scanner.fetch_5m_metrics("MRKd_EQ")
+
+        self.assertFalse(m_amd["green_hook_confirmed"])
+        self.assertEqual(m_amd["quant_buy_score"], 0.0)
+        self.assertTrue(m_mrk["green_hook_confirmed"])
+        self.assertGreater(m_mrk["quant_buy_score"], 65.0)
 
 
 if __name__ == "__main__":
