@@ -36,14 +36,14 @@
         "total_eur": 24.97
       }
     ],
-    "IFXd_EQ": [
+    "ADYENa_EQ": [
       {
-        "timestamp": "2026-11-13T09:52:52",
-        "ticker": "IFXd_EQ",
-        "isin": "DE0006231004",
-        "quantity": 0.48,
-        "price_eur": 51.1458,
-        "total_eur": 24.55
+        "timestamp": "2026-11-13T10:25:21",
+        "ticker": "ADYENa_EQ",
+        "isin": "NL0012969182",
+        "quantity": 0.0288,
+        "price_eur": 860.4167,
+        "total_eur": 24.78
       }
     ]
   },
@@ -1505,11 +1505,20 @@
       "corrispettivo_eur": 24.74,
       "costo_lifo_eur": 24.88,
       "risultato_fiscale_eur": -0.14
+    },
+    {
+      "timestamp": "2026-11-13T10:25:08",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.48,
+      "sell_price_eur": 51.313,
+      "corrispettivo_eur": 24.63,
+      "costo_lifo_eur": 24.55,
+      "risultato_fiscale_eur": 0.08
     }
   ],
-  "totale_corrispettivi_vendita_eur": 3970.02,
-  "totale_costi_carico_lifo_eur": 3973.03,
-  "plusvalenze_lorde_eur": 13.16,
+  "totale_corrispettivi_vendita_eur": 3994.65,
+  "totale_costi_carico_lifo_eur": 3997.58,
+  "plusvalenze_lorde_eur": 13.24,
   "minusvalenze_lorde_eur": 15.17,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
