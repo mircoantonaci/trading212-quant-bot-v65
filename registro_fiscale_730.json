@@ -6,36 +6,6 @@
   "valore_finale_stimato_quadro_w_eur": 100.86,
   "giorni_detenzione_ivafe": 365,
   "lotti_aperti_lifo": {
-    "BESIa_EQ": [
-      {
-        "timestamp": "2026-11-12T17:13:20",
-        "ticker": "BESIa_EQ",
-        "isin": "NL0012866412",
-        "quantity": 0.1579,
-        "price_eur": 158.3281,
-        "total_eur": 25.0
-      }
-    ],
-    "ASMa_EQ": [
-      {
-        "timestamp": "2026-11-12T17:20:20",
-        "ticker": "ASMa_EQ",
-        "isin": "NL0000334118",
-        "quantity": 0.0343,
-        "price_eur": 727.6968,
-        "total_eur": 24.96
-      }
-    ],
-    "DBKd_EQ": [
-      {
-        "timestamp": "2026-11-12T17:15:41",
-        "ticker": "DBKd_EQ",
-        "isin": "DE0005140008",
-        "quantity": 0.74,
-        "price_eur": 33.45,
-        "total_eur": 24.753
-      }
-    ],
     "DPWd_EQ": [
       {
         "timestamp": "2026-11-12T15:10:47",
@@ -1460,12 +1430,39 @@
       "corrispettivo_eur": 25.15,
       "costo_lifo_eur": 24.93,
       "risultato_fiscale_eur": 0.22
+    },
+    {
+      "timestamp": "2026-11-13T09:08:16",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.1579,
+      "sell_price_eur": 156.82,
+      "corrispettivo_eur": 24.76,
+      "costo_lifo_eur": 25.0,
+      "risultato_fiscale_eur": -0.24
+    },
+    {
+      "timestamp": "2026-11-13T09:08:17",
+      "ticker": "ASMa_EQ",
+      "quantity": 0.0343,
+      "sell_price_eur": 716.8,
+      "corrispettivo_eur": 24.59,
+      "costo_lifo_eur": 24.96,
+      "risultato_fiscale_eur": -0.37
+    },
+    {
+      "timestamp": "2026-11-13T09:08:17",
+      "ticker": "DBKd_EQ",
+      "quantity": 0.74,
+      "sell_price_eur": 33.182,
+      "corrispettivo_eur": 24.55,
+      "costo_lifo_eur": 24.8,
+      "risultato_fiscale_eur": -0.25
     }
   ],
-  "totale_corrispettivi_vendita_eur": 3846.93,
-  "totale_costi_carico_lifo_eur": 3848.76,
-  "plusvalenze_lorde_eur": 13.01,
-  "minusvalenze_lorde_eur": 13.87,
+  "totale_corrispettivi_vendita_eur": 3920.83,
+  "totale_costi_carico_lifo_eur": 3923.52,
+  "plusvalenze_lorde_eur": 13.02,
+  "minusvalenze_lorde_eur": 14.73,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
