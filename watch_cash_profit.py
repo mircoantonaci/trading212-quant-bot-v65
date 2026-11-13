@@ -75,6 +75,7 @@ def try_fast_git_sync() -> None:
 
 
 def main() -> None:
+    try_fast_git_sync()
     client = load_client()
     initial_ops, init_data = load_local_ops()
     seen_count = len(initial_ops)
@@ -118,6 +119,11 @@ def main() -> None:
             minus = float(data.get("minusvalenze_lorde_eur", 0.0))
             local_net = round(plus - minus, 2)
             if len(ops) > seen_count or abs(local_net - seen_local_net) >= 0.01:
+                # Se la cassa T212 certificata era già allineata a questo saldo (evento già notificato in live 12s), aggiorna solo il puntatore senza eco duplicata
+                if seen_t212_net is not None and abs(local_net - seen_t212_net) < 0.01:
+                    seen_count = len(ops)
+                    seen_local_net = local_net
+                    continue
                 if len(ops) > seen_count:
                     new_ops = ops[seen_count:]
                     print("\n🔔 OPERAZIONE CHIUSA RILEVATA NEL REGISTRO 730!", flush=True)
