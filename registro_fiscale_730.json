@@ -16,16 +16,6 @@
         "total_eur": 24.81
       }
     ],
-    "ZALd_EQ": [
-      {
-        "timestamp": "2026-11-13T15:55:23",
-        "ticker": "ZALd_EQ",
-        "isin": "DE000ZAL1111",
-        "quantity": 0.86,
-        "price_eur": 28.7558,
-        "total_eur": 24.73
-      }
-    ],
     "SAPd_EQ": [
       {
         "timestamp": "2026-11-13T16:42:19",
@@ -36,14 +26,14 @@
         "total_eur": 24.78
       }
     ],
-    "RHMd_EQ": [
+    "AIRd_EQ": [
       {
-        "timestamp": "2026-11-13T16:45:43",
-        "ticker": "RHMd_EQ",
-        "isin": "DE0007030009",
-        "quantity": 0.0327,
-        "price_eur": 758.104,
-        "total_eur": 24.79
+        "timestamp": "2026-11-13T16:55:08",
+        "ticker": "AIRd_EQ",
+        "isin": "NL0000235190",
+        "quantity": 0.1203,
+        "price_eur": 205.5694,
+        "total_eur": 24.73
       }
     ]
   },
@@ -1667,12 +1657,30 @@
       "corrispettivo_eur": 24.41,
       "costo_lifo_eur": 24.54,
       "risultato_fiscale_eur": -0.13
+    },
+    {
+      "timestamp": "2026-11-13T16:54:53",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.0327,
+      "sell_price_eur": 761.0,
+      "corrispettivo_eur": 24.88,
+      "costo_lifo_eur": 24.79,
+      "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-13T16:56:15",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.86,
+      "sell_price_eur": 28.6,
+      "corrispettivo_eur": 24.6,
+      "costo_lifo_eur": 24.73,
+      "risultato_fiscale_eur": -0.13
     }
   ],
-  "totale_corrispettivi_vendita_eur": 4415.6,
-  "totale_costi_carico_lifo_eur": 4418.84,
-  "plusvalenze_lorde_eur": 14.24,
-  "minusvalenze_lorde_eur": 16.54,
+  "totale_corrispettivi_vendita_eur": 4465.08,
+  "totale_costi_carico_lifo_eur": 4468.36,
+  "plusvalenze_lorde_eur": 14.33,
+  "minusvalenze_lorde_eur": 16.67,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
