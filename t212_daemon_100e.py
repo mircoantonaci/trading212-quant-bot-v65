@@ -1516,32 +1516,42 @@ class QuantMarketScanner:
         vwap_taper_onset = min(0.48, max(0.18, atr_pct_100 * 1.30))
         vwap_extension_taper = max(0.0, (vwap_dist_pct - vwap_taper_onset) * 28.0)
 
-        # 1) Setup Momentum Istituzionale sul pavimento VWAP (-0,15% .. min(0,50%, 3,5*ATR), RSI 42..66, ER >= 0,15)
+        # V11.5 Invariante #32 — Congruenza Vettoriale di Segno sull'Origine Pura 0.0:
+        # Un titolo in vettore discendente multi-orizzonte (15m & 30m negativi, o 50m Signed ER negativo senza rimbalzo 15m)
+        # non può mai essere premiato come lancio Momentum né attraversare il VWAP dall'alto verso il basso fuori ipervenduto.
+        downward_vector = (
+            (slope_15m_pct < 0.0 and slope_30m_pct < 0.0)
+            or (signed_kaufman_er < 0.0 and slope_15m_pct <= 0.0)
+        )
+
+        # 1) Setup Momentum Istituzionale sul pavimento VWAP (-0,15% .. min(0,50%, 3,5*ATR), RSI 42..66, ER >= 0,15, mai su vettore discendente)
         if (
             has_valid_bars
             and vwap_dist_pct >= -0.15
             and 42.0 <= rsi_14 <= 66.0
             and entry_hook_confirmed
             and kaufman_er >= 0.15
+            and not downward_vector
         ):
             score_momentum = (
                 68.0
-                + (kaufman_er * 14.0)
+                + (max(0.0, signed_kaufman_er) * 14.0)
                 + (4.0 if breakout_candle else 0.0)
                 - vwap_extension_taper
             )
         else:
             score_momentum = 0.0
 
-        # 2) Setup Institutional VWAP Pullback & Valley Hook (-0,35% .. min(0,50%, 3,5*ATR), RSI 24..64, mai in scivolamento ribassista 15m/30m sotto VWAP)
+        # 2) Setup Institutional VWAP Pullback & Valley Hook (-0,35% .. min(0,50%, 3,5*ATR), RSI 24..64, mai in rottura vettoriale fuori ipervenduto)
         sub_vwap_downtrend = (
             (vwap_dist_pct < -0.05 and slope_15m_pct < -0.10)
             or (vwap_dist_pct < -0.15 and slope_30m_pct < -0.20)
         )
+        active_downtrend_breakdown = sub_vwap_downtrend or (rsi_14 > 34.0 and downward_vector)
         if (
             has_valid_bars
             and vwap_dist_pct >= -0.35
-            and not sub_vwap_downtrend
+            and not active_downtrend_breakdown
             and 24.0 <= rsi_14 <= 64.0
             and entry_hook_confirmed
             and slope_30m_pct >= -0.45
@@ -1606,6 +1616,16 @@ class QuantMarketScanner:
         be_trig_est = max(0.0042, min(0.0050, round(effective_atr * 2.1, 4)))
         be_floor_est = max(0.0018, round(be_trig_est * 0.45, 4))
 
+        # V11.5 Invariante #32 — Vera Forza Relativa Contro-Mercato per superare lo Scudo Anti-Crollo Macro:
+        # Durante un sell-off sistemico (es. Nasdaq <= -1,20% o S&P <= -1,00%), passa solo un autentico Leader sopra VWAP
+        # con pendenza 15m/30m positiva, Signed Kaufman ER >= +0,20 e vicino ai massimi di seduta (dip >= -0,45%).
+        true_relative_strength = (
+            vwap_dist_pct >= 0.10
+            and signed_kaufman_er >= 0.20
+            and slope_15m_pct > 0.0
+            and slope_30m_pct > 0.0
+            and dip_from_high_pct >= -0.45
+        )
         if not has_valid_bars:
             sine_phase = "DATI_INTRADAY_IN_ATTESA"
             strong_for_overnight = False
@@ -1614,10 +1634,10 @@ class QuantMarketScanner:
             strong_for_overnight = False
         elif score_momentum >= 55.0 or (rsi_14 > 60.0 and vwap_dist_pct >= 0.0 and (not price_turning_down or slope_rising)):
             sine_phase = "SUPER_TREND_VERO_POSITIVO_BREAKOUT"
-            strong_for_overnight = vwap_dist_pct >= -0.05
+            strong_for_overnight = true_relative_strength
         elif rsi_14 >= 38.0 and (score_pullback >= 52.0 or (38.0 <= rsi_14 <= 64.0 and (slope_rising or green_hook_confirmed) and vwap_dist_pct >= -0.05)):
             sine_phase = "ONDA_ASCENDENTE_SANA_VERO_POSITIVO"
-            strong_for_overnight = vwap_dist_pct >= -0.05
+            strong_for_overnight = true_relative_strength
         elif rsi_14 < 38.0 and green_hook_confirmed:
             sine_phase = "VALLE_CON_UNCINO_VERDE_PRONTO_ACQUISTO"
             strong_for_overnight = False

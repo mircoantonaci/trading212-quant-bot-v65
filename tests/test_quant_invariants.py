@@ -1667,6 +1667,84 @@ class TestQuantInvariantsV11(unittest.TestCase):
             self.assertTrue(intel.can_buy_ticker("EOANd_EQ", 19.95))
             self.assertTrue(intel.can_buy_ticker("APCd_EQ", 300.10))
 
+    def test_32_vectorial_sign_congruence_blocks_falling_knives_and_macro_crash_bypass(self):
+        """Invariante #32: Congruenza vettoriale di segno sull'origine 0.0 blocca cascate ribassiste su VWAP e falsi bypass del Macro Crash Shield (caso reale 16/11)."""
+        daemon.discover_and_verify_eur_giants(None)
+        scanner = daemon.QuantMarketScanner()
+        intel = daemon.HybridUncappedIntelligence()
+
+        # 1) Caso Reale Pomeriggio 16/11 (es. IFXd_EQ / ADYENa_EQ / DBKd_EQ):
+        # Mattina bassa + picco di metà giornata alzano/ancorano il VWAP attorno a ~100.04, poi nel pomeriggio il titolo
+        # precipita dall'alto (100.90 -> 99.96) con pendenza 15m/30m negativa e Signed ER < 0, stampando una singola
+        # micro-candela verde fino a 100.03 (proprio sul VWAP: vwap_dist_pct >= -0.05%, RSI ~ 45..52, entry_hook_confirmed=True).
+        falling_through_vwap_closes = [
+            98.60, 98.75, 98.90, 99.05, 99.25, 99.50, 99.80, 100.10, 100.45, 100.80,
+            100.68, 100.56, 100.45, 100.35, 100.25, 100.16, 100.08, 100.00, 99.93, 100.02,
+        ]
+        with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(_make_yahoo_payload(falling_through_vwap_closes))):
+            m_knife = scanner.fetch_5m_metrics("IFXd_EQ")
+        self.assertTrue(m_knife["entry_hook_confirmed"])
+        self.assertGreaterEqual(m_knife["vwap_dist_pct"], -0.05)
+        self.assertGreaterEqual(m_knife["rsi_5m"], 40.0)
+        self.assertLess(m_knife["slope_15m_pct"], 0.0)
+        self.assertLess(m_knife["slope_30m_pct"], 0.0)
+        self.assertLess(m_knife["signed_kaufman_er"], 0.0)
+        # Né score_momentum né score_pullback né strong_for_overnight possono attivarsi su un vettore in caduta!
+        self.assertEqual(m_knife["quant_buy_score"], 0.0)
+        self.assertFalse(m_knife["strong_for_overnight"])
+
+        # 2) Caso V-Reversal Fresco a 15m dopo discesa a 50m (signed_kaufman_er < 0 ma slope_15m > 0):
+        # Non viene bloccato in mercato calmo, ma NON riceve bonus ER positivo fittizio né può forzare il Macro Crash Shield!
+        v_reversal_closes = [
+            100.60, 100.55, 100.50, 100.45, 100.40, 100.35, 100.30, 100.25, 100.20, 100.30,
+            100.24, 100.18, 100.12, 100.06, 100.00, 99.96, 100.02, 100.08, 100.14, 100.22,
+        ]
+        with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(_make_yahoo_payload(v_reversal_closes))):
+            m_vrev = scanner.fetch_5m_metrics("SAPd_EQ")
+            m_vrev["price_feed_source"] = "GETTEX_STREAMING_0S"
+        self.assertLess(m_vrev["signed_kaufman_er"], 0.0)
+        self.assertGreater(m_vrev["slope_15m_pct"], 0.0)
+        self.assertGreater(m_vrev["quant_buy_score"], 65.0)
+        self.assertFalse(m_vrev["strong_for_overnight"])
+
+        reg_us_open = {"allow_new_buys": True, "is_midday_sniper_window": False, "us_market_live": True}
+        ov_calm = {"allow_overnight_hold": True, "nasdaq_change_pct": 0.15, "sp500_change_pct": 0.10, "dax_change_pct": 0.20, "vix_fear_change_pct": -1.0, "vix_level": 15.5}
+        ov_crash_16nov = {"allow_overnight_hold": False, "nasdaq_change_pct": -1.90, "sp500_change_pct": -1.35, "dax_change_pct": -1.18, "vix_fear_change_pct": 9.5, "vix_level": 20.4}
+        self.assertTrue(intel.is_macro_crash_shield_active(reg_us_open, ov_crash_16nov))
+        self.assertTrue(intel.is_eligible_entry_candidate(m_vrev, reg_us_open, ov_calm))
+        self.assertFalse(intel.is_eligible_entry_candidate(m_vrev, reg_us_open, ov_crash_16nov))
+
+        # 3) Valley Hook in ipervenduto profondo (RSI <= 34): preservato al 100% in regime normale, bloccato sotto Crash USA:
+        valley_closes = [
+            100.0, 100.05, 100.1, 100.12, 100.1, 100.08, 100.05, 100.0, 99.95, 99.90,
+            99.85, 99.82, 99.80, 99.78, 99.76, 99.74, 99.72, 99.70, 99.68, 99.84,
+        ]
+        with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(_make_yahoo_payload(valley_closes))):
+            m_valley = scanner.fetch_5m_metrics("ASMLa_EQ")
+            m_valley["price_feed_source"] = "GETTEX_STREAMING_0S"
+        self.assertLessEqual(m_valley["rsi_5m"], 34.0)
+        self.assertGreater(m_valley["quant_buy_score"], 75.0)
+        self.assertFalse(m_valley["strong_for_overnight"])
+        self.assertTrue(intel.is_eligible_entry_candidate(m_valley, reg_us_open, ov_calm))
+        self.assertFalse(intel.is_eligible_entry_candidate(m_valley, reg_us_open, ov_crash_16nov))
+
+        # 4) Autentico Leader in Forza Relativa Contro-Mercato (vwap >= +0.10%, signed_er >= +0.20, 15m/30m > 0, vicino ai massimi):
+        # Supera legittimamente lo Scudo Anti-Crollo Macro anche durante Nasdaq -1,90%!
+        rs_leader_closes = [
+            98.90, 99.10, 99.30, 99.55, 99.80, 100.05, 100.25, 100.40, 100.28, 100.18,
+            100.32, 100.22, 100.36, 100.24, 100.38, 100.26, 100.40, 100.32, 100.26, 100.44,
+        ]
+        with patch("urllib.request.urlopen", return_value=_FakeHTTPResp(_make_yahoo_payload(rs_leader_closes))):
+            m_leader = scanner.fetch_5m_metrics("DTGd_EQ")
+            m_leader["price_feed_source"] = "GETTEX_STREAMING_0S"
+        self.assertGreaterEqual(m_leader["vwap_dist_pct"], 0.10)
+        self.assertGreaterEqual(m_leader["signed_kaufman_er"], 0.20)
+        self.assertGreater(m_leader["slope_15m_pct"], 0.0)
+        self.assertGreater(m_leader["slope_30m_pct"], 0.0)
+        self.assertTrue(m_leader["strong_for_overnight"])
+        self.assertGreater(m_leader["quant_buy_score"], 75.0)
+        self.assertTrue(intel.is_eligible_entry_candidate(m_leader, reg_us_open, ov_crash_16nov))
+
 
 if __name__ == "__main__":
     unittest.main()
