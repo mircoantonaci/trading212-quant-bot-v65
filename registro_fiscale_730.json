@@ -6,7 +6,6 @@
   "valore_finale_stimato_quadro_w_eur": 100.86,
   "giorni_detenzione_ivafe": 365,
   "lotti_aperti_lifo": {
-    "APCd_EQ": [],
     "RHMd_EQ": [
       {
         "timestamp": "2026-11-16T14:40:17",
@@ -27,14 +26,14 @@
         "total_eur": 24.62
       }
     ],
-    "MSFd_EQ": [
+    "ADYENa_EQ": [
       {
-        "timestamp": "2026-11-16T15:29:09",
-        "ticker": "MSFd_EQ",
-        "isin": "US5949181045",
-        "quantity": 0.0519,
-        "price_eur": 477.264,
-        "total_eur": 24.77
+        "timestamp": "2026-11-16T15:38:35",
+        "ticker": "ADYENa_EQ",
+        "isin": "NL0012969182",
+        "quantity": 0.0282,
+        "price_eur": 875.8865,
+        "total_eur": 24.7
       }
     ]
   },
@@ -1757,12 +1756,21 @@
       "corrispettivo_eur": 24.63,
       "costo_lifo_eur": 24.77,
       "risultato_fiscale_eur": -0.14
+    },
+    {
+      "timestamp": "2026-11-16T15:37:27",
+      "ticker": "MSFd_EQ",
+      "quantity": 0.0519,
+      "sell_price_eur": 473.84,
+      "corrispettivo_eur": 24.59,
+      "costo_lifo_eur": 24.77,
+      "risultato_fiscale_eur": -0.18
     }
   ],
-  "totale_corrispettivi_vendita_eur": 4687.31,
-  "totale_costi_carico_lifo_eur": 4691.05,
+  "totale_corrispettivi_vendita_eur": 4711.9,
+  "totale_costi_carico_lifo_eur": 4715.82,
   "plusvalenze_lorde_eur": 15.25,
-  "minusvalenze_lorde_eur": 18.09,
+  "minusvalenze_lorde_eur": 18.3,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
