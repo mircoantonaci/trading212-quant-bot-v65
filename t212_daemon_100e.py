@@ -1587,6 +1587,7 @@ class QuantMarketScanner:
                 if op.get("ticker") == ticker
                 and str(op.get("timestamp", "")).startswith(today_prefix)
                 and str(op.get("timestamp", "")) >= epoch_str
+                and not bool(op.get("overnight_carry_cleanup", False))
             ]
             if today_ops:
                 last_today_pnl = float(today_ops[-1].get("risultato_fiscale_eur", 0.0))
@@ -1740,12 +1741,14 @@ class QuantMarketScanner:
 
 class HybridUncappedIntelligence:
     """
-    Motore Ibrido 2+2 Senza Tetto + Chiusura Serale Integrale Intelligente (Zero Overnight / 4x4 Libere alle 09:00):
+    Motore Ibrido 2+2 Senza Tetto + Soluzione C1 Ibrida Asimmetrica (Custodia Notturna Vincitori >= VWAP + Taglio Mattutino 09:05):
     - Di giorno (09:00-16:00): non taglia MAI i rialzi mentre corrono (Scudo Mobile Senza Tetto).
+    - 09:01-09:30 (Custodia Notturna C1): sulle posizioni portate dalla sera prima, taglia subito i gap-down profondi (>=09:01)
+      e alle 09:05 (dopo la 1ª candela 5m XETRA) liquida immediatamente ogni posizione girata in negativo o lenta/in stallo,
+      lasciando correre senza tetto solo i Gap-Up veloci con uncino verde attivo sopra VWAP.
     - 16:00-17:00: Rampa Continua di Pista Pre-Chiusura (richiede velocità ATR e Score crescenti col calare del tempo residuo).
-    - 17:00-17:25: Stop Nuovi Acquisti + Decompressione Continua C0 (lascia correre le onde verdi con uncino attivo,
-      incassa istantaneamente su stallo/inversione e chiude su rimbalzo di pareggio le posizioni deboli).
-    - 17:25-17:30: Chiusura Integrale Garantita al 100% in EUR prima dell'asta XETRA per ripartire ogni mattina con 4/4 cartucce libere!
+    - 17:00-17:29 (Selezione Asimmetrica C1): chiude il 100% il Venerdì (0 rischio weekend), sotto Crash Macro USA e su tutti
+      i titoli rossi o deboli (< VWAP o RSI < 45), portando nella notte Lun-Gio esclusivamente i vincitori sani sopra VWAP!
     """
 
     def __init__(self) -> None:
@@ -1755,6 +1758,7 @@ class HybridUncappedIntelligence:
         self.last_sell_was_loss: Dict[str, bool] = {}
         self.last_buy_retry_time: Dict[str, float] = {}
         self.position_open_time: Dict[str, float] = {}
+        self.eod_ref_price: Dict[str, float] = {}
         self.prev_open_snapshot: Dict[str, Tuple[float, float]] = {}
         self._load_persisted_peaks()
 
@@ -1783,7 +1787,9 @@ class HybridUncappedIntelligence:
                         self.last_sell_time[tkr_op] = op_epoch
                         self.last_sell_price[tkr_op] = float(px_op)
                         self.last_sell_was_loss[tkr_op] = (
-                            (pnl_op < 0.0) and ts_op.startswith(today_prefix_sync)
+                            (pnl_op < 0.0)
+                            and ts_op.startswith(today_prefix_sync)
+                            and not bool(op.get("overnight_carry_cleanup", False))
                         )
                 except Exception:
                     pass
@@ -1815,11 +1821,14 @@ class HybridUncappedIntelligence:
                     tkr = c.get("ticker")
                     pk = c.get("peak_pnl_pct")
                     op_ts = c.get("opened_at_ts")
+                    eod_px = c.get("eod_ref_price_eur")
                     st_code = str(c.get("status", ""))
                     if tkr and pk is not None:
                         self.peak_pnl_pct[tkr] = float(pk) / 100.0
                     if tkr and op_ts is not None:
                         self.position_open_time[tkr] = float(op_ts)
+                    if tkr and eod_px is not None and float(eod_px) > 0:
+                        self.eod_ref_price[tkr] = float(eod_px)
                     if state_fresh and tkr and st_code.startswith(("ESEGUITA_IN_PORTAFOGLIO", "APPENA_ACQUISTATA")):
                         avg_p = float(c.get("avg_price_eur", 0.0))
                         cur_p = float(c.get("current_price_eur", avg_p))
@@ -1855,10 +1864,11 @@ class HybridUncappedIntelligence:
         ny_hm = now_ny.hour * 60 + now_ny.minute
         us_open = ny_hm >= 9 * 60 + 30  # 09:30 ET apertura reale NYSE/Nasdaq (DST-safe tutto l'anno)
         is_friday = (now_rome.weekday() == 4)
+        now_date_iso = now_rome.date().isoformat()
         if now_rome.weekday() >= 5:
             return {
                 "code": "WEEKEND_BORSA_CHIUSA",
-                "description": "Mercati chiusi per il weekend (100% Cash EUR, 4/4 cartucce pronte per lunedì 09:00)",
+                "description": "Mercati chiusi per il weekend (C1: 100% Cash EUR dal venerdì sera, 4/4 cartucce pronte per lunedì 09:00)",
                 "market_open": False,
                 "allow_new_buys": False,
                 "is_pre_close_window": False,
@@ -1866,13 +1876,16 @@ class HybridUncappedIntelligence:
                 "evening_unwind_progress": 0.0,
                 "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
+                "morning_auction_settled": False,
+                "morning_cull_ready": False,
+                "now_date_iso": now_date_iso,
                 "is_friday_pre_weekend": False,
                 "us_market_live": False,
             }
         if hm < 9 * 60 or hm >= 17 * 60 + 30:
             return {
                 "code": "DOPOBORSA_NOTTURNO",
-                "description": "Borsa XETRA chiusa (09:00-17:30) — Portafoglio 100% liquido per apertura 09:00",
+                "description": "Borsa XETRA chiusa (09:00-17:30) — Custodia Notturna C1 sui soli vincitori >= VWAP (taglio 09:05 se negativi o lenti)",
                 "market_open": False,
                 "allow_new_buys": False,
                 "is_pre_close_window": False,
@@ -1880,13 +1893,16 @@ class HybridUncappedIntelligence:
                 "evening_unwind_progress": 0.0,
                 "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
+                "morning_auction_settled": False,
+                "morning_cull_ready": False,
+                "now_date_iso": now_date_iso,
                 "is_friday_pre_weekend": False,
                 "us_market_live": False,
             }
         if 9 * 60 <= hm < 9 * 60 + 30:
             return {
                 "code": "FASE_1A_RACCOLTO_GAP_MATTUTINO_ANTI_GAP_FILL",
-                "description": "09:00-09:30: 4/4 Cartucce Libere all'Apertura + Scudo Rapido (+0,52% / -0,14%) contro i ritracciamenti mattutini",
+                "description": "09:00-09:30 (C1): Taglio Rapido 09:05 su posizioni notturne negative/lente + Raccolto Gap (+0,52% / -0,14%) sui vincitori",
                 "market_open": True,
                 "allow_new_buys": True,
                 "is_pre_close_window": False,
@@ -1894,6 +1910,9 @@ class HybridUncappedIntelligence:
                 "evening_unwind_progress": 0.0,
                 "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": True,
+                "morning_auction_settled": exact_hm >= 541.0,
+                "morning_cull_ready": hm >= 9 * 60 + 5,
+                "now_date_iso": now_date_iso,
                 "is_friday_pre_weekend": False,
                 "us_market_live": False,
             }
@@ -1908,13 +1927,22 @@ class HybridUncappedIntelligence:
                 "evening_unwind_progress": 0.0,
                 "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
+                "now_date_iso": now_date_iso,
                 "is_friday_pre_weekend": False,
                 "us_market_live": False,
             }
         if 17 * 60 + 25 <= hm < 17 * 60 + 30:
             return {
-                "code": "FASE_4B_CHIUSURA_SERALE_INTEGRALE_4X4_LIBERE",
-                "description": "17:25-17:30 CET: Chiusura Integrale Fine Giornata (100% Cash EUR prima dell'asta XETRA, 4/4 cartucce libere alle 09:00)",
+                "code": (
+                    "FASE_4B_CHIUSURA_PRE_WEEKEND_INTEGRALE_C1"
+                    if is_friday
+                    else "FASE_4B_SELEZIONE_SERALE_ASIMMETRICA_C1"
+                ),
+                "description": (
+                    "17:25-17:30 CET (Venerdì C1): Chiusura Integrale 100% Cash EUR prima del weekend (4/4 cartucce libere lunedì 09:00)"
+                    if is_friday
+                    else "17:25-17:30 CET (Lun-Gio C1): Taglio rossi/deboli/Crash USA; custodia notturna dei soli vincitori >= VWAP"
+                ),
                 "market_open": True,
                 "allow_new_buys": False,
                 "is_pre_close_window": True,
@@ -1922,6 +1950,7 @@ class HybridUncappedIntelligence:
                 "evening_unwind_progress": 1.0,
                 "evening_runway_progress": 1.0,
                 "is_morning_gap_harvest": False,
+                "now_date_iso": now_date_iso,
                 "is_friday_pre_weekend": is_friday,
                 "us_market_live": us_open,
             }
@@ -1929,7 +1958,7 @@ class HybridUncappedIntelligence:
             unwind_tau = round(min(1.0, max(0.0, (exact_hm - 1020.0) / 25.0)), 4)
             return {
                 "code": "FASE_4A_DECOMPRESSIONE_INTELLIGENTE_SERALE",
-                "description": "17:00-17:25 CET: Stop Nuovi Acquisti + Decompressione Continua (lascia correre onde verdi, incassa su stallo/rimbalzo verso 4/4 libere)",
+                "description": "17:00-17:25 CET (C1): Stop Nuovi Acquisti + Decompressione deboli/sotto-VWAP e preparazione custodia vincitori >= VWAP",
                 "market_open": True,
                 "allow_new_buys": False,
                 "is_pre_close_window": True,
@@ -1937,6 +1966,7 @@ class HybridUncappedIntelligence:
                 "evening_unwind_progress": unwind_tau,
                 "evening_runway_progress": 1.0,
                 "is_morning_gap_harvest": False,
+                "now_date_iso": now_date_iso,
                 "is_friday_pre_weekend": is_friday,
                 "us_market_live": us_open,
             }
@@ -1952,6 +1982,7 @@ class HybridUncappedIntelligence:
                 "evening_unwind_progress": 0.0,
                 "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
+                "now_date_iso": now_date_iso,
                 "is_friday_pre_weekend": False,
                 "is_lunch_desert_window": True,
                 "us_market_live": False,
@@ -1967,6 +1998,7 @@ class HybridUncappedIntelligence:
                 "evening_unwind_progress": 0.0,
                 "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
+                "now_date_iso": now_date_iso,
                 "is_friday_pre_weekend": False,
                 "is_lunch_desert_window": True,
                 "is_midday_sniper_window": True,
@@ -1985,6 +2017,7 @@ class HybridUncappedIntelligence:
                 "evening_unwind_progress": 0.0,
                 "evening_runway_progress": runway_prog,
                 "is_morning_gap_harvest": False,
+                "now_date_iso": now_date_iso,
                 "is_friday_pre_weekend": False,
                 "is_lunch_desert_window": False,
                 "us_market_live": False,
@@ -2003,6 +2036,7 @@ class HybridUncappedIntelligence:
             "evening_unwind_progress": 0.0,
             "evening_runway_progress": runway_prog,
             "is_morning_gap_harvest": False,
+            "now_date_iso": now_date_iso,
             "is_friday_pre_weekend": False,
             "us_market_live": True,
         }
@@ -2080,13 +2114,54 @@ class HybridUncappedIntelligence:
         new_peak = max(prev_peak, pnl_pct)
         self.peak_pnl_pct[ticker] = new_peak
 
-        # BLINDATURA #3: Raccolto del Salto Mattutino 09:00-09:30 (Anti-Gap-Fill)
+        opened_at = self.position_open_time.get(ticker, time.time())
+        minutes_open = (time.time() - opened_at) / 60.0
+        opened_date_iso = datetime.datetime.fromtimestamp(opened_at, tz=MARKET_TZ).date().isoformat()
+        cur_date_iso = str(regime.get("now_date_iso") or datetime.datetime.now(MARKET_TZ).date().isoformat())
+        is_carried_overnight = bool(opened_date_iso < cur_date_iso)
+
+        # BLINDATURA #3 + SOLUZIONE C1: Raccolto Gap Mattutino & Taglio Rapido 09:05 sulle posizioni portate dalla sera prima
         if regime.get("is_morning_gap_harvest"):
             if new_peak >= 0.0052 and (new_peak - pnl_pct) >= 0.0014 and pnl_pct >= 0.0030:
                 return (
                     f"BLINDATURA #3 - RACCOLTO GAP MATTUTINO (09:00-09:30): blindato salto notturno "
                     f"dal picco +{new_peak*100:.2f}% a +{pnl_pct*100:.2f}% prima del Gap-Fill!"
                 )
+            if is_carried_overnight:
+                cur_px = float(ticker_metrics.get("live_price_eur", 0.0))
+                eod_ref = float(self.eod_ref_price.get(ticker, 0.0))
+                overnight_ret = ((cur_px - eod_ref) / eod_ref) if (cur_px > 0.0 and eod_ref > 0.0) else pnl_pct
+                if bool(regime.get("morning_cull_ready", False)):
+                    # Ore >= 09:05 CET (prima candela 5m chiusa, spread XETRA normalizzato):
+                    # 1) Negativa in totale o andata in negativo durante la notte senza rimbalzo sopra VWAP -> taglio istantaneo!
+                    if pnl_pct < 0.0 or (overnight_ret < -0.0005 and not (green_hook_ok and vwap_dist >= 0.05)):
+                        return (
+                            f"TAGLIO MATTUTINO C1 - NEGATIVA IN APERTURA (09:05): {ticker} portata dalla sera prima "
+                            f"è negativa ({pnl_pct*100:+.2f}%, notte {overnight_ret*100:+.2f}%) -> libero subito la cartuccia!"
+                        )
+                    # 2) Positiva ma lenta / sotto +0,12% / priva di spinta verde sopra VWAP -> taglio immediato per liberare lo slot!
+                    feed_ready = bool(ticker_metrics.get("has_fresh_intraday_feed", True))
+                    fast_morning_leader = (pnl_pct >= 0.0012 and green_hook_ok and vwap_dist >= 0.0)
+                    if pnl_pct < 0.0012 or (feed_ready and not fast_morning_leader):
+                        return (
+                            f"TAGLIO MATTUTINO C1 - POSIZIONE NOTTURNA LENTA/STALLO (09:05): {ticker} non accelera "
+                            f"({pnl_pct*100:+.2f}%, VWAP {vwap_dist:+.2f}%, Hook={green_hook_ok}) -> libero subito la cartuccia!"
+                        )
+                else:
+                    # Ore 09:01-09:04 CET (asta XETRA appena aperta, spread ampio):
+                    # Taglia subito solo un gap-down profondo (<= -0,25% senza uncino verde);
+                    # sulle oscillazioni lievi attende le 09:05 per non vendere nello spread largo dell'asta!
+                    if (
+                        bool(regime.get("morning_auction_settled", False))
+                        and (pnl_pct <= -0.0025 or overnight_ret <= -0.0030)
+                        and not green_hook_ok
+                    ):
+                        return (
+                            f"TAGLIO MATTUTINO C1 - GAP-DOWN PROFONDO APERTURA (09:01-09:04): {ticker} apre in deciso "
+                            f"calo ({pnl_pct*100:+.2f}%, notte {overnight_ret*100:+.2f}%) -> taglio difensivo immediato!"
+                        )
+                    if -0.0025 < pnl_pct < 0.0015:
+                        return None
 
         stage_code, stage_floor = self.compute_profit_protection_floor(
             new_peak,
@@ -2143,24 +2218,54 @@ class HybridUncappedIntelligence:
                     f"metto subito in salvo +{pnl_pct*100:.2f}% prima dell'onda ribassista!"
                 )
 
-        if regime.get("is_hard_flat_window"):
-            return (
-                f"CHIUSURA SERALE INTEGRALE 17:25 (4/4 CARTUCCE LIBERE ALLE 09:00): "
-                f"liquidazione fine giornata di {ticker} a {pnl_pct*100:+.2f}% prima dell'asta XETRA 17:30 "
-                f"(0 rischio gap notturno/weekend)"
-            )
+        # SOLUZIONE C1 — Selezione Serale Asimmetrica (17:00 -> 17:29 CET):
+        # - Venerdì (pre-weekend) o sotto Crash Macro USA: chiusura integrale al 100% entro le 17:25-17:29 (0 rischio weekend / crash).
+        # - Lunedì-Giovedì in regime non-crash: chiude tutti i titoli rossi (< -0,02%) o deboli (VWAP < -0,02% o RSI < 45),
+        #   portando in Custodia Notturna C1 esclusivamente i vincitori sani sopra VWAP!
+        is_friday_close = bool(regime.get("is_friday_pre_weekend", False))
+        eligible_overnight_carry_c1 = (
+            not is_friday_close
+            and not macro_crash_shield_active
+            and pnl_pct >= -0.0002
+            and vwap_dist >= -0.02
+            and cur_rsi_5m >= 45.0
+        )
 
-        if regime.get("is_pre_close_window"):
-            # V11.5 Legge Continua C0 di Decompressione Serale (17:00 -> 17:25 CET, tau in [0, 1)):
-            # 1) Lascia correre le onde verdi finché green_hook_confirmed resta attivo (con trailing stretto anti-sgonfiamento);
-            # 2) Appena la spinta stalla, incassa lungo la rampa lineare C0 (+0,12% alle 17:00 -> 0,00% alle 17:18 -> -0,04% alle 17:25);
-            # 3) Sotto vero Scudo Anti-Crollo Macro dopo le 17:10 (tau >= 0,40), evacua subito la debolezza sotto VWAP.
+        if regime.get("is_hard_flat_window"):
+            if is_friday_close:
+                return (
+                    f"CHIUSURA INTEGRALE PRE-WEEKEND 17:25 (C1 ZERO RISCHIO WEEKEND): "
+                    f"liquidazione venerdì sera di {ticker} a {pnl_pct*100:+.2f}% (4/4 cartucce libere lunedì 09:00)"
+                )
+            if macro_crash_shield_active:
+                return (
+                    f"CHIUSURA SERALE C1 ANTI-CROLLO MACRO 17:25 (Nasdaq {nasdaq_chg:+.2f}%, VIX {vix_chg:+.2f}%): "
+                    f"protezione integrale in contanti EUR su {ticker} ({pnl_pct*100:+.2f}%)"
+                )
+            if not eligible_overnight_carry_c1:
+                return (
+                    f"CHIUSURA SERALE SELETTIVA C1 17:25 (TAGLIO DEBOLI/ROSSI): "
+                    f"uscita fine giornata su {ticker} ({pnl_pct*100:+.2f}%, VWAP {vwap_dist:+.2f}%, RSI {cur_rsi_5m:.0f}) "
+                    f"— mai posizioni rosse o sotto-VWAP nella notte!"
+                )
+
+        if regime.get("is_pre_close_window") and not regime.get("is_hard_flat_window"):
+            # Tra le 17:00 e le 17:25 CET:
+            # - Il Venerdì o sotto Crash Macro decompone tutte le posizioni in stallo lungo la rampa C0;
+            # - Dal Lunedì al Giovedì decompone su rimbalzo/stallo le posizioni deboli (sotto VWAP o RSI < 45),
+            #   lasciando intatti i vincitori sani sopra VWAP per la Custodia Notturna C1!
             tau = min(1.0, max(0.0, float(regime.get("evening_unwind_progress", 0.0))))
             evening_pull = max(0.0008, round(shield_pull * (0.75 - 0.35 * tau), 4))
-            if new_peak >= 0.0022 and pnl_pct >= 0.0006 and (new_peak - pnl_pct) >= evening_pull:
+            must_unwind_tonight = (
+                is_friday_close
+                or macro_crash_shield_active
+                or vwap_dist < -0.02
+                or cur_rsi_5m < 45.0
+            )
+            if is_friday_close and new_peak >= 0.0022 and pnl_pct >= 0.0006 and (new_peak - pnl_pct) >= evening_pull:
                 return (
-                    f"DECOMPRESSIONE SERALE - TRAILING CRESTA ({ticker}): blindato rialzo serale "
-                    f"dal picco +{new_peak*100:.2f}% a +{pnl_pct*100:.2f}% verso 4/4 cartucce libere!"
+                    f"DECOMPRESSIONE SERALE - TRAILING CRESTA ({ticker}): blindato rialzo del venerdì "
+                    f"dal picco +{new_peak*100:.2f}% a +{pnl_pct*100:+.2f}% prima del weekend!"
                 )
             harvest_floor = round(0.0012 - 0.0016 * tau, 4)
             riding_green_wave = (
@@ -2168,10 +2273,10 @@ class HybridUncappedIntelligence:
                 and (vwap_dist >= -0.02 or cur_rsi_5m >= 50.0)
                 and sine_phase != "CRESTA_IN_INVERSIONE_FALSO_POSITIVO"
             )
-            if pnl_pct >= harvest_floor and not riding_green_wave:
+            if must_unwind_tonight and pnl_pct >= harvest_floor and not riding_green_wave:
                 return (
                     f"DECOMPRESSIONE SERALE CONTINUA (soglia {harvest_floor*100:+.2f}%, tau={tau:.2f}): "
-                    f"stallo d'impulso su {ticker} -> uscita intelligente a {pnl_pct*100:+.2f}% per liberare cartuccia!"
+                    f"stallo/rimbalzo su {ticker} debole -> uscita intelligente a {pnl_pct*100:+.2f}%!"
                 )
             if tau >= 0.40 and macro_crash_shield_active and not green_hook_ok and vwap_dist < -0.15:
                 return (
@@ -2180,8 +2285,6 @@ class HybridUncappedIntelligence:
                 )
 
         # BLINDATURA #9 (V11.1 Switch Stagnazione Ricalibrato sulla Scala Lineare >= 80,0 pt):
-        opened_at = self.position_open_time.setdefault(ticker, time.time())
-        minutes_open = (time.time() - opened_at) / 60.0
         own_score = float(ticker_metrics.get("quant_buy_score", 50.0))
         if (
             regime.get("allow_new_buys", True)
@@ -2342,6 +2445,7 @@ class HybridUncappedIntelligence:
     def register_sell(self, ticker: str, sell_price_eur: float, was_loss: bool = False) -> None:
         self.peak_pnl_pct.pop(ticker, None)
         self.position_open_time.pop(ticker, None)
+        self.eod_ref_price.pop(ticker, None)
         self.last_buy_retry_time.pop(ticker, None)
         self.last_sell_price[ticker] = sell_price_eur
         self.last_sell_time[ticker] = time.time()
@@ -2519,6 +2623,7 @@ def run_cycle(
         if tkr_old not in pos_by_ticker:
             intel.peak_pnl_pct.pop(tkr_old, None)
             intel.position_open_time.pop(tkr_old, None)
+            intel.eod_ref_price.pop(tkr_old, None)
     scanner.has_t212_realtime.clear()
     for tkr, p in pos_by_ticker.items():
         cur_px = float(p.get("currentPrice", 0.0))
@@ -2634,7 +2739,7 @@ def run_cycle(
             if not open_lots:
                 bot.tax_tracker.record_buy(tkr, qty_open, avg_price)
                 intel.peak_pnl_pct[tkr] = max(0.0, pnl_pct)
-                intel.position_open_time[tkr] = time.time()
+                intel.position_open_time.setdefault(tkr, time.time())
             elif (
                 abs(tot_lifo_qty - qty_open) > 1e-4
                 or abs(lifo_wavg_px - avg_price) / avg_price > 0.0025
@@ -2691,6 +2796,10 @@ def run_cycle(
                     sell_price_eur=cur_price,
                     fallback_avg_price_eur=avg_price,
                 )
+                is_c1_morning_cleanup = exit_reason.startswith("TAGLIO MATTUTINO C1")
+                if is_c1_morning_cleanup:
+                    closed_op["overnight_carry_cleanup"] = True
+                    bot.tax_tracker.save()
                 real_orders_executed = True
                 sold_in_cycle = True
                 freed_cash_in_cycle = round(freed_cash_in_cycle + (qty_open * cur_price * 0.996), 2)
@@ -2700,10 +2809,16 @@ def run_cycle(
                     today_giveback_eur,
                     daily_vault_active,
                 ) = _compute_daily_vault_metrics(bot.tax_tracker.data, today_prefix)
+                is_c1_housekeeping_exit = exit_reason.startswith(
+                    ("TAGLIO MATTUTINO C1", "CHIUSURA SERALE", "CHIUSURA INTEGRALE PRE-WEEKEND")
+                )
                 intel.register_sell(
                     tkr,
                     cur_price,
-                    was_loss=(float(closed_op.get("risultato_fiscale_eur", 0.0)) < 0.0),
+                    was_loss=(
+                        float(closed_op.get("risultato_fiscale_eur", 0.0)) < 0.0
+                        and not is_c1_housekeeping_exit
+                    ),
                 )
                 msg = (
                     f"{exit_reason} su {tkr} ({meta['name']}): vendute {qty_open} azioni "
@@ -2774,11 +2889,25 @@ def run_cycle(
         pre_shield_breakeven_armed = (stage_code != "NONE")
         current_floor_pct = round(stage_floor * 100, 2) if stage_floor is not None else None
 
-        overnight_decision_preview = (
-            "ONDA VERDE IN CORSA -> DECOMPRESSIONE SU STALLO (100% FLAT ENTRO 17:29, 4/4 LIBERE 09:00)"
-            if bool(tkr_m.get("green_hook_confirmed"))
-            else "RACCOLTO SU STALLO/RIMBALZO 17:00-17:25 -> CHIUSURA INTEGRALE 17:25-17:29 (4/4 LIBERE 09:00)"
+        c1_eligible_now = (
+            not bool(regime.get("is_friday_pre_weekend", now_rome.weekday() == 4))
+            and not intel.is_macro_crash_shield_active(regime, overnight_status)
+            and pnl_pct >= -0.0002
+            and float(tkr_m.get("vwap_dist_pct", 0.0)) >= -0.02
+            and float(tkr_m.get("rsi_5m", 50.0)) >= 45.0
         )
+        if bool(regime.get("is_friday_pre_weekend", now_rome.weekday() == 4)):
+            overnight_decision_preview = "VENERDÌ C1 -> CHIUSURA INTEGRALE 100% CASH ENTRO 17:29 (0 RISCHIO WEEKEND)"
+        elif c1_eligible_now:
+            overnight_decision_preview = (
+                "CUSTODIA NOTTURNA C1 (VINCITORE >= VWAP) -> TAGLIO RAPIDO 09:05 SE NEGATIVO O LENTO"
+            )
+        else:
+            overnight_decision_preview = (
+                "SOTTO-VWAP / ROSSO -> DECOMPRESSIONE 17:00-17:25 E TAGLIO SERALE C1 ENTRO 17:29"
+            )
+        if (now_rome.hour * 60 + now_rome.minute) >= 17 * 60 + 20:
+            intel.eod_ref_price[tkr] = round(cur_price, 4)
 
         invested_100e += cost_eur
         unrealized_pnl_100e += ppl
@@ -2806,6 +2935,7 @@ def run_cycle(
             "decisione_notturna_prevista_17_15": overnight_decision_preview,
             "rsi_5m": tkr_m.get("rsi_5m", 50.0),
             "opened_at_ts": intel.position_open_time.get(tkr, time.time()),
+            "eod_ref_price_eur": round(intel.eod_ref_price.get(tkr, cur_price), 4),
         })
         slot_idx += 1
 

@@ -104,9 +104,9 @@ def print_eod_summary(target_day: str, do_sync: bool = False) -> None:
             )
 
     free_slots = max(0, 4 - len(cartridges))
-    print(f"\n📂 POSIZIONI APERTE A FINE SEDUTA ({len(cartridges)}/4 occupate — {free_slots}/4 libere per domani 09:00):")
+    print(f"\n📂 POSIZIONI APERTE A FINE SEDUTA ({len(cartridges)}/4 in Custodia Notturna C1 — {free_slots}/4 cartucce libere per domani 09:00):")
     if not cartridges:
-        print("   • Nessuna posizione aperta (100% Cash EUR — 4/4 cartucce pronte per le 09:00).")
+        print("   • Nessuna posizione aperta (100% Cash EUR — 4/4 cartucce libere per domani alle 09:00).")
     else:
         for c in cartridges:
             tkr = str(c.get("ticker", "N/D"))
@@ -116,7 +116,8 @@ def print_eod_summary(target_day: str, do_sync: bool = False) -> None:
             icon = "🟢" if cpnl >= 0 else "🟡"
             print(
                 f"   {icon} Slot {c.get('slot', '?')}: {tkr:<9s} ({c.get('name', '')}) | "
-                f"Investito: {fmt_eur(inv)} | PnL: {fmt_eur(cpnl, signed=True)} ({cpct:+.2f}%)"
+                f"Investito: {fmt_eur(inv)} | PnL: {fmt_eur(cpnl, signed=True)} ({cpct:+.2f}%) "
+                f"[C1: taglio rapido 09:05 se negativa o lenta]"
             )
     print("─" * 74)
 

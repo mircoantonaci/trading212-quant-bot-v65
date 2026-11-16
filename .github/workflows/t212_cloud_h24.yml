@@ -64,7 +64,7 @@ jobs:
           restore-keys: |
             t212-intraday-cache-${{ runner.os }}-${{ steps.cache-key.outputs.today }}-
 
-      - name: "🧪 Verifica Bloccante dei 32 Invarianti Matematici (V11.5 LTS Pure Intraday 4/4 Reset)"
+      - name: "🧪 Verifica Bloccante dei 33 Invarianti Matematici (V11.5 LTS Soluzione C1)"
         run: |
           python3 -m unittest discover -s tests -p "test_*.py" -v
 

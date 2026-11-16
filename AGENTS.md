@@ -1,13 +1,13 @@
 # AGENTS.md — Trading 212 Autonomous Quant Bot (V11.5 LTS "Zero Cerotti")
 
-> **Progetto:** Trading 212 Autonomous Quant Bot — V11.5 LTS Institutional Zero-Latency (32 Invarianti Bloccanti, Pure Intraday 4/4 Morning Reset)
+> **Progetto:** Trading 212 Autonomous Quant Bot — V11.5 LTS Institutional Zero-Latency (33 Invarianti Bloccanti, Soluzione C1 Ibrido Asimmetrico)
 > **Broker & Conto:** Trading 212 (`Account ID: 52318994` | Valuta: `EUR` | Modalità: `demo` / `live`)
-> **Budget Isolato:** `100,00 €` base (`4 Cartucce × 25,00 €` + Interesse Composto di Kelly sui profitti netti realizzati, `100%` Flat ogni sera entro le `17:29 CET` -> `4/4` libere alle `09:00 CET`)
+> **Budget Isolato:** `100,00 €` base (`4 Cartucce × 25,00 €` + Interesse Composto di Kelly; Soluzione C1: Lun–Gio taglia rossi/deboli entro `17:29 CET` custodendo i soli verdi `>= VWAP` con taglio rapido `09:05 CET` se negativi/lenti; Venerdì `100%` Flat)
 > **Universo Attivo:** `39 Colossi EUR Zero-Fee` (`32 Campioni DAX40/AEX25` + `7 Big Tech USA quotate in EUR su XETRA`, `0,00%` FX, `0,00%` Tobin Tax, Streaming `0s GETTEX` + Esecuzione `0ms T212`)
 > **Target Cash-Out:** `130,00 €` (`+30,00%` netto — liquidazione totale automatica del portafoglio e blocco permanente anti-churn)
 > **Root Progetto Standalone:** `/Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e`
 
-Questo file fornisce la **memoria architetturale permanente** per **Antigravity IDE** e **Antigravity CLI (`agy`)**. Consulta [`CONSTRAINTS.md`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/CONSTRAINTS.md) per il contratto formale dei **32 Invarianti Matematici Bloccanti** verificati ad ogni deploy tramite `python3 -m unittest discover -s tests -p "test_*.py" -v`.
+Questo file fornisce la **memoria architetturale permanente** per **Antigravity IDE** e **Antigravity CLI (`agy`)**. Consulta [`CONSTRAINTS.md`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/CONSTRAINTS.md) per il contratto formale dei **33 Invarianti Matematici Bloccanti** verificati ad ogni deploy tramite `python3 -m unittest discover -s tests -p "test_*.py" -v`.
 
 ---
 
@@ -54,8 +54,8 @@ Il progetto è gestito tramite lo strumento CLI [`t212-cli.py`](file:///Users/an
     - [`Trading212Client`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/trading212_bot.py#L416): Client REST API v0 (`demo` / `live`) con `snap_mifid_tick_price`, `place_limit_order`, `place_market_order` e gestione rate-limit.
     - [`ItalianTaxTracker730`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/trading212_bot.py#L188): Motore fiscale italiano conforme a **Modello 730 / Redditi PF** (Art. 67-68 TUIR) con contabilità **LIFO multi-tranche**, isolamento per singolo `anno_fiscale` (`baseline_result_inizio_anno_eur`), assorbimento pluriennale dello `zainetto_minusvalenze_pregresse_eur`, **Quadro W (IVAFE `0,20%`)** e **Quadro T (`26%`)**.
     - [`atomic_write_json`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/trading212_bot.py#L44): Scrittura atomica POSIX (`tempfile` + `os.replace`) condivisa su tutti i file JSON di stato, fiscalità e cache.
-  - [`daily_eod_summary.py`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/daily_eod_summary.py): Report sintetico serale di fine giornata (`17:38 Europe/Rome`, dopo chiusura XETRA `17:30` e checkpoint Cloud `17:36`) con bilancio realizzato, movimenti chiusi e verifica `4/4` cartucce libere.
-  - [`.github/workflows/t212_cloud_h24.yml`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/.github/workflows/t212_cloud_h24.yml): Pipeline Cloud GitHub Actions H24 con staffetta automatica delle `12:25 Europe/Rome`, trasferimento cache candele `5m` + radar via `actions/cache@v4` e gate bloccante sui `32` invarianti matematici.
+  - [`daily_eod_summary.py`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/daily_eod_summary.py): Report sintetico serale di fine giornata (`17:38 Europe/Rome`, dopo chiusura XETRA `17:30` e checkpoint Cloud `17:36`) con bilancio realizzato, movimenti chiusi e stato della Custodia Notturna C1 / cartucce libere.
+  - [`.github/workflows/t212_cloud_h24.yml`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/.github/workflows/t212_cloud_h24.yml): Pipeline Cloud GitHub Actions H24 con staffetta automatica delle `12:25 Europe/Rome`, trasferimento cache candele `5m` + radar via `actions/cache@v4` e gate bloccante sui `33` invarianti matematici.
 - **Stato Live, Credenziali & Fiscalità (NON SOVRASCRIVERE MANUALMENTE):**
   - [`trading212_state.json`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/trading212_state.json): Stato JSON aggiornato ogni `~6 secondi` dal demone.
   - [`registro_fiscale_730.json`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/registro_fiscale_730.json): Registro fiscale persistente LIFO 730.
@@ -67,4 +67,4 @@ Il progetto è gestito tramite lo strumento CLI [`t212-cli.py`](file:///Users/an
 
 1. **Zero Cerotti:** Vietato aggiungere toppe condizionali ad-hoc per singoli ticker o orari arbitrari; ogni regola deve essere una legge continua, monotona e scale-invariant sulla volatilità (`ATR 5m`), sul `VWAP` o sul volume relativo (`RVOL`), validata da walk-forward empirico e bloccata in [`tests/test_quant_invariants.py`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/tests/test_quant_invariants.py).
 2. **Integrità Dati Live:** Non modificare mai manualmente le posizioni aperte o lo storico eseguiti in `trading212_state.json` e `registro_fiscale_730.json`.
-3. **Verifica Obbligatoria Pre-Push:** Prima di ogni commit/push su `origin/main`, eseguire sempre `python3 -m unittest discover -s tests -p "test_*.py" -v` (`32 / 32 OK`).
+3. **Verifica Obbligatoria Pre-Push:** Prima di ogni commit/push su `origin/main`, eseguire sempre `python3 -m unittest discover -s tests -p "test_*.py" -v` (`33 / 33 OK`).

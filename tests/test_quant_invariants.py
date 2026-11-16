@@ -690,11 +690,15 @@ class TestQuantInvariantsV11(unittest.TestCase):
         )
         self.assertIsNone(reason_1715_ride)
 
-        # E alle 17:25 scatta la chiusura integrale deterministica al 100% (anche su posizione in rosso -0.20%) -> 4/4 cartucce libere alle 09:00!
+        # E alle 17:25 (Lun-Gio C1): taglia deterministicamente i rossi/deboli mentre custodisce nella notte il vincitore sano >= VWAP!
         reason_1725_red = intel.evaluate_uncapped_exit(
             "SAPd_EQ", -0.0020, reg_1725, 0.0, ov_strong, riding_metrics, 0.0, False, False
         )
-        self.assertIn("CHIUSURA SERALE INTEGRALE 17:25", reason_1725_red or "")
+        self.assertIn("CHIUSURA SERALE SELETTIVA C1 17:25", reason_1725_red or "")
+        reason_1725_green_keep = intel.evaluate_uncapped_exit(
+            "SAPd_EQ", 0.0018, reg_1725, 0.0, ov_strong, riding_metrics, 0.0, False, False
+        )
+        self.assertIsNone(reason_1725_green_keep)
 
         # Verifica telemetria macro USA (>= +0.25% media ponderata con entrambi gli indici positivi)
         radar = daemon.OvernightWaveRadar()
@@ -1639,33 +1643,42 @@ class TestQuantInvariantsV11(unittest.TestCase):
             daemon.run_cycle(bot, intel, sc, _DummyRadar31(), 2)
         self.assertIn("APCd_EQ", [t for t, _ in broker.sells])
 
-        # Passo 3 (17:26 CET, Finestra Chiusura Integrale): aggiunge una 2ª posizione in rosso (EOANd_EQ) e simula errore HTTP transitorio
-        # sulla 1ª posizione (NVDd_EQ): EOANd_EQ viene comunque chiusa subito (isolamento guasti!) e NVDd_EQ viene chiusa 6s dopo!
+        # Passo 3 (17:26 CET Lun-Gio, Selezione Asimmetrica C1):
+        # Aggiunge 2 posizioni in rosso (EOANd_EQ e SIEd_EQ) e simula errore HTTP transitorio su EOANd_EQ:
+        # - SIEd_EQ viene chiusa subito (isolamento guasti!), EOANd_EQ viene chiusa 6s dopo;
+        # - NVDd_EQ (+0.17%, VWAP +0.16%, RSI 58) resta APERTA in Custodia Notturna C1 con eod_ref_price_eur salvato!
         broker.positions.append({"ticker": "EOANd_EQ", "quantity": 1.25, "averagePrice": 20.00, "currentPrice": 19.92, "ppl": -0.10})
+        broker.positions.append({"ticker": "SIEd_EQ", "quantity": 0.10, "averagePrice": 250.00, "currentPrice": 249.50, "ppl": -0.05})
         bot.tax_tracker.record_buy("EOANd_EQ", 1.25, 20.00)
-        broker.fail_once_tkr = "NVDd_EQ"
+        bot.tax_tracker.record_buy("SIEd_EQ", 0.10, 250.00)
+        broker.fail_once_tkr = "EOANd_EQ"
         dt_1726 = real_dt(2026, 11, 16, 17, 26, 0, tzinfo=daemon.MARKET_TZ)
         with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_1726.timestamp()):
             mock_dt.now.side_effect = lambda tz=None: dt_1726.astimezone(tz) if tz else dt_1726.replace(tzinfo=None)
             mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
             mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
             daemon.run_cycle(bot, intel, sc, _DummyRadar31(), 3)
-            self.assertEqual([p["ticker"] for p in broker.positions], ["NVDd_EQ"])  # EOANd_EQ chiusa subito nonostante l'errore su NVDd_EQ!
-            st_flat = daemon.run_cycle(bot, intel, sc, _DummyRadar31(), 4)
-        self.assertEqual(broker.positions, [])
-        self.assertEqual(st_flat["cartucce_4x25_eur"], [])
-        self.assertEqual(st_flat["capitale_impegnato_cartucce_eur"], 0.0)
+            self.assertEqual([p["ticker"] for p in broker.positions], ["NVDd_EQ", "EOANd_EQ"])  # SIEd_EQ chiusa subito nonostante errore su EOANd_EQ!
+            st_eod = daemon.run_cycle(bot, intel, sc, _DummyRadar31(), 4)
+        self.assertEqual([p["ticker"] for p in broker.positions], ["NVDd_EQ"])
+        self.assertEqual(len(st_eod["cartucce_4x25_eur"]), 1)
+        self.assertEqual(st_eod["cartucce_4x25_eur"][0]["ticker"], "NVDd_EQ")
+        self.assertEqual(st_eod["cartucce_4x25_eur"][0]["eod_ref_price_eur"], 150.25)
 
-        # Passo 4 (Mattino successivo ore 09:02 CET): 4/4 cartucce libere e ZERO blocchi residui sui titoli chiusi in lieve rosso ieri sera!
-        dt_next_0902 = real_dt(2026, 11, 17, 9, 2, 0, tzinfo=daemon.MARKET_TZ)
-        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_next_0902.timestamp()):
-            mock_dt.now.side_effect = lambda tz=None: dt_next_0902.astimezone(tz) if tz else dt_next_0902.replace(tzinfo=None)
+        # Passo 4 (Mattino successivo ore 09:06 CET): ZERO blocchi residui sui titoli chiusi ieri sera,
+        # e se NVDd_EQ portata dalla notte rallenta (+0.05% < +0.12%), il Taglio Mattutino C1 libera subito la 4ª cartuccia!
+        broker.positions[0]["currentPrice"] = 150.08
+        dt_next_0906 = real_dt(2026, 11, 17, 9, 6, 0, tzinfo=daemon.MARKET_TZ)
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_next_0906.timestamp()):
+            mock_dt.now.side_effect = lambda tz=None: dt_next_0906.astimezone(tz) if tz else dt_next_0906.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
             mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
             intel.sync_from_tax_data(bot.tax_tracker.data)
-            reg_morn = intel.get_intraday_regime(dt_next_0902)
-            self.assertTrue(reg_morn["allow_new_buys"])
             self.assertTrue(intel.can_buy_ticker("EOANd_EQ", 19.95))
             self.assertTrue(intel.can_buy_ticker("APCd_EQ", 300.10))
+            st_morn = daemon.run_cycle(bot, intel, sc, _DummyRadar31(), 5)
+        self.assertEqual(broker.positions, [])
+        self.assertEqual(st_morn["cartucce_4x25_eur"], [])
 
     def test_32_vectorial_sign_congruence_blocks_falling_knives_and_macro_crash_bypass(self):
         """Invariante #32: Congruenza vettoriale di segno sull'origine 0.0 blocca cascate ribassiste su VWAP e falsi bypass del Macro Crash Shield (caso reale 16/11)."""
@@ -1744,6 +1757,207 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertTrue(m_leader["strong_for_overnight"])
         self.assertGreater(m_leader["quant_buy_score"], 75.0)
         self.assertTrue(intel.is_eligible_entry_candidate(m_leader, reg_us_open, ov_crash_16nov))
+
+    def test_33_c1_asymmetric_overnight_carry_and_0905_morning_cull(self):
+        """Invariante #33: Soluzione C1 (Sera Lun-Gio custodisce solo verdi >= VWAP, Venerdì/Crash 100% flat; Mattina 09:05 taglia negativi/lenti senza penalità -22pt o ban 60m)."""
+        daemon.discover_and_verify_eur_giants(None)
+        real_dt = datetime.datetime
+
+        intel = daemon.HybridUncappedIntelligence()
+        ov_ok = {
+            "allow_overnight_hold": True,
+            "nasdaq_change_pct": 0.35,
+            "sp500_change_pct": 0.25,
+            "dax_change_pct": 0.20,
+            "vix_fear_change_pct": -1.2,
+            "vix_level": 15.6,
+            "us_indices_live_today": True,
+        }
+        ov_crash = dict(ov_ok, nasdaq_change_pct=-1.85, sp500_change_pct=-1.30, vix_fear_change_pct=9.5, vix_level=20.4)
+
+        m_green_vwap = {
+            "atr_5m_volatility_pct": 0.20,
+            "elastic_shield_act_raw": 0.0068,
+            "elastic_shield_pull_raw": 0.0016,
+            "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT",
+            "strong_for_overnight": True,
+            "green_hook_confirmed": True,
+            "has_fresh_intraday_feed": True,
+            "vwap_dist_pct": 0.14,
+            "rsi_5m": 56.0,
+            "live_price_eur": 100.22,
+            "quant_buy_score": 82.0,
+        }
+        m_sub_vwap = dict(m_green_vwap, vwap_dist_pct=-0.08, green_hook_confirmed=False, strong_for_overnight=False)
+
+        # 1) Sera Lunedì-Giovedì (17:26 CET): taglia rossi e sotto-VWAP, custodisce solo vincitore sano >= VWAP;
+        #    sotto Crash Macro USA o di Venerdì sera chiude il 100% anche dei vincitori!
+        dt_thu_1726 = real_dt(2026, 11, 19, 17, 26, 0, tzinfo=daemon.MARKET_TZ)  # Giovedì
+        dt_fri_1726 = real_dt(2026, 11, 20, 17, 26, 0, tzinfo=daemon.MARKET_TZ)  # Venerdì
+        reg_thu_1726 = intel.get_intraday_regime(dt_thu_1726)
+        reg_fri_1726 = intel.get_intraday_regime(dt_fri_1726)
+
+        intel.position_open_time["SAPd_EQ"] = (dt_thu_1726 - datetime.timedelta(hours=1)).timestamp()
+        self.assertIn(
+            "CHIUSURA SERALE SELETTIVA C1 17:25",
+            intel.evaluate_uncapped_exit("SAPd_EQ", -0.0015, reg_thu_1726, 0.0, ov_ok, m_green_vwap) or "",
+        )
+        self.assertIn(
+            "CHIUSURA SERALE SELETTIVA C1 17:25",
+            intel.evaluate_uncapped_exit("SAPd_EQ", 0.0015, reg_thu_1726, 0.0, ov_ok, m_sub_vwap) or "",
+        )
+        self.assertIsNone(
+            intel.evaluate_uncapped_exit("SAPd_EQ", 0.0022, reg_thu_1726, 0.0, ov_ok, m_green_vwap)
+        )
+        self.assertIn(
+            "CHIUSURA SERALE C1 ANTI-CROLLO MACRO 17:25",
+            intel.evaluate_uncapped_exit("SAPd_EQ", 0.0022, reg_thu_1726, 0.0, ov_crash, m_green_vwap) or "",
+        )
+        self.assertIn(
+            "CHIUSURA INTEGRALE PRE-WEEKEND 17:25",
+            intel.evaluate_uncapped_exit("SAPd_EQ", 0.0022, reg_fri_1726, 0.0, ov_ok, m_green_vwap) or "",
+        )
+
+        # 2) Persistenza notturna su disco (08:50 CET boot VM) + Taglio Mattutino 09:02 vs 09:06:
+        #    Anche se giovedì il picco era +0.46% (PRE_SHIELD_1A armato), alle 09:02 un lieve -0.06% attende le 09:05
+        #    (evitando lo spread d'asta XETRA), mentre un gap-down profondo -0.35% taglia subito alle 09:02!
+        state_payload = {
+            "timestamp": "2026-11-19T17:35:00+01:00",
+            "cartucce_4x25_eur": [
+                {
+                    "slot": 1,
+                    "ticker": "SAPd_EQ",
+                    "status": "ESEGUITA_IN_PORTAFOGLIO",
+                    "avg_price_eur": 100.00,
+                    "current_price_eur": 100.12,
+                    "peak_pnl_pct": 0.46,
+                    "opened_at_ts": real_dt(2026, 11, 19, 16, 10, 0, tzinfo=daemon.MARKET_TZ).timestamp(),
+                    "eod_ref_price_eur": 100.12,
+                }
+            ],
+        }
+        with open(self._tmp_bot_state, "w", encoding="utf-8") as f:
+            json.dump(state_payload, f)
+
+        dt_fri_0902 = real_dt(2026, 11, 20, 9, 2, 0, tzinfo=daemon.MARKET_TZ)
+        dt_fri_0906 = real_dt(2026, 11, 20, 9, 6, 0, tzinfo=daemon.MARKET_TZ)
+        intel_reloaded = daemon.HybridUncappedIntelligence()
+        self.assertAlmostEqual(intel_reloaded.eod_ref_price.get("SAPd_EQ", 0.0), 100.12, places=2)
+
+        reg_0902 = intel_reloaded.get_intraday_regime(dt_fri_0902)
+        reg_0906 = intel_reloaded.get_intraday_regime(dt_fri_0906)
+
+        m_open_mild_red = dict(m_sub_vwap, live_price_eur=99.94)
+        self.assertIsNone(
+            intel_reloaded.evaluate_uncapped_exit("SAPd_EQ", -0.0006, reg_0902, 0.0, ov_ok, m_open_mild_red)
+        )
+        m_open_deep_gap = dict(m_sub_vwap, live_price_eur=99.65)
+        self.assertIn(
+            "TAGLIO MATTUTINO C1 - GAP-DOWN PROFONDO APERTURA",
+            intel_reloaded.evaluate_uncapped_exit("SAPd_EQ", -0.0035, reg_0902, 0.0, ov_ok, m_open_deep_gap) or "",
+        )
+
+        # Alle 09:06 CET (candela 5m chiusa):
+        # - Negativa in totale (-0.06%) -> taglio istantaneo!
+        self.assertIn(
+            "TAGLIO MATTUTINO C1 - NEGATIVA IN APERTURA",
+            intel_reloaded.evaluate_uncapped_exit("SAPd_EQ", -0.0006, reg_0906, 0.0, ov_ok, m_open_mild_red) or "",
+        )
+        # - Ancora positiva sul prezzo medio (+0.16% = 100.16), ma scesa nella notte da 100.46 (-0.30% notturno) senza rimbalzo -> taglio istantaneo!
+        intel_reloaded.eod_ref_price["SAPd_EQ"] = 100.46
+        m_overnight_drop = dict(m_sub_vwap, live_price_eur=100.16)
+        self.assertIn(
+            "TAGLIO MATTUTINO C1 - NEGATIVA IN APERTURA",
+            intel_reloaded.evaluate_uncapped_exit("SAPd_EQ", 0.0016, reg_0906, 0.0, ov_ok, m_overnight_drop) or "",
+        )
+        # - Positiva ma lenta (+0.08% < +0.12%) oppure +0.24% senza uncino verde -> taglio immediato per liberare la cartuccia!
+        m_slow_green = dict(m_green_vwap, live_price_eur=100.08)
+        self.assertIn(
+            "TAGLIO MATTUTINO C1 - POSIZIONE NOTTURNA LENTA/STALLO",
+            intel_reloaded.evaluate_uncapped_exit("SAPd_EQ", 0.0008, reg_0906, 0.0, ov_ok, m_slow_green) or "",
+        )
+        m_stalled_plus = dict(m_sub_vwap, live_price_eur=100.55)
+        self.assertIn(
+            "TAGLIO MATTUTINO C1 - POSIZIONE NOTTURNA LENTA/STALLO",
+            intel_reloaded.evaluate_uncapped_exit("SAPd_EQ", 0.0055, reg_0906, 0.0, ov_ok, m_stalled_plus) or "",
+        )
+        # - Gap-Up veloce con spinta verde sopra VWAP (+0.62%, green_hook=True, vwap=+0.18%, 100.46 -> 100.62) -> CORRE SENZA TETTO!
+        m_fast_gap_up = dict(m_green_vwap, live_price_eur=100.62, vwap_dist_pct=0.18)
+        self.assertIsNone(
+            intel_reloaded.evaluate_uncapped_exit("SAPd_EQ", 0.0062, reg_0906, 0.0, ov_ok, m_fast_gap_up)
+        )
+        # - Nuova posizione intraday aperta stamattina alle 09:03 (+0.04%): NON è portata dalla notte -> mai toccata dal taglio C1!
+        intel_reloaded.position_open_time["NVDd_EQ"] = real_dt(2026, 11, 20, 9, 3, 0, tzinfo=daemon.MARKET_TZ).timestamp()
+        self.assertIsNone(
+            intel_reloaded.evaluate_uncapped_exit("NVDd_EQ", 0.0004, reg_0906, 0.0, ov_ok, m_slow_green)
+        )
+
+        # 3) Verifica ciclo completo: un taglio mattutino C1 in rosso (-0.18%) registra la minusvalenza LIFO esatta
+        #    con overnight_carry_cleanup=True, ZERO penalità -22pt nello scanner e ZERO ban da 60m!
+        class _MorningCullBroker:
+            def __init__(self):
+                self.positions = [{"ticker": "SAPd_EQ", "quantity": 0.25, "averagePrice": 100.00, "currentPrice": 99.82, "ppl": -0.05}]
+                self.sells = []
+
+            def get_open_positions(self):
+                return list(self.positions)
+
+            def get_pending_orders(self):
+                return []
+
+            def get_account_cash(self):
+                return {"result": 0.0, "free": 75.0}
+
+            def place_market_order(self, ticker: str, quantity: float):
+                self.sells.append((ticker, quantity))
+                self.positions = []
+                return {"id": "CULL_SAP"}
+
+        cull_broker = _MorningCullBroker()
+        cull_bot = daemon.Trading212AutonomousBot(client=cull_broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
+        cull_bot.tax_tracker = ItalianTaxTracker730(filepath=self._tmp_tax_path)
+        cull_bot.tax_tracker.data["lotti_aperti_lifo"]["SAPd_EQ"] = [{
+            "timestamp": "2026-11-19T16:10:00+01:00",
+            "ticker": "SAPd_EQ",
+            "isin": "DE0007164600",
+            "quantity": 0.25,
+            "price_eur": 100.00,
+            "total_eur": 25.00,
+        }]
+        cull_bot.tax_tracker.save()
+        cull_sc = daemon.QuantMarketScanner()
+        cull_sc.scan_all = lambda **kw: {"SAPd_EQ": dict(m_open_mild_red, ticker="SAPd_EQ", name="SAP", squad="SQUADRA_2_CAVALCA_ONDA", sector="SOFTWARE_CLOUD", day_range_pct=1.2, rvol_ratio=1.1, entry_hook_confirmed=False)}
+
+        class _DummyRadar33:
+            def evaluate_overnight_wave(self):
+                return ov_ok
+
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_fri_0906.timestamp()):
+            mock_dt.now.side_effect = lambda tz=None: dt_fri_0906.astimezone(tz) if tz else dt_fri_0906.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            intel_cull = daemon.HybridUncappedIntelligence()
+            daemon.run_cycle(cull_bot, intel_cull, cull_sc, _DummyRadar33(), 1)
+
+        self.assertEqual(len(cull_broker.sells), 1)
+        last_op = cull_bot.tax_tracker.data["operazioni_chiuse"][-1]
+        self.assertTrue(last_op.get("overnight_carry_cleanup"))
+        self.assertLess(last_op["risultato_fiscale_eur"], 0.0)
+        self.assertFalse(intel_cull.last_sell_was_loss.get("SAPd_EQ", False))
+
+        # Dopo i soli 15 minuti fisiologici (09:22 CET = +16m, ben prima dei 60m di uno stop intraday!), SAPd_EQ è già riacquistabile senza penalità -22pt!
+        dt_fri_0922 = real_dt(2026, 11, 20, 9, 22, 0, tzinfo=daemon.MARKET_TZ)
+        rally_closes = [99.70 + i * 0.04 for i in range(20)]
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_fri_0922.timestamp()), patch(
+            "urllib.request.urlopen", return_value=_FakeHTTPResp(_make_yahoo_payload(rally_closes))
+        ):
+            mock_dt.now.side_effect = lambda tz=None: dt_fri_0922.astimezone(tz) if tz else dt_fri_0922.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            intel_cull.sync_from_tax_data(cull_bot.tax_tracker.data)
+            self.assertTrue(intel_cull.can_buy_ticker("SAPd_EQ", 100.46, 0.15))
+            m_clean = daemon.QuantMarketScanner().fetch_5m_metrics("SAPd_EQ", tax_data=cull_bot.tax_tracker.data)
+        self.assertFalse(m_clean["had_loss_today"])
 
 
 if __name__ == "__main__":
