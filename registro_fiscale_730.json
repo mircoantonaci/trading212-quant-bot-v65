@@ -35,6 +35,16 @@
         "price_eur": 130.5219,
         "total_eur": 24.76
       }
+    ],
+    "BAYNd_EQ": [
+      {
+        "timestamp": "2026-11-16T10:20:16",
+        "ticker": "BAYNd_EQ",
+        "isin": "DE000BAY0017",
+        "quantity": 0.434,
+        "price_eur": 57.0046,
+        "total_eur": 24.74
+      }
     ]
   },
   "operazioni_chiuse": [
