@@ -623,16 +623,23 @@ class TestQuantInvariantsV11(unittest.TestCase):
         cur_day_pullback = 2.05
         self.assertTrue(peak_day >= daemon.DAILY_VAULT_TRIGGER_EUR and round(peak_day - cur_day_pullback, 2) >= daemon.DAILY_VAULT_GIVEBACK_EUR)
 
-    def test_19_pre_close_1715_buy_freeze_and_strict_overnight_wave(self):
-        """Invariante #19: dalle 17:15 CET stop totale nuovi acquisti (e Switch Stagnazione spento) + Onda USA >= +0,25%."""
+    def test_19_pre_close_runway_1700_buy_freeze_and_continuous_evening_flat(self):
+        """Invariante #19: Rampa selettività 16:00-17:00, stop nuovi acquisti >= 17:00, Decompressione C0 17:00-17:25 e Chiusura Integrale 17:25-17:29."""
         intel = daemon.HybridUncappedIntelligence()
-        dt_1714 = datetime.datetime(2026, 11, 12, 17, 14, 0, tzinfo=daemon.MARKET_TZ)
+        dt_1659 = datetime.datetime(2026, 11, 12, 16, 59, 0, tzinfo=daemon.MARKET_TZ)
+        dt_1700 = datetime.datetime(2026, 11, 12, 17, 0, 0, tzinfo=daemon.MARKET_TZ)
         dt_1715 = datetime.datetime(2026, 11, 12, 17, 15, 0, tzinfo=daemon.MARKET_TZ)
-        reg_1714 = intel.get_intraday_regime(dt_1714)
+        dt_1725 = datetime.datetime(2026, 11, 12, 17, 25, 0, tzinfo=daemon.MARKET_TZ)
+        reg_1659 = intel.get_intraday_regime(dt_1659)
+        reg_1700 = intel.get_intraday_regime(dt_1700)
         reg_1715 = intel.get_intraday_regime(dt_1715)
-        self.assertTrue(reg_1714["allow_new_buys"])
-        self.assertFalse(reg_1715["allow_new_buys"])
-        self.assertTrue(reg_1715["is_pre_close_window"])
+        reg_1725 = intel.get_intraday_regime(dt_1725)
+        self.assertTrue(reg_1659["allow_new_buys"])
+        self.assertGreater(reg_1659["evening_runway_progress"], 0.95)
+        self.assertFalse(reg_1700["allow_new_buys"])
+        self.assertTrue(reg_1700["is_pre_close_window"])
+        self.assertFalse(reg_1700["is_hard_flat_window"])
+        self.assertTrue(reg_1725["is_hard_flat_window"])
 
         elite_cand = {
             "ticker": "ASMLa_EQ", "live_price_eur": 1350.0, "vwap_dist_pct": 0.20,
@@ -640,14 +647,18 @@ class TestQuantInvariantsV11(unittest.TestCase):
             "rsi_5m": 55.0, "green_hook_confirmed": True, "atr_5m_volatility_pct": 0.22,
             "day_range_pct": 1.8, "kaufman_efficiency_ratio": 0.65, "strong_for_overnight": True,
         }
+        mediocre_late_cand = dict(elite_cand, quant_buy_score=64.0, atr_5m_volatility_pct=0.125)
         ov_strong = {
             "allow_overnight_hold": True, "nasdaq_change_pct": 0.80, "sp500_change_pct": 0.60,
             "dax_change_pct": 0.50, "vix_fear_change_pct": -2.0, "vix_level": 15.0,
         }
-        self.assertTrue(intel.is_eligible_entry_candidate(elite_cand, reg_1714, ov_strong))
-        self.assertFalse(intel.is_eligible_entry_candidate(elite_cand, reg_1715, ov_strong))
+        # Alle 16:59 il razzo elite (Score 92, ATR 0.22%) passa, mentre il titolo lento/mediocre (Score 64, ATR 0.125%) è bloccato dalla rampa!
+        self.assertTrue(intel.is_eligible_entry_candidate(elite_cand, reg_1659, ov_strong))
+        self.assertFalse(intel.is_eligible_entry_candidate(mediocre_late_cand, reg_1659, ov_strong))
+        # Dalle 17:00 stop totale nuovi ingressi anche per Score 92!
+        self.assertFalse(intel.is_eligible_entry_candidate(elite_cand, reg_1700, ov_strong))
 
-        # Switch Stagnazione (#9) NON deve mai vendere per ruotare quando allow_new_buys == False (es. Pausa Pranzo o >= 17:15)
+        # Switch Stagnazione (#9) attivo alle 16:59 ma spento durante Pausa Pranzo, mentre alle 17:15 scatta la Decompressione Serale Continua!
         reg_lunch = intel.get_intraday_regime(datetime.datetime(2026, 11, 12, 12, 0, 0, tzinfo=daemon.MARKET_TZ))
         intel.position_open_time["SAPd_EQ"] = datetime.datetime.now().timestamp() - 3600.0
         intel.peak_pnl_pct["SAPd_EQ"] = 0.0020
@@ -656,24 +667,38 @@ class TestQuantInvariantsV11(unittest.TestCase):
             "fase_onda_sinusoidale": "ONDA_DISCENDENTE_O_DEBOLE", "strong_for_overnight": False,
             "green_hook_confirmed": False, "vwap_dist_pct": -0.12, "rsi_5m": 44.0, "quant_buy_score": 18.0,
         }
-        reason_1714 = intel.evaluate_uncapped_exit(
-            "SAPd_EQ", 0.0018, reg_1714, 92.0, ov_strong, stag_metrics, 0.0, True, False
+        reason_1659 = intel.evaluate_uncapped_exit(
+            "SAPd_EQ", 0.0018, reg_1659, 92.0, ov_strong, stag_metrics, 0.0, True, False
         )
-        self.assertIn("BLINDATURA #9", reason_1714 or "")
+        self.assertIn("BLINDATURA #9", reason_1659 or "")
         intel.peak_pnl_pct["SAPd_EQ"] = 0.0020
         reason_lunch = intel.evaluate_uncapped_exit(
             "SAPd_EQ", 0.0018, reg_lunch, 92.0, ov_strong, stag_metrics, 0.0, True, False
         )
         self.assertIsNone(reason_lunch)
         intel.peak_pnl_pct["SAPd_EQ"] = 0.0020
-        reason_1715 = intel.evaluate_uncapped_exit(
+        reason_1715_stall = intel.evaluate_uncapped_exit(
             "SAPd_EQ", 0.0018, reg_1715, 92.0, ov_strong, stag_metrics, 0.0, True, False
         )
-        self.assertIsNone(reason_1715)
+        self.assertIn("DECOMPRESSIONE SERALE", reason_1715_stall or "")
 
-        # Verifica selettività Onda Notturna USA (>= +0.25% media ponderata con entrambi gli indici positivi)
+        # Ma se alle 17:15 l'onda verde è ancora in piena spinta (green_hook=True, vwap >= 0), lascia correre fino allo stallo o alle 17:25!
+        riding_metrics = dict(stag_metrics, green_hook_confirmed=True, vwap_dist_pct=0.14, rsi_5m=56.0, strong_for_overnight=True)
+        intel.peak_pnl_pct["SAPd_EQ"] = 0.0018
+        reason_1715_ride = intel.evaluate_uncapped_exit(
+            "SAPd_EQ", 0.0018, reg_1715, 0.0, ov_strong, riding_metrics, 0.0, False, False
+        )
+        self.assertIsNone(reason_1715_ride)
+
+        # E alle 17:25 scatta la chiusura integrale deterministica al 100% (anche su posizione in rosso -0.20%) -> 4/4 cartucce libere alle 09:00!
+        reason_1725_red = intel.evaluate_uncapped_exit(
+            "SAPd_EQ", -0.0020, reg_1725, 0.0, ov_strong, riding_metrics, 0.0, False, False
+        )
+        self.assertIn("CHIUSURA SERALE INTEGRALE 17:25", reason_1725_red or "")
+
+        # Verifica telemetria macro USA (>= +0.25% media ponderata con entrambi gli indici positivi)
         radar = daemon.OvernightWaveRadar()
-        lukewarm_map = {"%5EGSPC": (0.12, 5900.0, True), "%5EIXIC": (0.15, 19000.0, True), "%5EGDAXI": (0.10, 19200.0, True), "%5EVIX": (0.2, 16.5, True)}
+        lukewarm_map = {"%5EGSPC": (0.12, 5900.0, True), "%5EGDAXI": (0.10, 19200.0, True), "%5EIXIC": (0.15, 19000.0, True), "%5EVIX": (0.2, 16.5, True)}
         with patch.object(radar, "_fetch_index_snapshot", side_effect=lambda s: lukewarm_map[s]):
             res_flat = radar.evaluate_overnight_wave(force=True)
         self.assertFalse(res_flat["allow_overnight_hold"])
@@ -1528,6 +1553,119 @@ class TestQuantInvariantsV11(unittest.TestCase):
         finally:
             if os.path.exists(tmp_z):
                 os.remove(tmp_z)
+
+    def test_31_intelligent_evening_flat_by_close_4x4_morning_reset(self):
+        """Invariante #31: Decompressione C0 17:00-17:25 (onda verde corre, stallo/rimbalzo incassa), isolamento guasti multi-posizione 17:26 e 4/4 cartucce libere alle 09:00."""
+        daemon.discover_and_verify_eur_giants(None)
+        real_dt = datetime.datetime
+
+        class _EveningFlatBroker:
+            def __init__(self):
+                self.positions = [
+                    {"ticker": "NVDd_EQ", "quantity": 0.16, "averagePrice": 150.00, "currentPrice": 150.25, "ppl": 0.04},   # +0.17% in piena onda verde -> corre alle 17:08!
+                    {"ticker": "SAPd_EQ", "quantity": 0.12, "averagePrice": 200.00, "currentPrice": 200.22, "ppl": 0.03},   # +0.11% in stallo -> incassa alle 17:08!
+                    {"ticker": "APCd_EQ", "quantity": 0.08, "averagePrice": 300.00, "currentPrice": 299.25, "ppl": -0.06},  # -0.25% -> attende rimbalzo fino alle 17:21!
+                ]
+                self.pending = [{"id": "PEND_LATE_1", "ticker": "SIEd_EQ", "quantity": 0.09, "type": "LIMIT"}]
+                self.cancelled = []
+                self.sells = []
+                self.fail_once_tkr = None
+
+            def get_open_positions(self):
+                return list(self.positions)
+
+            def get_pending_orders(self):
+                return list(self.pending)
+
+            def get_account_cash(self):
+                return {"result": 0.0, "free": 25.0}
+
+            def cancel_order(self, order_id):
+                self.cancelled.append(order_id)
+                self.pending = [o for o in self.pending if o["id"] != order_id]
+
+            def place_market_order(self, ticker: str, quantity: float):
+                if self.fail_once_tkr == ticker:
+                    self.fail_once_tkr = None
+                    raise RuntimeError("Transient 502 on first close attempt")
+                self.sells.append((ticker, quantity))
+                self.positions = [p for p in self.positions if p["ticker"] != ticker]
+                return {"id": f"SELL_{ticker}"}
+
+        broker = _EveningFlatBroker()
+        bot = daemon.Trading212AutonomousBot(client=broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
+        bot.tax_tracker = ItalianTaxTracker730(filepath=self._tmp_tax_path)
+        for p0 in broker.positions:
+            bot.tax_tracker.record_buy(p0["ticker"], p0["quantity"], p0["averagePrice"])
+        bot.tax_tracker.save()
+        intel = daemon.HybridUncappedIntelligence()
+        intel.prev_open_snapshot.clear()
+        sc = daemon.QuantMarketScanner()
+
+        def _metrics_evening():
+            return {
+                "NVDd_EQ": {"ticker": "NVDd_EQ", "name": "NVIDIA", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "CHIP_ACCELERATORI_AI", "live_price_eur": 150.25, "rsi_5m": 58.0, "vwap_dist_pct": 0.16, "atr_5m_volatility_pct": 0.24, "day_range_pct": 2.0, "rvol_ratio": 1.5, "quant_buy_score": 85.0, "green_hook_confirmed": True, "entry_hook_confirmed": True, "strong_for_overnight": True, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT"},
+                "SAPd_EQ": {"ticker": "SAPd_EQ", "name": "SAP", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "SOFTWARE_CLOUD", "live_price_eur": 200.22, "rsi_5m": 46.0, "vwap_dist_pct": -0.05, "atr_5m_volatility_pct": 0.18, "day_range_pct": 1.5, "rvol_ratio": 1.1, "quant_buy_score": 0.0, "green_hook_confirmed": False, "entry_hook_confirmed": False, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "ONDA_DISCENDENTE_O_DEBOLE"},
+                "APCd_EQ": {"ticker": "APCd_EQ", "name": "Apple", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "ECOSISTEMA_MOBILE_HARDWARE", "live_price_eur": 299.25, "rsi_5m": 44.0, "vwap_dist_pct": -0.08, "atr_5m_volatility_pct": 0.17, "day_range_pct": 1.4, "rvol_ratio": 1.0, "quant_buy_score": 0.0, "green_hook_confirmed": False, "entry_hook_confirmed": False, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "ONDA_DISCENDENTE_O_DEBOLE"},
+            }
+
+        sc.scan_all = lambda **kw: _metrics_evening()
+
+        class _DummyRadar31:
+            def evaluate_overnight_wave(self):
+                return {"verdict": "OK", "allow_overnight_hold": True, "nasdaq_change_pct": 0.4, "sp500_change_pct": 0.3, "dax_change_pct": 0.2, "vix_fear_change_pct": -1.0, "vix_level": 15.5, "us_indices_live_today": True}
+
+        # Passo 1 (17:08 CET, tau=0.32 -> harvest_floor = +0.069%):
+        # - Cancella subito PEND_LATE_1
+        # - Incassa SAPd_EQ (+0.11% in stallo)
+        # - Lascia correre NVDd_EQ (+0.17% in onda verde) e concede tempo di recupero ad APCd_EQ (-0.25%)!
+        dt_1708 = real_dt(2026, 11, 16, 17, 8, 0, tzinfo=daemon.MARKET_TZ)
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_1708.timestamp()):
+            mock_dt.now.side_effect = lambda tz=None: dt_1708.astimezone(tz) if tz else dt_1708.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            daemon.run_cycle(bot, intel, sc, _DummyRadar31(), 1)
+        self.assertEqual(broker.cancelled, ["PEND_LATE_1"])
+        self.assertEqual([t for t, _ in broker.sells], ["SAPd_EQ"])
+
+        # Passo 2 (17:21 CET, tau=0.84 -> harvest_floor = -0.014%):
+        # APCd_EQ rimbalza quasi a pareggio (299.97 EUR = -0.01%) e stalla -> uscita intelligente su rimbalzo!
+        broker.positions[1]["currentPrice"] = 299.97
+        dt_1721 = real_dt(2026, 11, 16, 17, 21, 0, tzinfo=daemon.MARKET_TZ)
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_1721.timestamp()):
+            mock_dt.now.side_effect = lambda tz=None: dt_1721.astimezone(tz) if tz else dt_1721.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            daemon.run_cycle(bot, intel, sc, _DummyRadar31(), 2)
+        self.assertIn("APCd_EQ", [t for t, _ in broker.sells])
+
+        # Passo 3 (17:26 CET, Finestra Chiusura Integrale): aggiunge una 2ª posizione in rosso (EOANd_EQ) e simula errore HTTP transitorio
+        # sulla 1ª posizione (NVDd_EQ): EOANd_EQ viene comunque chiusa subito (isolamento guasti!) e NVDd_EQ viene chiusa 6s dopo!
+        broker.positions.append({"ticker": "EOANd_EQ", "quantity": 1.25, "averagePrice": 20.00, "currentPrice": 19.92, "ppl": -0.10})
+        bot.tax_tracker.record_buy("EOANd_EQ", 1.25, 20.00)
+        broker.fail_once_tkr = "NVDd_EQ"
+        dt_1726 = real_dt(2026, 11, 16, 17, 26, 0, tzinfo=daemon.MARKET_TZ)
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_1726.timestamp()):
+            mock_dt.now.side_effect = lambda tz=None: dt_1726.astimezone(tz) if tz else dt_1726.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            daemon.run_cycle(bot, intel, sc, _DummyRadar31(), 3)
+            self.assertEqual([p["ticker"] for p in broker.positions], ["NVDd_EQ"])  # EOANd_EQ chiusa subito nonostante l'errore su NVDd_EQ!
+            st_flat = daemon.run_cycle(bot, intel, sc, _DummyRadar31(), 4)
+        self.assertEqual(broker.positions, [])
+        self.assertEqual(st_flat["cartucce_4x25_eur"], [])
+        self.assertEqual(st_flat["capitale_impegnato_cartucce_eur"], 0.0)
+
+        # Passo 4 (Mattino successivo ore 09:02 CET): 4/4 cartucce libere e ZERO blocchi residui sui titoli chiusi in lieve rosso ieri sera!
+        dt_next_0902 = real_dt(2026, 11, 17, 9, 2, 0, tzinfo=daemon.MARKET_TZ)
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_next_0902.timestamp()):
+            mock_dt.now.side_effect = lambda tz=None: dt_next_0902.astimezone(tz) if tz else dt_next_0902.replace(tzinfo=None)
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            intel.sync_from_tax_data(bot.tax_tracker.data)
+            reg_morn = intel.get_intraday_regime(dt_next_0902)
+            self.assertTrue(reg_morn["allow_new_buys"])
+            self.assertTrue(intel.can_buy_ticker("EOANd_EQ", 19.95))
+            self.assertTrue(intel.can_buy_ticker("APCd_EQ", 300.10))
 
 
 if __name__ == "__main__":

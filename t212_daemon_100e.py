@@ -832,18 +832,18 @@ class OvernightWaveRadar:
         )
 
         if is_positive_wave:
-            verdict = "ONDA_NOTTURNA_POSITIVA_CAVALCA_IL_GAP_09_00"
+            verdict = "ONDA_MACRO_POSITIVA_DECOMPRESSIONE_MORBIDA_17_00"
             explanation = (
                 f"Wall Street spinge al rialzo (Nasdaq {nasdaq_pct:+.2f}%, S&P500 {sp500_pct:+.2f}%, "
-                f"VIX {vix_level:.1f} [{vix_pct:+.2f}%]): ALTA PROBABILITÀ di salto positivo domattina alle 09:00. "
-                "Il bot MANTIENE APERTE per la notte le cartucce forti sopra il VWAP!"
+                f"VIX {vix_level:.1f} [{vix_pct:+.2f}%]): tra le 17:00 e le 17:25 il bot lascia correre le onde verdi "
+                "fino al primo stallo e chiude il 100% entro le 17:29 per ripartire alle 09:00 con 4/4 cartucce libere!"
             )
         else:
-            verdict = "ONDA_NOTTURNA_INCERTA_O_NEGATIVA_SCUDO_ATTIVO"
+            verdict = "ONDA_MACRO_CAUTA_RACCOLTO_RAPIDO_VERSO_FLAT_17_25"
             explanation = (
-                f"Prudenza notturna (Nasdaq {nasdaq_pct:+.2f}%, S&P500 {sp500_pct:+.2f}%, "
-                f"DAX {dax_pct:+.2f}%, VIX {vix_level:.1f} [{vix_pct:+.2f}%]): alle 17:15 il bot INCASSA IN CONTANTI EUR "
-                "i profitti fatti in giornata per evitare cali notturni e comprare a sconto alle 09:00!"
+                f"Prudenza macro (Nasdaq {nasdaq_pct:+.2f}%, S&P500 {sp500_pct:+.2f}%, "
+                f"DAX {dax_pct:+.2f}%, VIX {vix_level:.1f} [{vix_pct:+.2f}%]): dalle 17:00 stop nuovi acquisti, "
+                "raccolto progressivo su stallo/rimbalzo e liquidazione integrale 17:25-17:29 (4/4 cartucce libere alle 09:00)!"
             )
 
         self.cached_radar = {
@@ -1720,13 +1720,12 @@ class QuantMarketScanner:
 
 class HybridUncappedIntelligence:
     """
-    Motore Ibrido 2+2 Senza Tetto + Selettore Onda Notturna (17:15-17:30):
-    - Di giorno: non taglia MAI i rialzi mentre corrono (Scudo Mobile Senza Tetto).
-    - Alle 17:15-17:30: interroga il Radar Wall Street + VIX + VWAP:
-      * Se si prevede un'Onda Notturna Positiva E il titolo è forte sopra il VWAP -> MANTIENE APERTO
-        per catturare il salto ("Gap Up") delle 09:00 del mattino dopo!
-      * Se si prevede un'Onda Notturna Negativa/Incerta (o il titolo è debole) -> VENDE E INCASSA
-        prima delle 17:30 per proteggere al 100% i profitti!
+    Motore Ibrido 2+2 Senza Tetto + Chiusura Serale Integrale Intelligente (Zero Overnight / 4x4 Libere alle 09:00):
+    - Di giorno (09:00-16:00): non taglia MAI i rialzi mentre corrono (Scudo Mobile Senza Tetto).
+    - 16:00-17:00: Rampa Continua di Pista Pre-Chiusura (richiede velocità ATR e Score crescenti col calare del tempo residuo).
+    - 17:00-17:25: Stop Nuovi Acquisti + Decompressione Continua C0 (lascia correre le onde verdi con uncino attivo,
+      incassa istantaneamente su stallo/inversione e chiude su rimbalzo di pareggio le posizioni deboli).
+    - 17:25-17:30: Chiusura Integrale Garantita al 100% in EUR prima dell'asta XETRA per ripartire ogni mattina con 4/4 cartucce libere!
     """
 
     def __init__(self) -> None:
@@ -1832,16 +1831,20 @@ class HybridUncappedIntelligence:
         now_rome = now if now.tzinfo is not None else now.replace(tzinfo=MARKET_TZ)
         now_ny = now_rome.astimezone(US_EASTERN_TZ)
         hm = now_rome.hour * 60 + now_rome.minute
+        exact_hm = now_rome.hour * 60.0 + now_rome.minute + now_rome.second / 60.0
         ny_hm = now_ny.hour * 60 + now_ny.minute
         us_open = ny_hm >= 9 * 60 + 30  # 09:30 ET apertura reale NYSE/Nasdaq (DST-safe tutto l'anno)
         is_friday = (now_rome.weekday() == 4)
         if now_rome.weekday() >= 5:
             return {
                 "code": "WEEKEND_BORSA_CHIUSA",
-                "description": "Mercati chiusi per il weekend",
+                "description": "Mercati chiusi per il weekend (100% Cash EUR, 4/4 cartucce pronte per lunedì 09:00)",
                 "market_open": False,
                 "allow_new_buys": False,
                 "is_pre_close_window": False,
+                "is_hard_flat_window": False,
+                "evening_unwind_progress": 0.0,
+                "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
                 "is_friday_pre_weekend": False,
                 "us_market_live": False,
@@ -1849,10 +1852,13 @@ class HybridUncappedIntelligence:
         if hm < 9 * 60 or hm >= 17 * 60 + 30:
             return {
                 "code": "DOPOBORSA_NOTTURNO",
-                "description": "Borsa XETRA chiusa (09:00-17:30)",
+                "description": "Borsa XETRA chiusa (09:00-17:30) — Portafoglio 100% liquido per apertura 09:00",
                 "market_open": False,
                 "allow_new_buys": False,
                 "is_pre_close_window": False,
+                "is_hard_flat_window": False,
+                "evening_unwind_progress": 0.0,
+                "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
                 "is_friday_pre_weekend": False,
                 "us_market_live": False,
@@ -1860,10 +1866,13 @@ class HybridUncappedIntelligence:
         if 9 * 60 <= hm < 9 * 60 + 30:
             return {
                 "code": "FASE_1A_RACCOLTO_GAP_MATTUTINO_ANTI_GAP_FILL",
-                "description": "09:00-09:30: Scudo Ultra-Reattivo (+0,52% / -0,14%) per blindare il salto della notte prima che si sgonfi",
+                "description": "09:00-09:30: 4/4 Cartucce Libere all'Apertura + Scudo Rapido (+0,52% / -0,14%) contro i ritracciamenti mattutini",
                 "market_open": True,
                 "allow_new_buys": True,
                 "is_pre_close_window": False,
+                "is_hard_flat_window": False,
+                "evening_unwind_progress": 0.0,
+                "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": True,
                 "is_friday_pre_weekend": False,
                 "us_market_live": False,
@@ -1875,17 +1884,38 @@ class HybridUncappedIntelligence:
                 "market_open": True,
                 "allow_new_buys": True,
                 "is_pre_close_window": False,
+                "is_hard_flat_window": False,
+                "evening_unwind_progress": 0.0,
+                "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
                 "is_friday_pre_weekend": False,
                 "us_market_live": False,
             }
-        if 17 * 60 + 15 <= hm < 17 * 60 + 30:
+        if 17 * 60 + 25 <= hm < 17 * 60 + 30:
             return {
-                "code": "FASE_4_RADAR_SELETTORE_ONDA_NOTTURNA_E_WEEKEND",
-                "description": "17:15-17:30: Blocco Nuovi Acquisti Pre-Chiusura + Selettore Onda Notturna & Scudo Weekend Venerdì",
+                "code": "FASE_4B_CHIUSURA_SERALE_INTEGRALE_4X4_LIBERE",
+                "description": "17:25-17:30 CET: Chiusura Integrale Fine Giornata (100% Cash EUR prima dell'asta XETRA, 4/4 cartucce libere alle 09:00)",
                 "market_open": True,
                 "allow_new_buys": False,
                 "is_pre_close_window": True,
+                "is_hard_flat_window": True,
+                "evening_unwind_progress": 1.0,
+                "evening_runway_progress": 1.0,
+                "is_morning_gap_harvest": False,
+                "is_friday_pre_weekend": is_friday,
+                "us_market_live": us_open,
+            }
+        if 17 * 60 <= hm < 17 * 60 + 25:
+            unwind_tau = round(min(1.0, max(0.0, (exact_hm - 1020.0) / 25.0)), 4)
+            return {
+                "code": "FASE_4A_DECOMPRESSIONE_INTELLIGENTE_SERALE",
+                "description": "17:00-17:25 CET: Stop Nuovi Acquisti + Decompressione Continua (lascia correre onde verdi, incassa su stallo/rimbalzo verso 4/4 libere)",
+                "market_open": True,
+                "allow_new_buys": False,
+                "is_pre_close_window": True,
+                "is_hard_flat_window": False,
+                "evening_unwind_progress": unwind_tau,
+                "evening_runway_progress": 1.0,
                 "is_morning_gap_harvest": False,
                 "is_friday_pre_weekend": is_friday,
                 "us_market_live": us_open,
@@ -1898,6 +1928,9 @@ class HybridUncappedIntelligence:
                 "market_open": True,
                 "allow_new_buys": False,
                 "is_pre_close_window": False,
+                "is_hard_flat_window": False,
+                "evening_unwind_progress": 0.0,
+                "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
                 "is_friday_pre_weekend": False,
                 "is_lunch_desert_window": True,
@@ -1910,6 +1943,9 @@ class HybridUncappedIntelligence:
                 "market_open": True,
                 "allow_new_buys": True,
                 "is_pre_close_window": False,
+                "is_hard_flat_window": False,
+                "evening_unwind_progress": 0.0,
+                "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
                 "is_friday_pre_weekend": False,
                 "is_lunch_desert_window": True,
@@ -1917,6 +1953,7 @@ class HybridUncappedIntelligence:
                 "max_active_slots": 2,
                 "us_market_live": False,
             }
+        runway_prog = round(min(1.0, max(0.0, (exact_hm - 960.0) / 60.0)), 4) if exact_hm >= 960.0 else 0.0
         if not us_open:
             return {
                 "code": "FASE_2_IBRIDA_2X2_BLINDATA_V5",
@@ -1924,6 +1961,9 @@ class HybridUncappedIntelligence:
                 "market_open": True,
                 "allow_new_buys": True,
                 "is_pre_close_window": False,
+                "is_hard_flat_window": False,
+                "evening_unwind_progress": 0.0,
+                "evening_runway_progress": runway_prog,
                 "is_morning_gap_harvest": False,
                 "is_friday_pre_weekend": False,
                 "is_lunch_desert_window": False,
@@ -1931,10 +1971,17 @@ class HybridUncappedIntelligence:
             }
         return {
             "code": "FASE_3_ONDA_WALL_STREET_SENZA_TETTO",
-            "description": "09:30 ET (15:30 CET) - 17:15 CET: Spinta Wall Street - Pre-Scudo Salva-Utile + Scudo Mobile Senza Tetto",
+            "description": (
+                "16:00-17:00 CET: Rampa Selettività Pre-Chiusura (solo razzi veloci prima della decompressione 17:00)"
+                if runway_prog > 0.0
+                else "09:30 ET (15:30 CET) - 16:00 CET: Spinta Wall Street - Pre-Scudo Salva-Utile + Scudo Mobile Senza Tetto"
+            ),
             "market_open": True,
             "allow_new_buys": True,
             "is_pre_close_window": False,
+            "is_hard_flat_window": False,
+            "evening_unwind_progress": 0.0,
+            "evening_runway_progress": runway_prog,
             "is_morning_gap_harvest": False,
             "is_friday_pre_weekend": False,
             "us_market_live": True,
@@ -2076,45 +2123,40 @@ class HybridUncappedIntelligence:
                     f"metto subito in salvo +{pnl_pct*100:.2f}% prima dell'onda ribassista!"
                 )
 
+        if regime.get("is_hard_flat_window"):
+            return (
+                f"CHIUSURA SERALE INTEGRALE 17:25 (4/4 CARTUCCE LIBERE ALLE 09:00): "
+                f"liquidazione fine giornata di {ticker} a {pnl_pct*100:+.2f}% prima dell'asta XETRA 17:30 "
+                f"(0 rischio gap notturno/weekend)"
+            )
+
         if regime.get("is_pre_close_window"):
-            wall_street_positive = bool(overnight_radar.get("allow_overnight_hold", False))
-
-            # A) Blocco Falso Positivo (Tripla prova di inversione dalla cresta) - SOLO IN UTILE
-            if sine_phase == "CRESTA_IN_INVERSIONE_FALSO_POSITIVO" and pnl_pct >= 0.0010:
+            # V11.5 Legge Continua C0 di Decompressione Serale (17:00 -> 17:25 CET, tau in [0, 1)):
+            # 1) Lascia correre le onde verdi finché green_hook_confirmed resta attivo (con trailing stretto anti-sgonfiamento);
+            # 2) Appena la spinta stalla, incassa lungo la rampa lineare C0 (+0,12% alle 17:00 -> 0,00% alle 17:18 -> -0,04% alle 17:25);
+            # 3) Sotto vero Scudo Anti-Crollo Macro dopo le 17:10 (tau >= 0,40), evacua subito la debolezza sotto VWAP.
+            tau = min(1.0, max(0.0, float(regime.get("evening_unwind_progress", 0.0))))
+            evening_pull = max(0.0008, round(shield_pull * (0.75 - 0.35 * tau), 4))
+            if new_peak >= 0.0022 and pnl_pct >= 0.0006 and (new_peak - pnl_pct) >= evening_pull:
                 return (
-                    f"BLOCCO FALSO POSITIVO NOTTURNO (17:15): {ticker} mostra tripla prova di inversione "
-                    f"dalla cresta (RSI {ticker_metrics.get('rsi_5m')} + candela rossa + calo volumi) -> "
-                    f"INCASSO SUBITO +{pnl_pct*100:.2f}%!"
+                    f"DECOMPRESSIONE SERALE - TRAILING CRESTA ({ticker}): blindato rialzo serale "
+                    f"dal picco +{new_peak*100:.2f}% a +{pnl_pct*100:.2f}% verso 4/4 cartucce libere!"
                 )
-
-            # B) BLINDATURA #5: Scudo Weekend del Venerdì (63 ore di mercati chiusi) - SOLO IN UTILE
-            if regime.get("is_friday_pre_weekend") and pnl_pct >= 0.0010:
-                super_friday_ok = (
-                    stock_is_strong
-                    and nasdaq_chg >= 0.50
-                    and (vix_chg <= 0.0 or (vix_lvl < 16.5 and vix_chg <= 3.0))
-                )
-                if not super_friday_ok:
-                    return (
-                        f"BLINDATURA #5 - SCUDO WEEKEND VENERDÌ (17:15): incasso +{pnl_pct*100:.2f}% "
-                        f"in EUR per evitare 63 ore di rischio geopolitico nel fine settimana!"
-                    )
-
-            # C) BLINDATURA #4: Evacuazione su Pericolo Wall Street - SOLO IN UTILE (Mai cristallizzare perdite alle 17:15!)
-            if not wall_street_positive:
-                if pnl_pct >= 0.0010:
-                    return (
-                        f"BLINDATURA #4 - EVACUAZIONE NOTTURNA SU PERICOLO USA: Wall Street negativa -> "
-                        f"metto in salvo +{pnl_pct*100:.2f}% in contanti prima della notte!"
-                    )
-
-            # D) Se Wall Street è positiva: tieni i Veri Positivi, incassa i titoli deboli in utile (>= +0.30%)
-            if wall_street_positive and stock_is_strong:
-                return None
-            if pnl_pct >= 0.0030:
+            harvest_floor = round(0.0012 - 0.0016 * tau, 4)
+            riding_green_wave = (
+                green_hook_ok
+                and (vwap_dist >= -0.02 or cur_rsi_5m >= 50.0)
+                and sine_phase != "CRESTA_IN_INVERSIONE_FALSO_POSITIVO"
+            )
+            if pnl_pct >= harvest_floor and not riding_green_wave:
                 return (
-                    f"SCUDO SELETTIVO 17:15: titolo in fase '{sine_phase}' -> "
-                    f"incasso +{pnl_pct*100:.2f}% prima della chiusura!"
+                    f"DECOMPRESSIONE SERALE CONTINUA (soglia {harvest_floor*100:+.2f}%, tau={tau:.2f}): "
+                    f"stallo d'impulso su {ticker} -> uscita intelligente a {pnl_pct*100:+.2f}% per liberare cartuccia!"
+                )
+            if tau >= 0.40 and macro_crash_shield_active and not green_hook_ok and vwap_dist < -0.15:
+                return (
+                    f"DECOMPRESSIONE SERALE ANTI-CROLLO MACRO (Nasdaq {nasdaq_chg:+.2f}%, VIX {vix_chg:+.2f}%): "
+                    f"uscita anticipata su debolezza {ticker} ({pnl_pct*100:+.2f}%) prima delle 17:25!"
                 )
 
         # BLINDATURA #9 (V11.1 Switch Stagnazione Ricalibrato sulla Scala Lineare >= 80,0 pt):
@@ -2215,7 +2257,9 @@ class HybridUncappedIntelligence:
 
         score = float(cand.get("quant_buy_score", 0.0))
         rsi_5m = float(cand.get("rsi_5m", 100.0))
-        min_required_score = 62.0 if daily_vault_active else BASE_MIN_BUY_SCORE
+        runway_prog = min(1.0, max(0.0, float(regime.get("evening_runway_progress", 0.0))))
+        base_min_score = 62.0 if daily_vault_active else BASE_MIN_BUY_SCORE
+        min_required_score = round(base_min_score + 22.0 * runway_prog, 2)
         entry_hook_ok = bool(cand.get("entry_hook_confirmed", cand.get("green_hook_confirmed", False)))
         if (
             rsi_5m > 66.0
@@ -2228,9 +2272,10 @@ class HybridUncappedIntelligence:
         cand_atr_pct = float(cand.get("atr_5m_volatility_pct", 0.0))
         cand_day_range = float(cand.get("day_range_pct", 0.0))
         cand_er = float(cand.get("kaufman_efficiency_ratio", 0.0))
-        # V11.3 Fisica Elastica ATR-VWAP: vieta le lumache morte (<0,115% ATR corrente) e scala il tetto VWAP
-        # proporzionalmente alla volatilità reale (min(0,50%, max(0,28%, 3,5 * ATR)), mai invertito a 0,65%!).
-        if cand_atr_pct < 0.115:
+        # V11.5 Fisica Elastica ATR-VWAP + Rampa Pista Serale C0 (0,115% fino alle 16:00 -> 0,170% verso le 17:00):
+        # impedisce ingressi lenti negli ultimi minuti prima della decompressione serale!
+        min_atr_required = round(0.115 + 0.055 * runway_prog, 4)
+        if cand_atr_pct < min_atr_required:
             return False
         max_vwap_entry = min(0.50, max(0.28, round(cand_atr_pct * 3.5, 4)))
         if cand_vwap_dist > max_vwap_entry or cand_vwap_dist < -0.35:
@@ -2400,11 +2445,17 @@ def run_cycle(
     now = now_rome.replace(tzinfo=None)
     regime = intel.get_intraday_regime(now_rome)
 
-    # 1. Leggi posizioni aperte e ordini pendenti da Trading 212 (con pulizia ordini LIMIT orfani all'avvio e sweep periodico anche a 4/4)
+    # 1. Leggi posizioni aperte e ordini pendenti da Trading 212 (con pulizia ordini LIMIT orfani all'avvio, sweep periodico e pre-chiusura)
     positions = client.get_open_positions()
     first_pending_sweep = not getattr(bot, "_pending_swept_once", False)
     periodic_pending_sweep = (cycle_num % 10 == 0)
-    if len(positions) < bot.cartridges or getattr(bot, "_had_pending_orders", False) or first_pending_sweep or periodic_pending_sweep:
+    if (
+        len(positions) < bot.cartridges
+        or getattr(bot, "_had_pending_orders", False)
+        or first_pending_sweep
+        or periodic_pending_sweep
+        or bool(regime.get("is_pre_close_window", False))
+    ):
         setattr(bot, "_pending_swept_once", True)
         time.sleep(0.10)
         raw_pending = client.get_pending_orders()
@@ -2453,10 +2504,10 @@ def run_cycle(
         cur_px = float(p.get("currentPrice", 0.0))
         scanner.update_t212_live_price(tkr, cur_px)
 
-    # 2. Scansione quantitativa Split-Speed + GETTEX 0s (6s sulle cartucce aperte / 24s sui 39 Colossi o subito se slot libero)
+    # 2. Scansione quantitativa Split-Speed + GETTEX 0s (6s sulle cartucce aperte / 24s sui 39 Colossi o subito se slot libero a ingressi aperti)
     overnight_status = radar.evaluate_overnight_wave()
     dax_live_pct = float(overnight_status.get("dax_change_pct", 0.0))
-    need_full_scan = len(pos_by_ticker) < bot.cartridges
+    need_full_scan = (len(pos_by_ticker) < bot.cartridges) and bool(regime.get("allow_new_buys", True))
     quant_metrics = scanner.scan_all(
         tax_data=bot.tax_tracker.data,
         dax_change_pct=dax_live_pct,
@@ -2612,41 +2663,50 @@ def run_cycle(
         )
         if exit_reason and regime["market_open"]:
             prev_vault_flag = daily_vault_active
-            client.place_market_order(ticker=tkr, quantity=-qty_open)
-            closed_op = bot.tax_tracker.record_sell(
-                ticker=tkr,
-                sell_qty=qty_open,
-                sell_price_eur=cur_price,
-                fallback_avg_price_eur=avg_price,
-            )
-            real_orders_executed = True
-            sold_in_cycle = True
-            freed_cash_in_cycle = round(freed_cash_in_cycle + (qty_open * cur_price * 0.996), 2)
-            (
-                today_realized_net_eur,
-                today_peak_realized_eur,
-                today_giveback_eur,
-                daily_vault_active,
-            ) = _compute_daily_vault_metrics(bot.tax_tracker.data, today_prefix)
-            intel.register_sell(
-                tkr,
-                cur_price,
-                was_loss=(float(closed_op.get("risultato_fiscale_eur", 0.0)) < 0.0),
-            )
-            msg = (
-                f"{exit_reason} su {tkr} ({meta['name']}): vendute {qty_open} azioni "
-                f"a {cur_price:.4f} EUR (Risultato fiscale: {closed_op['risultato_fiscale_eur']:+.2f} EUR, 0,00 EUR comm.)"
-            )
-            actions_taken.append(msg)
-            pos_by_ticker.pop(tkr, None)
-            if daily_vault_active != prev_vault_flag:
-                bench_candidates = _refresh_bench_candidates(daily_vault_active)
-            time.sleep(0.25)
-            continue
+            try:
+                client.place_market_order(ticker=tkr, quantity=-qty_open)
+                closed_op = bot.tax_tracker.record_sell(
+                    ticker=tkr,
+                    sell_qty=qty_open,
+                    sell_price_eur=cur_price,
+                    fallback_avg_price_eur=avg_price,
+                )
+                real_orders_executed = True
+                sold_in_cycle = True
+                freed_cash_in_cycle = round(freed_cash_in_cycle + (qty_open * cur_price * 0.996), 2)
+                (
+                    today_realized_net_eur,
+                    today_peak_realized_eur,
+                    today_giveback_eur,
+                    daily_vault_active,
+                ) = _compute_daily_vault_metrics(bot.tax_tracker.data, today_prefix)
+                intel.register_sell(
+                    tkr,
+                    cur_price,
+                    was_loss=(float(closed_op.get("risultato_fiscale_eur", 0.0)) < 0.0),
+                )
+                msg = (
+                    f"{exit_reason} su {tkr} ({meta['name']}): vendute {qty_open} azioni "
+                    f"a {cur_price:.4f} EUR (Risultato fiscale: {closed_op['risultato_fiscale_eur']:+.2f} EUR, 0,00 EUR comm.)"
+                )
+                actions_taken.append(msg)
+                pos_by_ticker.pop(tkr, None)
+                if daily_vault_active != prev_vault_flag:
+                    bench_candidates = _refresh_bench_candidates(daily_vault_active)
+                time.sleep(0.25)
+                continue
+            except Exception as sell_err:
+                actions_taken.append(f"Riprovo chiusura su {tkr} al prossimo ciclo 6s ({sell_err})")
 
-        # B) Ribilanciamento automatico SOLO IN UTILE se la cartuccia rimane aperta e supera 1.24x la taglia composta (preserva lotto LIFO residuo)
+        # B) Ribilanciamento automatico SOLO IN UTILE se la cartuccia rimane aperta, fuori dalla chiusura serale, e supera 1.24x la taglia composta
         max_allowed_cartridge = max(31.00, round(dynamic_cartridge_eur * 1.24, 2))
-        if cost_eur > max_allowed_cartridge and regime["market_open"] and cur_price > avg_price and pnl_pct >= 0.0010:
+        if (
+            cost_eur > max_allowed_cartridge
+            and regime["market_open"]
+            and not bool(regime.get("is_pre_close_window", False))
+            and cur_price > avg_price
+            and pnl_pct >= 0.0010
+        ):
             target_qty = round(dynamic_cartridge_eur / cur_price, 4)
             excess_qty = round(qty_open - target_qty, 4)
             if excess_qty > 0 and (excess_qty * cur_price) >= 2.00:
@@ -2695,9 +2755,9 @@ def run_cycle(
         current_floor_pct = round(stage_floor * 100, 2) if stage_floor is not None else None
 
         overnight_decision_preview = (
-            "TIENI PER SALTO 09:00 (Onda Positiva)"
-            if (overnight_status.get("allow_overnight_hold") and tkr_m.get("strong_for_overnight"))
-            else "INCASSA PRIMA DELLE 17:30 SE IN UTILE (Protezione Onda Negativa)"
+            "ONDA VERDE IN CORSA -> DECOMPRESSIONE SU STALLO (100% FLAT ENTRO 17:29, 4/4 LIBERE 09:00)"
+            if bool(tkr_m.get("green_hook_confirmed"))
+            else "RACCOLTO SU STALLO/RIMBALZO 17:00-17:25 -> CHIUSURA INTEGRALE 17:25-17:29 (4/4 LIBERE 09:00)"
         )
 
         invested_100e += cost_eur
@@ -3114,7 +3174,7 @@ def run_cycle(
             f"5. Matrice Markowitz {len(ASSET_PROFILES)} Colossi EUR Zero-Fee + Breadth ({round(market_breadth_above_vwap*100,1):.1f}% >= VWAP, 4 settori distinti)",
             "6. Curva Monotona Bilaterale C0 Salva-Utile + Climax Retention + Scudo Mobile Integrale (Zero salti sinistri e zero buchi su flash-gap)",
             "7. Airbag Simmetrico Elastico su ATR (~-0,54%..-0,72% oltre 8m + Taglio Catastrofico Istantaneo -1,35% sotto 8m)",
-            "8. Orologio DST-Safe America/New_York (Cecchino Mezzogiorno Max 2/4 Slot 11:15-08:27 ET, Stop Macro 08:28-08:35 ET & Pre-Chiusura >=17:15 CET)",
+            "8. Orologio DST-Safe + Chiusura Serale Intelligente 4/4 Libere (Rampa 16:00-17:00, Decompressione C0 17:00-17:25, Flat Integrale 17:25-17:29 CET)",
             f"9. Trailing Daily Vault (Picco oggi: {today_peak_realized_eur:+.2f} EUR, Attiva su ritracciamento >=0,30 EUR: {daily_vault_active}) + Riconciliazione 730 Simmetrica",
         ],
         "regime_mercato_attivo": regime,

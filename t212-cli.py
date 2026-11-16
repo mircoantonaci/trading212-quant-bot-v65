@@ -192,7 +192,7 @@ def cmd_status() -> None:
     if radar:
         print("\n" + "─" * 90)
         print(
-            f" 🌙 RADAR ONDA NOTTURNA (17:15-17:30) — "
+            f" 🌙 RADAR MACRO & DECOMPRESSIONE SERALE 4/4 LIBERE (17:00-17:29) — "
             f"Nasdaq: {fmt_pct(float(radar.get('nasdaq_change_pct', 0.0)))} | "
             f"S&P500: {fmt_pct(float(radar.get('sp500_change_pct', 0.0)))} | "
             f"DAX: {fmt_pct(float(radar.get('dax_change_pct', 0.0)))} | "
