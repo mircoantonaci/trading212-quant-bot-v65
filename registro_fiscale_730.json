@@ -35,6 +35,16 @@
         "price_eur": 875.8865,
         "total_eur": 24.7
       }
+    ],
+    "IFXd_EQ": [
+      {
+        "timestamp": "2026-11-16T15:51:38",
+        "ticker": "IFXd_EQ",
+        "isin": "DE0006231004",
+        "quantity": 0.5,
+        "price_eur": 49.08,
+        "total_eur": 24.54
+      }
     ]
   },
   "operazioni_chiuse": [
