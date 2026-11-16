@@ -6,24 +6,24 @@
   "valore_finale_stimato_quadro_w_eur": 100.86,
   "giorni_detenzione_ivafe": 365,
   "lotti_aperti_lifo": {
-    "RHMd_EQ": [
+    "NVDd_EQ": [
       {
-        "timestamp": "2026-11-16T14:40:17",
-        "ticker": "RHMd_EQ",
-        "isin": "DE0007030009",
-        "quantity": 0.0314,
-        "price_eur": 788.8535,
-        "total_eur": 24.77
+        "timestamp": "2026-11-16T16:11:57",
+        "ticker": "NVDd_EQ",
+        "isin": "US67066G1040",
+        "quantity": 0.1709,
+        "price_eur": 145.0556,
+        "total_eur": 24.79
       }
     ],
-    "ADYENa_EQ": [
+    "DTGd_EQ": [
       {
-        "timestamp": "2026-11-16T15:38:35",
-        "ticker": "ADYENa_EQ",
-        "isin": "NL0012969182",
-        "quantity": 0.0282,
-        "price_eur": 875.8865,
-        "total_eur": 24.7
+        "timestamp": "2026-11-16T16:13:36",
+        "ticker": "DTGd_EQ",
+        "isin": "DE000DTR0CK8",
+        "quantity": 0.57,
+        "price_eur": 43.3509,
+        "total_eur": 24.71
       }
     ]
   },
@@ -1773,12 +1773,30 @@
       "corrispettivo_eur": 24.47,
       "costo_lifo_eur": 24.62,
       "risultato_fiscale_eur": -0.15
+    },
+    {
+      "timestamp": "2026-11-16T16:07:51",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.0314,
+      "sell_price_eur": 783.8,
+      "corrispettivo_eur": 24.61,
+      "costo_lifo_eur": 24.77,
+      "risultato_fiscale_eur": -0.16
+    },
+    {
+      "timestamp": "2026-11-16T16:15:24",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.0282,
+      "sell_price_eur": 869.7,
+      "corrispettivo_eur": 24.53,
+      "costo_lifo_eur": 24.7,
+      "risultato_fiscale_eur": -0.17
     }
   ],
-  "totale_corrispettivi_vendita_eur": 4760.72,
-  "totale_costi_carico_lifo_eur": 4764.98,
+  "totale_corrispettivi_vendita_eur": 4809.86,
+  "totale_costi_carico_lifo_eur": 4814.45,
   "plusvalenze_lorde_eur": 15.25,
-  "minusvalenze_lorde_eur": 18.64,
+  "minusvalenze_lorde_eur": 18.99,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
