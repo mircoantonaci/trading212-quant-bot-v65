@@ -16,16 +16,6 @@
         "total_eur": 24.77
       }
     ],
-    "ENRd_EQ": [
-      {
-        "timestamp": "2026-11-16T09:31:08",
-        "ticker": "ENRd_EQ",
-        "isin": "DE000ENER6Y0",
-        "quantity": 0.1897,
-        "price_eur": 130.5219,
-        "total_eur": 24.76
-      }
-    ],
     "BAYNd_EQ": [
       {
         "timestamp": "2026-11-16T10:20:16",
@@ -1711,12 +1701,21 @@
       "corrispettivo_eur": 24.65,
       "costo_lifo_eur": 24.78,
       "risultato_fiscale_eur": -0.13
+    },
+    {
+      "timestamp": "2026-11-16T13:11:34",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.1897,
+      "sell_price_eur": 129.59,
+      "corrispettivo_eur": 24.58,
+      "costo_lifo_eur": 24.76,
+      "risultato_fiscale_eur": -0.18
     }
   ],
-  "totale_corrispettivi_vendita_eur": 4564.11,
-  "totale_costi_carico_lifo_eur": 4567.49,
-  "plusvalenze_lorde_eur": 14.87,
-  "minusvalenze_lorde_eur": 17.34,
+  "totale_corrispettivi_vendita_eur": 4588.69,
+  "totale_costi_carico_lifo_eur": 4592.25,
+  "plusvalenze_lorde_eur": 15.05,
+  "minusvalenze_lorde_eur": 17.7,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
