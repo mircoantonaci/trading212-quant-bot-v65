@@ -5,28 +5,7 @@
   "valore_iniziale_quadro_w_eur": 100.0,
   "valore_finale_stimato_quadro_w_eur": 100.86,
   "giorni_detenzione_ivafe": 365,
-  "lotti_aperti_lifo": {
-    "DTEd_EQ": [
-      {
-        "timestamp": "2026-11-16T16:29:33",
-        "ticker": "DTEd_EQ",
-        "isin": "DE0005557508",
-        "quantity": 0.91,
-        "price_eur": 27.0989,
-        "total_eur": 24.66
-      }
-    ],
-    "FB2Ad_EQ": [
-      {
-        "timestamp": "2026-11-16T16:50:51",
-        "ticker": "FB2Ad_EQ",
-        "isin": "US30303M1027",
-        "quantity": 0.0433,
-        "price_eur": 572.9792,
-        "total_eur": 24.81
-      }
-    ]
-  },
+  "lotti_aperti_lifo": {},
   "operazioni_chiuse": [
     {
       "timestamp": "2026-11-05T09:44:17",
@@ -1818,12 +1797,30 @@
       "corrispettivo_eur": 24.96,
       "costo_lifo_eur": 24.95,
       "risultato_fiscale_eur": 0.01
+    },
+    {
+      "timestamp": "2026-11-16T17:25:01",
+      "ticker": "FB2Ad_EQ",
+      "quantity": 0.0433,
+      "sell_price_eur": 573.1,
+      "corrispettivo_eur": 24.82,
+      "costo_lifo_eur": 24.81,
+      "risultato_fiscale_eur": 0.01
+    },
+    {
+      "timestamp": "2026-11-16T17:25:02",
+      "ticker": "DTEd_EQ",
+      "quantity": 0.91,
+      "sell_price_eur": 27.0,
+      "corrispettivo_eur": 24.57,
+      "costo_lifo_eur": 24.66,
+      "risultato_fiscale_eur": -0.09
     }
   ],
-  "totale_corrispettivi_vendita_eur": 4884.05,
-  "totale_costi_carico_lifo_eur": 4888.9,
-  "plusvalenze_lorde_eur": 15.35,
-  "minusvalenze_lorde_eur": 19.34,
+  "totale_corrispettivi_vendita_eur": 4933.44,
+  "totale_costi_carico_lifo_eur": 4938.37,
+  "plusvalenze_lorde_eur": 15.36,
+  "minusvalenze_lorde_eur": 19.44,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
