@@ -35,6 +35,16 @@
         "price_eur": 59.4048,
         "total_eur": 24.95
       }
+    ],
+    "FB2Ad_EQ": [
+      {
+        "timestamp": "2026-11-16T16:50:51",
+        "ticker": "FB2Ad_EQ",
+        "isin": "US30303M1027",
+        "quantity": 0.0433,
+        "price_eur": 572.9792,
+        "total_eur": 24.81
+      }
     ]
   },
   "operazioni_chiuse": [
