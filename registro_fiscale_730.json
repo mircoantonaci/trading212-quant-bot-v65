@@ -25,6 +25,16 @@
         "price_eur": 43.3509,
         "total_eur": 24.71
       }
+    ],
+    "DTEd_EQ": [
+      {
+        "timestamp": "2026-11-16T16:29:33",
+        "ticker": "DTEd_EQ",
+        "isin": "DE0005557508",
+        "quantity": 0.91,
+        "price_eur": 27.0989,
+        "total_eur": 24.66
+      }
     ]
   },
   "operazioni_chiuse": [
