@@ -2,7 +2,11 @@ name: "🛡️ Trading 212 Autonomous Quant Bot V11.5 LTS (Cloud H24 Zero Cerott
 
 on:
   schedule:
-    # Avvio DST-Safe alle 06:35 UTC (07:35 CET inverno / 08:35 CEST estate): sempre in anticipo sulle 09:00 Europe/Rome!
+    # Sonde scaglionate anti-ritardo coda GitHub Actions (se arrivano prima delle 07:30 Europe/Rome escono in 2s a costo zero):
+    - cron: "15 23 * * 0-4"
+    - cron: "20 1 * * 1-5"
+    - cron: "25 3 * * 1-5"
+    # Avvio nominale DST-Safe alle 06:35 UTC (07:35 CET inverno / 08:35 CEST estate): sempre in anticipo sulle 09:00 Europe/Rome!
     - cron: "35 6 * * 1-5"
     # Watchdog di sicurezza non distruttivo (11:45 UTC = 12:45 CET / 13:45 CEST, cancel-in-progress: false)
     - cron: "45 11 * * 1-5"
@@ -77,6 +81,11 @@ jobs:
           HOUR=$(date +%H)
           MIN=$(date +%M)
           HM=$((10#$HOUR * 60 + 10#$MIN))
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$HM" -lt 450 ]; then
+            echo "⏭️ Sonda cron scaglionata eseguita in anticipo (ore $(date +%H:%M) Europe/Rome < 07:30). Uscita immediata a costo zero."
+            echo "ran_session=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ "$HM" -ge 1056 ]; then
             echo "🏁 Borsa Europea già chiusa (ore $(date +%H:%M) Europe/Rome). Uscita immediata watchdog."
             echo "ran_session=false" >> "$GITHUB_OUTPUT"

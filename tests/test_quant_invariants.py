@@ -1599,18 +1599,24 @@ class TestQuantInvariantsV11(unittest.TestCase):
         broker = _EveningFlatBroker()
         bot = daemon.Trading212AutonomousBot(client=broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
         bot.tax_tracker = ItalianTaxTracker730(filepath=self._tmp_tax_path)
-        for p0 in broker.positions:
-            bot.tax_tracker.record_buy(p0["ticker"], p0["quantity"], p0["averagePrice"])
-        bot.tax_tracker.save()
-        intel = daemon.HybridUncappedIntelligence()
+        dt_open_1615 = real_dt(2026, 11, 16, 16, 15, 0, tzinfo=daemon.MARKET_TZ)
+        with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_open_1615.timestamp()):
+            mock_dt.now.side_effect = lambda tz=None: dt_open_1615.astimezone(tz) if tz else dt_open_1615.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            for p0 in broker.positions:
+                bot.tax_tracker.record_buy(p0["ticker"], p0["quantity"], p0["averagePrice"])
+            bot.tax_tracker.save()
+            intel = daemon.HybridUncappedIntelligence()
         intel.prev_open_snapshot.clear()
         sc = daemon.QuantMarketScanner()
 
         def _metrics_evening():
+            px_map = {p["ticker"]: p["currentPrice"] for p in broker.positions}
             return {
-                "NVDd_EQ": {"ticker": "NVDd_EQ", "name": "NVIDIA", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "CHIP_ACCELERATORI_AI", "live_price_eur": 150.25, "rsi_5m": 58.0, "vwap_dist_pct": 0.16, "atr_5m_volatility_pct": 0.24, "day_range_pct": 2.0, "rvol_ratio": 1.5, "quant_buy_score": 85.0, "green_hook_confirmed": True, "entry_hook_confirmed": True, "strong_for_overnight": True, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT"},
-                "SAPd_EQ": {"ticker": "SAPd_EQ", "name": "SAP", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "SOFTWARE_CLOUD", "live_price_eur": 200.22, "rsi_5m": 46.0, "vwap_dist_pct": -0.05, "atr_5m_volatility_pct": 0.18, "day_range_pct": 1.5, "rvol_ratio": 1.1, "quant_buy_score": 0.0, "green_hook_confirmed": False, "entry_hook_confirmed": False, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "ONDA_DISCENDENTE_O_DEBOLE"},
-                "APCd_EQ": {"ticker": "APCd_EQ", "name": "Apple", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "ECOSISTEMA_MOBILE_HARDWARE", "live_price_eur": 299.25, "rsi_5m": 44.0, "vwap_dist_pct": -0.08, "atr_5m_volatility_pct": 0.17, "day_range_pct": 1.4, "rvol_ratio": 1.0, "quant_buy_score": 0.0, "green_hook_confirmed": False, "entry_hook_confirmed": False, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "ONDA_DISCENDENTE_O_DEBOLE"},
+                "NVDd_EQ": {"ticker": "NVDd_EQ", "name": "NVIDIA", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "CHIP_ACCELERATORI_AI", "live_price_eur": px_map.get("NVDd_EQ", 150.25), "rsi_5m": 58.0, "vwap_dist_pct": 0.16, "atr_5m_volatility_pct": 0.24, "day_range_pct": 2.0, "rvol_ratio": 1.5, "quant_buy_score": 85.0, "green_hook_confirmed": True, "entry_hook_confirmed": True, "strong_for_overnight": True, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT"},
+                "SAPd_EQ": {"ticker": "SAPd_EQ", "name": "SAP", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "SOFTWARE_CLOUD", "live_price_eur": px_map.get("SAPd_EQ", 200.22), "rsi_5m": 46.0, "vwap_dist_pct": -0.05, "atr_5m_volatility_pct": 0.18, "day_range_pct": 1.5, "rvol_ratio": 1.1, "quant_buy_score": 0.0, "green_hook_confirmed": False, "entry_hook_confirmed": False, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "ONDA_DISCENDENTE_O_DEBOLE"},
+                "APCd_EQ": {"ticker": "APCd_EQ", "name": "Apple", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "ECOSISTEMA_MOBILE_HARDWARE", "live_price_eur": px_map.get("APCd_EQ", 299.25), "rsi_5m": 44.0, "vwap_dist_pct": -0.08, "atr_5m_volatility_pct": 0.17, "day_range_pct": 1.4, "rvol_ratio": 1.0, "quant_buy_score": 0.0, "green_hook_confirmed": False, "entry_hook_confirmed": False, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "ONDA_DISCENDENTE_O_DEBOLE"},
             }
 
         sc.scan_all = lambda **kw: _metrics_evening()
@@ -1649,14 +1655,14 @@ class TestQuantInvariantsV11(unittest.TestCase):
         # - NVDd_EQ (+0.17%, VWAP +0.16%, RSI 58) resta APERTA in Custodia Notturna C1 con eod_ref_price_eur salvato!
         broker.positions.append({"ticker": "EOANd_EQ", "quantity": 1.25, "averagePrice": 20.00, "currentPrice": 19.92, "ppl": -0.10})
         broker.positions.append({"ticker": "SIEd_EQ", "quantity": 0.10, "averagePrice": 250.00, "currentPrice": 249.50, "ppl": -0.05})
-        bot.tax_tracker.record_buy("EOANd_EQ", 1.25, 20.00)
-        bot.tax_tracker.record_buy("SIEd_EQ", 0.10, 250.00)
         broker.fail_once_tkr = "EOANd_EQ"
         dt_1726 = real_dt(2026, 11, 16, 17, 26, 0, tzinfo=daemon.MARKET_TZ)
         with patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_1726.timestamp()):
             mock_dt.now.side_effect = lambda tz=None: dt_1726.astimezone(tz) if tz else dt_1726.replace(tzinfo=None)
             mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
             mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            bot.tax_tracker.record_buy("EOANd_EQ", 1.25, 20.00)
+            bot.tax_tracker.record_buy("SIEd_EQ", 0.10, 250.00)
             daemon.run_cycle(bot, intel, sc, _DummyRadar31(), 3)
             self.assertEqual([p["ticker"] for p in broker.positions], ["NVDd_EQ", "EOANd_EQ"])  # SIEd_EQ chiusa subito nonostante errore su EOANd_EQ!
             st_eod = daemon.run_cycle(bot, intel, sc, _DummyRadar31(), 4)
