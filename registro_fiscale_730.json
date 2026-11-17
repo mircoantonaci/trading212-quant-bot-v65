@@ -5,7 +5,28 @@
   "valore_iniziale_quadro_w_eur": 100.0,
   "valore_finale_stimato_quadro_w_eur": 100.86,
   "giorni_detenzione_ivafe": 365,
-  "lotti_aperti_lifo": {},
+  "lotti_aperti_lifo": {
+    "ALVd_EQ": [
+      {
+        "timestamp": "2026-11-17T10:29:51",
+        "ticker": "ALVd_EQ",
+        "isin": "DE0008404005",
+        "quantity": 0.0523,
+        "price_eur": 473.805,
+        "total_eur": 24.78
+      }
+    ],
+    "DPWd_EQ": [
+      {
+        "timestamp": "2026-11-17T10:33:50",
+        "ticker": "DPWd_EQ",
+        "isin": "DE0005552004",
+        "quantity": 0.41,
+        "price_eur": 60.8293,
+        "total_eur": 24.94
+      }
+    ]
+  },
   "operazioni_chiuse": [
     {
       "timestamp": "2026-11-05T09:44:17",
