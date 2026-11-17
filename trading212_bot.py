@@ -416,6 +416,8 @@ class Trading212Client:
     Supporta sia il conto Practice (Demo) sia il conto Live (Invest Reale).
     """
 
+    MIN_LIMIT_ORDER_SPACING_SEC: float = 2.05
+
     def __init__(
         self,
         api_key: str,
@@ -425,6 +427,7 @@ class Trading212Client:
         self.api_key = api_key.strip()
         self.api_secret = api_secret.strip() if api_secret else None
         self.mode = mode.lower()
+        self._last_limit_order_ts: float = 0.0
         if self.mode == "live":
             self.base_url = "https://live.trading212.com/api/v0"
         else:
@@ -524,6 +527,20 @@ class Trading212Client:
             ticks = math.ceil((px / step) - 1e-9)
         return round(max(step, ticks * step), 2)
 
+    @staticmethod
+    def quantize_buy_quantity_floor(alloc_eur: float, limit_price: float, decimals: int = 4) -> float:
+        """
+        Quantizza per difetto (math.floor monotono) la quantità di acquisto sul limit_price,
+        garantendo algebricamente (quantity * limit_price) <= alloc_eur senza mai sforare
+        la liquidità residua per arrotondamento all'insù sulla 4ª cartuccia.
+        """
+        if alloc_eur <= 0.0 or limit_price <= 0.0:
+            return 0.0
+        dec = max(0, int(decimals))
+        scale = 10.0 ** dec
+        raw_units = (float(alloc_eur) / float(limit_price)) * scale
+        return round(math.floor(raw_units + 1e-9) / scale, dec)
+
     def place_market_order(self, ticker: str, quantity: float) -> Dict[str, Any]:
         """
         Invia un ordine Market a commissioni zero su azioni frazionate.
@@ -551,7 +568,8 @@ class Trading212Client:
     ) -> Dict[str, Any]:
         """
         Invia un ordine LIMIT conforme MiFID II RTS 11 su azioni intere o frazionate (Trading 212 API v0).
-        Protegge gli ingressi dagli spike anomali senza mai ripiegare su ordini Market ciechi.
+        Protegge gli ingressi dagli spike anomali senza mai ripiegare su ordini Market ciechi
+        e rispetta nativamente il rate-limit Trading 212 (>= 2,05s tra due POST /equity/orders/limit).
         """
         if ticker not in EUR_ZERO_FEE_UNIVERSE:
             raise ValueError(
@@ -566,7 +584,14 @@ class Trading212Client:
             "limitPrice": snapped_limit,
             "timeValidity": time_validity,
         }
-        return self._request("POST", "/equity/orders/limit", payload=payload)
+        if self.MIN_LIMIT_ORDER_SPACING_SEC > 0.0 and self._last_limit_order_ts > 0.0:
+            elapsed = time.monotonic() - self._last_limit_order_ts
+            if 0.0 <= elapsed < self.MIN_LIMIT_ORDER_SPACING_SEC:
+                time.sleep(self.MIN_LIMIT_ORDER_SPACING_SEC - elapsed)
+        try:
+            return self._request("POST", "/equity/orders/limit", payload=payload)
+        finally:
+            self._last_limit_order_ts = time.monotonic()
 
     def cancel_order(self, order_id: Any) -> Dict[str, Any]:
         """Cancella un ordine pendente tramite ID ufficiale Trading 212 (DELETE /equity/orders/{id})."""

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Demone Quantitativo Autonomo Trading 212 (100,00 EUR / 4 Cartucce da 25,00 EUR)
-Versione 11.5 LTS — Architettura Istituzionale "Zero Cerotti" (GETTEX 0s + T212 0ms + MiFID Limit +1%)
+Demone Quantitativo Autonomo Trading 212 (100,00 EUR / 4 Cartucce Simmetriche)
+Versione 11.6 LTS — Architettura Istituzionale Anti-Spread "Zero Cerotti" (8/8 Blindature + Cash-Regime Leader RS)
 =================================================================================================
 Come il bot evita le onde negative della notte e cavalca quelle positive:
 Alle ore 17:15-17:28 (prima che Francoforte chiuda alle 17:30), Wall Street (New York) è GIÀ
@@ -24,6 +24,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 import datetime
 import json
+import math
 import os
 import statistics
 import sys
@@ -55,6 +56,7 @@ BASE_MIN_BUY_SCORE = 58.0
 LIMIT_ORDER_CAP_PCT = 0.0100  # +1,00% tetto anti-spike MiFID II RTS 11
 DAILY_VAULT_TRIGGER_EUR = 1.60
 DAILY_VAULT_GIVEBACK_EUR = 0.30
+MAX_DAILY_NEW_ENTRIES = 2  # V11.6 Tetto Anti-Overtrading (max 2 lanci ad alta convinzione/giorno contro erosione spread)
 
 ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     "RHMd_EQ": {
@@ -1357,6 +1359,46 @@ class QuantMarketScanner:
                 else sum(sess_closes) / len(sess_closes)
             )
             vwap_dist_pct = ((last_c - vwap) / vwap) * 100.0 if vwap > 0 else 0.0
+            intraday_open_chg_pct = 0.0
+            ny_open_chg_pct = 0.0
+            if today_indices:
+                eu_open_idx = next(
+                    (
+                        idx_t
+                        for idx_t in today_indices
+                        if (
+                            datetime.datetime.fromtimestamp(bar_timestamps[idx_t], tz=MARKET_TZ).hour * 60
+                            + datetime.datetime.fromtimestamp(bar_timestamps[idx_t], tz=MARKET_TZ).minute
+                        ) >= 9 * 60
+                    ),
+                    today_indices[0],
+                )
+                open_09_px = (
+                    opens[eu_open_idx]
+                    if len(opens) == len(closes) and opens[eu_open_idx] > 0
+                    else closes[eu_open_idx]
+                )
+                if open_09_px > 0:
+                    intraday_open_chg_pct = round(((last_c - open_09_px) / open_09_px) * 100.0, 3)
+                ny_open_idx = next(
+                    (
+                        idx_t
+                        for idx_t in today_indices
+                        if (
+                            datetime.datetime.fromtimestamp(bar_timestamps[idx_t], tz=US_EASTERN_TZ).hour * 60
+                            + datetime.datetime.fromtimestamp(bar_timestamps[idx_t], tz=US_EASTERN_TZ).minute
+                        ) >= 9 * 60 + 30
+                    ),
+                    None,
+                )
+                if ny_open_idx is not None:
+                    open_ny_px = (
+                        opens[ny_open_idx]
+                        if len(opens) == len(closes) and opens[ny_open_idx] > 0
+                        else closes[ny_open_idx]
+                    )
+                    if open_ny_px > 0:
+                        ny_open_chg_pct = round(((last_c - open_ny_px) / open_ny_px) * 100.0, 3)
         else:
             today_indices = []
             last_c = self.live_prices.get(ticker, float(prof["ref_price_eur"]))
@@ -1364,6 +1406,8 @@ class QuantMarketScanner:
             dip_from_high_pct = 0.0
             day_range_pct = 0.0
             vwap_dist_pct = 0.0
+            intraday_open_chg_pct = 0.0
+            ny_open_chg_pct = 0.0
 
         has_valid_bars = len(closes) >= 6
         if has_valid_bars:
@@ -1607,15 +1651,16 @@ class QuantMarketScanner:
                 1,
             )
 
-        # Fattore elastico ATR (tra 0.80x su mercato piatto e 1.30x su mercato esplosivo)
+        # V11.6 Orizzonte Anti-Spread (±1,45%..1,85% su ATR elastico): porta il rapporto Segnale/Spread a 16x-20x
+        # eliminando la trappola del rumore browniano a 5 minuti!
         effective_atr = atr_5m_pct if has_valid_bars and atr_5m_pct > 0 else 0.0018
-        vol_scale = round(max(0.80, min(1.30, effective_atr / 0.0018)), 2)
-        base_act = float(prof["shield_activation_pct"])
-        base_pull = float(prof["shield_pullback_pct"])
-        elastic_shield_act = round(max(0.0048, base_act * vol_scale), 4)
-        elastic_shield_pull = round(max(0.0012, base_pull * vol_scale), 4)
-        be_trig_est = max(0.0042, min(0.0050, round(effective_atr * 2.1, 4)))
-        be_floor_est = max(0.0018, round(be_trig_est * 0.45, 4))
+        vol_scale = round(max(0.85, min(1.20, effective_atr / 0.0018)), 2)
+        base_act = max(0.0160, float(prof["shield_activation_pct"]) * 2.20)
+        base_pull = max(0.0045, float(prof["shield_pullback_pct"]) * 2.60)
+        elastic_shield_act = round(max(0.0145, min(0.0185, base_act * vol_scale)), 4)
+        elastic_shield_pull = round(max(0.0038, min(0.0055, base_pull * vol_scale)), 4)
+        be_trig_est = round(max(0.0100, elastic_shield_act * 0.625), 4)
+        be_floor_est = round(max(0.0030, be_trig_est * 0.30), 4)
 
         # V11.5 Invariante #32 — Vera Forza Relativa Contro-Mercato per superare lo Scudo Anti-Crollo Macro:
         # Durante un sell-off sistemico (es. Nasdaq <= -1,20% o S&P <= -1,00%), passa solo un autentico Leader sopra VWAP
@@ -1656,9 +1701,12 @@ class QuantMarketScanner:
         else:
             feed_source = "YAHOO_FALLBACK_15M"
 
+        is_us_giant = bool(str(EUR_ZERO_FEE_UNIVERSE.get(ticker, {}).get("isin", "")).startswith("US"))
+
         return {
             "ticker": ticker,
             "name": EUR_ZERO_FEE_UNIVERSE[ticker]["name"],
+            "is_us_giant": is_us_giant,
             "squad": prof["squad"],
             "sector": prof["sector"],
             "beta_tier": beta_tier,
@@ -1669,14 +1717,19 @@ class QuantMarketScanner:
             "dip_from_high_pct": round(dip_from_high_pct, 2),
             "day_range_pct": round(day_range_pct, 2),
             "vwap_dist_pct": round(vwap_dist_pct, 2),
+            "intraday_open_chg_pct": intraday_open_chg_pct,
+            "ny_open_chg_pct": ny_open_chg_pct,
             "atr_5m_volatility_pct": round(atr_5m_pct * 100, 3),
             "atr_elastic_scale": vol_scale,
             "profit_velocity_mult": profit_velocity_mult,
+            "velocity_bonus": velocity_bonus,
             "kaufman_efficiency_ratio": kaufman_er,
             "signed_kaufman_er": signed_kaufman_er,
             "rvol_ratio": rvol_ratio,
             "slope_15m_pct": round(slope_15m_pct, 2),
             "slope_30m_pct": round(slope_30m_pct, 2),
+            "score_momentum": round(score_momentum, 2),
+            "score_pullback": round(score_pullback, 2),
             "memory_730_bonus": memory_bonus,
             "had_loss_today": had_loss_today,
             "quant_buy_score": quant_score,
@@ -1684,6 +1737,7 @@ class QuantMarketScanner:
             "green_hook_confirmed": green_hook_confirmed,
             "entry_hook_confirmed": entry_hook_confirmed,
             "breakout_5m": breakout_candle,
+            "true_relative_strength": bool(true_relative_strength),
             "strong_for_overnight": strong_for_overnight,
             "yahoo_today_bars": yahoo_today_bars,
             "has_fresh_intraday_feed": bool(has_valid_bars and (yahoo_today_bars >= 2 or len(today_indices) >= 2)),
@@ -1760,7 +1814,40 @@ class HybridUncappedIntelligence:
         self.position_open_time: Dict[str, float] = {}
         self.eod_ref_price: Dict[str, float] = {}
         self.prev_open_snapshot: Dict[str, Tuple[float, float]] = {}
+        self.daily_entries_date: str = ""
+        self.daily_entries_count: int = 0
         self._load_persisted_peaks()
+
+    def get_today_entries_count(
+        self,
+        today_iso: str,
+        tax_data: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        """
+        Restituisce il numero di nuovi ingressi eseguiti nella seduta `today_iso`,
+        persistito sia in memoria/stato sia in `registro_fiscale_730.json` attraverso i riavvii Cloud H24.
+        """
+        if self.daily_entries_date != today_iso:
+            self.daily_entries_date = today_iso
+            self.daily_entries_count = 0
+        if isinstance(tax_data, dict) and str(tax_data.get("daily_entries_date", "")) == today_iso:
+            self.daily_entries_count = max(
+                self.daily_entries_count,
+                int(tax_data.get("daily_entries_count", 0)),
+            )
+        return self.daily_entries_count
+
+    def record_daily_entry(
+        self,
+        today_iso: str,
+        tax_data: Optional[Dict[str, Any]] = None,
+    ) -> int:
+        cur = self.get_today_entries_count(today_iso, tax_data)
+        self.daily_entries_count = cur + 1
+        if isinstance(tax_data, dict):
+            tax_data["daily_entries_date"] = today_iso
+            tax_data["daily_entries_count"] = self.daily_entries_count
+        return self.daily_entries_count
 
     def sync_from_tax_data(self, tx: Dict[str, Any]) -> None:
         """Sincronizza cooldown e ultimi prezzi di vendita post-epoca V11 dal registro fiscale (Anti-Split-Brain)."""
@@ -1799,6 +1886,10 @@ class HybridUncappedIntelligence:
             try:
                 with open(BOT_STATE_PATH, "r", encoding="utf-8") as f:
                     st = json.load(f)
+                st_ent_date = str(st.get("daily_entries_date", ""))
+                if st_ent_date:
+                    self.daily_entries_date = st_ent_date
+                    self.daily_entries_count = max(0, int(st.get("daily_entries_count", 0)))
                 state_fresh = False
                 st_ts_str = str(st.get("timestamp", ""))
                 if st_ts_str:
@@ -1841,6 +1932,17 @@ class HybridUncappedIntelligence:
             try:
                 with open(tax_path, "r", encoding="utf-8") as f:
                     tx = json.load(f)
+                tx_ent_date = str(tx.get("daily_entries_date", ""))
+                if tx_ent_date:
+                    if not self.daily_entries_date or tx_ent_date >= self.daily_entries_date:
+                        if tx_ent_date != self.daily_entries_date:
+                            self.daily_entries_date = tx_ent_date
+                            self.daily_entries_count = max(0, int(tx.get("daily_entries_count", 0)))
+                        else:
+                            self.daily_entries_count = max(
+                                self.daily_entries_count,
+                                int(tx.get("daily_entries_count", 0)),
+                            )
                 for tkr, lots in tx.get("lotti_aperti_lifo", {}).items():
                     if lots:
                         ts_str = lots[-1].get("timestamp", "")
@@ -1879,6 +1981,8 @@ class HybridUncappedIntelligence:
                 "morning_auction_settled": False,
                 "morning_cull_ready": False,
                 "now_date_iso": now_date_iso,
+                "hm": hm,
+                "ny_hm": ny_hm,
                 "is_friday_pre_weekend": False,
                 "us_market_live": False,
             }
@@ -1896,13 +2000,15 @@ class HybridUncappedIntelligence:
                 "morning_auction_settled": False,
                 "morning_cull_ready": False,
                 "now_date_iso": now_date_iso,
+                "hm": hm,
+                "ny_hm": ny_hm,
                 "is_friday_pre_weekend": False,
                 "us_market_live": False,
             }
         if 9 * 60 <= hm < 9 * 60 + 30:
             return {
                 "code": "FASE_1A_RACCOLTO_GAP_MATTUTINO_ANTI_GAP_FILL",
-                "description": "09:00-09:30 (C1): Taglio Rapido 09:05 su posizioni notturne negative/lente + Raccolto Gap (+0,52% / -0,14%) sui vincitori",
+                "description": "09:00-09:30 (C1): Taglio Rapido 09:05 su posizioni notturne negative/lente + Raccolto Gap (+1,10% / -0,30%) sui vincitori",
                 "market_open": True,
                 "allow_new_buys": True,
                 "is_pre_close_window": False,
@@ -1913,6 +2019,8 @@ class HybridUncappedIntelligence:
                 "morning_auction_settled": exact_hm >= 541.0,
                 "morning_cull_ready": hm >= 9 * 60 + 5,
                 "now_date_iso": now_date_iso,
+                "hm": hm,
+                "ny_hm": ny_hm,
                 "is_friday_pre_weekend": False,
                 "us_market_live": False,
             }
@@ -1928,6 +2036,8 @@ class HybridUncappedIntelligence:
                 "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
                 "now_date_iso": now_date_iso,
+                "hm": hm,
+                "ny_hm": ny_hm,
                 "is_friday_pre_weekend": False,
                 "us_market_live": False,
             }
@@ -1951,6 +2061,8 @@ class HybridUncappedIntelligence:
                 "evening_runway_progress": 1.0,
                 "is_morning_gap_harvest": False,
                 "now_date_iso": now_date_iso,
+                "hm": hm,
+                "ny_hm": ny_hm,
                 "is_friday_pre_weekend": is_friday,
                 "us_market_live": us_open,
             }
@@ -1967,6 +2079,8 @@ class HybridUncappedIntelligence:
                 "evening_runway_progress": 1.0,
                 "is_morning_gap_harvest": False,
                 "now_date_iso": now_date_iso,
+                "hm": hm,
+                "ny_hm": ny_hm,
                 "is_friday_pre_weekend": is_friday,
                 "us_market_live": us_open,
             }
@@ -1983,14 +2097,25 @@ class HybridUncappedIntelligence:
                 "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
                 "now_date_iso": now_date_iso,
+                "hm": hm,
+                "ny_hm": ny_hm,
                 "is_friday_pre_weekend": False,
                 "is_lunch_desert_window": True,
                 "us_market_live": False,
             }
-        if hm >= 11 * 60 + 15 and ny_hm < 8 * 60 + 28:
+        if (hm >= 11 * 60 + 15 and ny_hm < 8 * 60 + 28) or (8 * 60 + 35 < ny_hm < 9 * 60 + 35):
+            is_us_prebell = (8 * 60 + 35 < ny_hm < 9 * 60 + 35)
             return {
-                "code": "FASE_2_CACCIA_ESPLOSIONI_MEZZOGIORNO_MAX2",
-                "description": "11:15 CET - 08:27 ET: Cecchino Esplosioni Straordinarie 0s (Max 2/4 Cartucce su Breakout RVOL>=2,2x o Valle Score>=88; 2 slot riservati al pomeriggio)",
+                "code": (
+                    "FASE_2B_SCUDO_WHIPSAW_PRE_BELL_USA_MAX2"
+                    if is_us_prebell
+                    else "FASE_2_CACCIA_ESPLOSIONI_MEZZOGIORNO_MAX2"
+                ),
+                "description": (
+                    "08:36-09:34 ET (Pre-Market & 1ª Candela 5m NYSE): Scudo Anti-Whipsaw Apertura USA (solo Esplosioni 0s RVOL>=2,2x, Max 2/4 slot; attende 09:35 ET)"
+                    if is_us_prebell
+                    else "11:15 CET - 08:27 ET: Cecchino Esplosioni Straordinarie 0s (Max 2/4 Cartucce su Breakout RVOL>=2,2x o Valle Score>=88; 2 slot riservati al pomeriggio)"
+                ),
                 "market_open": True,
                 "allow_new_buys": True,
                 "is_pre_close_window": False,
@@ -1999,17 +2124,19 @@ class HybridUncappedIntelligence:
                 "evening_runway_progress": 0.0,
                 "is_morning_gap_harvest": False,
                 "now_date_iso": now_date_iso,
+                "hm": hm,
+                "ny_hm": ny_hm,
                 "is_friday_pre_weekend": False,
                 "is_lunch_desert_window": True,
                 "is_midday_sniper_window": True,
                 "max_active_slots": 2,
-                "us_market_live": False,
+                "us_market_live": us_open,
             }
         runway_prog = round(min(1.0, max(0.0, (exact_hm - 960.0) / 60.0)), 4) if exact_hm >= 960.0 else 0.0
         if not us_open:
             return {
                 "code": "FASE_2_IBRIDA_2X2_BLINDATA_V5",
-                "description": "10:30-11:15 CET & Pre-Market USA (08:36-09:29 ET): Sessione Istituzionale Attiva (Fascia d'Oro + Pavimento VWAP)",
+                "description": "10:30-11:15 CET: Sessione Istituzionale Europea Attiva (Fascia d'Oro + Pavimento VWAP)",
                 "market_open": True,
                 "allow_new_buys": True,
                 "is_pre_close_window": False,
@@ -2018,8 +2145,11 @@ class HybridUncappedIntelligence:
                 "evening_runway_progress": runway_prog,
                 "is_morning_gap_harvest": False,
                 "now_date_iso": now_date_iso,
+                "hm": hm,
+                "ny_hm": ny_hm,
                 "is_friday_pre_weekend": False,
                 "is_lunch_desert_window": False,
+                "is_midday_sniper_window": False,
                 "us_market_live": False,
             }
         return {
@@ -2027,7 +2157,7 @@ class HybridUncappedIntelligence:
             "description": (
                 "16:00-17:00 CET: Rampa Selettività Pre-Chiusura (solo razzi veloci prima della decompressione 17:00)"
                 if runway_prog > 0.0
-                else "09:30 ET (15:30 CET) - 16:00 CET: Spinta Wall Street - Pre-Scudo Salva-Utile + Scudo Mobile Senza Tetto"
+                else "09:35 ET (15:35 CET) - 16:00 CET: Spinta Wall Street - Pre-Scudo Salva-Utile + Scudo Mobile Senza Tetto"
             ),
             "market_open": True,
             "allow_new_buys": True,
@@ -2037,7 +2167,10 @@ class HybridUncappedIntelligence:
             "evening_runway_progress": runway_prog,
             "is_morning_gap_harvest": False,
             "now_date_iso": now_date_iso,
+            "hm": hm,
+            "ny_hm": ny_hm,
             "is_friday_pre_weekend": False,
+            "is_midday_sniper_window": False,
             "us_market_live": True,
         }
 
@@ -2051,29 +2184,33 @@ class HybridUncappedIntelligence:
     ) -> Tuple[str, Optional[float]]:
         """
         Funzione monotona Lipschitz-continua unica (Zero Gradini Ciechi e parità 1:1 Motore == JSON):
-        - peak >= shield_act: Scudo Mobile Senza Tetto con Ritenzione Progressiva di Climax (stringe dolcemente il pullback
-          fino a -22% sui picchi parabolici >= 2,2x shield_act, C0-continuo sul bordo peak == shield_act)
-        - 0,58% <= peak < shield_act: Curva Continua Monotona che sale senza buchi da +0,40% fino a (shield_act - shield_pull)
-        - breakeven_trigger <= peak < 0,58%: Pre-Scudo Salva-Utile sul pavimento di pareggio protetto
+        - Scale-invariant su shield_act: in orizzonte Anti-Spread V11.6 (shield_act >= 1,20%, es. +1,60% / pullback 0,45%)
+          arma il Pre-Scudo a +1,00% (floor +0,30%), raccorda linearmente C0 da +1,30% a +1,60% fino a (shield_act - shield_pull),
+          e poi lascia correre senza tetto con Ritenzione Progressiva di Climax!
         """
-        breakeven_trigger = max(0.0040 if daily_vault_active else 0.0042, min(0.0050, round(atr_raw * 2.1, 4)))
-        breakeven_floor = max(0.0016 if daily_vault_active else 0.0018, round(breakeven_trigger * 0.45, 4))
+        if shield_act >= 0.0120:
+            breakeven_trigger = round(max(0.0095 if daily_vault_active else 0.0100, shield_act * 0.625), 4)
+            breakeven_floor = round(max(0.0028 if daily_vault_active else 0.0030, breakeven_trigger * 0.30), 4)
+        else:
+            breakeven_trigger = max(0.0040 if daily_vault_active else 0.0042, min(0.0050, round(atr_raw * 2.1, 4)))
+            breakeven_floor = max(0.0016 if daily_vault_active else 0.0018, round(breakeven_trigger * 0.45, 4))
         min_shield_floor = breakeven_floor if shield_act >= breakeven_trigger else -0.0005
         if peak_pnl_pct >= shield_act:
             climax_ratio = min(1.0, max(0.0, (peak_pnl_pct - shield_act) / max(0.0040, shield_act * 1.2)))
             eff_pull = max(0.0012, round(shield_pull * (1.0 - 0.22 * climax_ratio), 4))
             return ("UNCAPPED_SHIELD_2", max(min_shield_floor, round(peak_pnl_pct - eff_pull, 4)))
-        curve_onset = (
-            min(0.0058, round((breakeven_trigger + shield_act) * 0.5, 4))
-            if shield_act > breakeven_trigger
-            else 0.0058
-        )
+        if shield_act >= 0.0120:
+            curve_onset = round((breakeven_trigger + shield_act) * 0.5, 4)
+        else:
+            curve_onset = (
+                min(0.0058, round((breakeven_trigger + shield_act) * 0.5, 4))
+                if shield_act > breakeven_trigger
+                else 0.0058
+            )
         if shield_act > curve_onset and peak_pnl_pct >= curve_onset:
-            # V11.5 Continuità Bilaterale C0 Esatta anche su titoli difensivi (shield_act < 0,58%, es. DTE/EOAN):
-            # raccorda linearmente il pavimento protetto fino a (shield_act - shield_pull) senza salti sul bordo!
             eff_pull_0 = max(0.0012, round(shield_pull, 4))
             raw_upper = max(min_shield_floor, round(shield_act - eff_pull_0, 4))
-            base_low = breakeven_floor if curve_onset < 0.0058 else 0.0040
+            base_low = breakeven_floor if (shield_act >= 0.0120 or curve_onset < 0.0058) else 0.0040
             lower_anchor = max(breakeven_floor, min(base_low, raw_upper))
             upper_anchor = max(lower_anchor, raw_upper)
             span = max(1e-6, shield_act - curve_onset)
@@ -2122,7 +2259,7 @@ class HybridUncappedIntelligence:
 
         # BLINDATURA #3 + SOLUZIONE C1: Raccolto Gap Mattutino & Taglio Rapido 09:05 sulle posizioni portate dalla sera prima
         if regime.get("is_morning_gap_harvest"):
-            if new_peak >= 0.0052 and (new_peak - pnl_pct) >= 0.0014 and pnl_pct >= 0.0030:
+            if new_peak >= 0.0110 and (new_peak - pnl_pct) >= 0.0030 and pnl_pct >= 0.0065:
                 return (
                     f"BLINDATURA #3 - RACCOLTO GAP MATTUTINO (09:00-09:30): blindato salto notturno "
                     f"dal picco +{new_peak*100:.2f}% a +{pnl_pct*100:.2f}% prima del Gap-Fill!"
@@ -2171,14 +2308,14 @@ class HybridUncappedIntelligence:
             daily_vault_active=daily_vault_active,
         )
 
-        # BLINDATURA #1 (Stadio 2) + BLINDATURA #8 (ATR Elastico V11.5, Pavimento Integrale Senza Buchi su Flash-Gap): Scudo Mobile Senza Tetto
+        # BLINDATURA #1 (Stadio 2) + BLINDATURA #8 (ATR Elastico V11.6, Pavimento Integrale Senza Buchi su Flash-Gap): Scudo Mobile Senza Tetto
         if stage_code == "UNCAPPED_SHIELD_2" and stage_floor is not None and pnl_pct <= stage_floor:
             return (
                 f"SCUDO MOBILE ELASTICO SENZA TETTO ({prof['squad']}): cavalcato rialzo fino al picco "
                 f"di +{new_peak*100:.2f}% e incassato su inversione a {pnl_pct*100:+.2f}%"
             )
 
-        # BLINDATURA #1 (Stadio 1B - Curva Continua Monotona Salva-Utile V11.5, senza buchi anche su flash-gap < -0,05%):
+        # BLINDATURA #1 (Stadio 1B - Curva Continua Monotona Salva-Utile V11.6, senza buchi anche su flash-gap < -0,05%):
         if stage_code == "CONTINUOUS_CURVE_1B" and stage_floor is not None and pnl_pct <= stage_floor:
             strong_above_vwap_hold = (
                 vwap_dist >= 0.10
@@ -2192,10 +2329,10 @@ class HybridUncappedIntelligence:
                     f"il picco di +{new_peak*100:.2f}% e ha blindato il pavimento dinamico ({stage_floor*100:+.2f}%) a {pnl_pct*100:+.2f}%!"
                 )
 
-        # BLINDATURA #1 (Stadio 1A - Pre-Scudo Salva-Utile Senza Buchi V11.2):
-        if stage_code == "PRE_SHIELD_1A" and stage_floor is not None and -0.0005 <= pnl_pct <= stage_floor:
+        # BLINDATURA #1 (Stadio 1A - Pre-Scudo Salva-Utile Integrale V11.6 SOL 3A, Zero Buchi anche sotto -0,05%):
+        if stage_code == "PRE_SHIELD_1A" and stage_floor is not None and pnl_pct <= stage_floor:
             trend_still_healthy_above_vwap = (
-                vwap_dist >= -0.03 and cur_rsi_5m >= 46.0 and green_hook_ok
+                pnl_pct >= -0.0005 and vwap_dist >= -0.03 and cur_rsi_5m >= 46.0 and green_hook_ok
             )
             if not trend_still_healthy_above_vwap:
                 return (
@@ -2304,24 +2441,24 @@ class HybridUncappedIntelligence:
                 f"sblocco cartuccia ferma solo in positivo per salire sul razzo in Super-Trend!"
             )
 
-        # BLINDATURA #15 (V11.2 Airbag Simmetrico Elastico su ATR + Taglio Catastrofico < 8m contro Flash-Crash):
-        breakdown_stop_pct = -min(0.0068, max(0.0054, round(atr_raw * 2.30, 4)))
-        airbag_no_hook_pct = -min(0.0070, max(0.0064, round(atr_raw * 2.45, 4)))
-        if minutes_open < 8.0 and pnl_pct <= -0.0135:
+        # BLINDATURA #15 (V11.6 Orizzonte Anti-Rumore Browniano 5m: Stop Tesi Invalidata ~-1,40% oltre 12m, Airbag Invalicabile -1,75%):
+        breakdown_stop_pct = -min(0.0150, max(0.0135, round(atr_raw * 6.50, 4)))
+        airbag_no_hook_pct = -min(0.0165, max(0.0150, round(atr_raw * 7.20, 4)))
+        if minutes_open < 8.0 and pnl_pct <= -0.0175:
             return (
-                f"BLINDATURA #15 - AIRBAG CATASTROFICO ISTANTANEO (<8m, {pnl_pct*100:+.2f}% <= -1,35%): "
+                f"BLINDATURA #15 - AIRBAG CATASTROFICO ISTANTANEO (<8m, {pnl_pct*100:+.2f}% <= -1,75%): "
                 f"taglio d'emergenza immediato contro flash-crash / profit-warning!"
             )
         if minutes_open >= 12.0:
             if pnl_pct <= breakdown_stop_pct and (vwap_dist < -0.10 or cur_rsi_5m < 45.0) and not green_hook_ok and not stock_is_strong:
                 return (
                     f"BLINDATURA #15 - TAGLIO CHIRURGICO TESI INVALIDATA ({pnl_pct*100:+.2f}% <= {breakdown_stop_pct*100:+.2f}%): "
-                    f"rottura pavimento VWAP / perdita spinta -> taglio minimo (~0,14-0,17 EUR) e ruoto su Fascia d'Oro!"
+                    f"rottura strutturale fuori rumore 5m -> taglio protetto (~0,33-0,36 EUR)!"
                 )
-        if minutes_open >= 8.0 and ((pnl_pct <= airbag_no_hook_pct and not green_hook_ok) or pnl_pct <= -0.0072):
+        if minutes_open >= 8.0 and ((pnl_pct <= airbag_no_hook_pct and not green_hook_ok) or pnl_pct <= -0.0175):
             return (
                 f"BLINDATURA #15 - AIRBAG ECONOMICO INVALICABILE ({pnl_pct*100:+.2f}%): "
-                f"taglio netto entro ~0,16-0,18 EUR per blindare il capitale!"
+                f"taglio netto entro ~0,36-0,42 EUR per blindare il capitale!"
             )
 
         return None
@@ -2330,21 +2467,42 @@ class HybridUncappedIntelligence:
     def is_macro_crash_shield_active(
         regime: Dict[str, Any],
         overnight_radar: Dict[str, Any],
+        intraday_0s_tape: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        """Predicato unico Anti-Crollo Macro Intraday condiviso 1:1 tra Uscita (#14) e Ingresso (immune a festività USA)."""
+        """Predicato unico Anti-Crollo Macro Intraday 0s condiviso 1:1 tra Uscita (#14) e Ingresso (immune a VIX-Crush e festività USA)."""
         nasdaq_c = float(overnight_radar.get("nasdaq_change_pct", 0.0))
         sp500_c = float(overnight_radar.get("sp500_change_pct", 0.0))
         dax_c = float(overnight_radar.get("dax_change_pct", 0.0))
         vix_c = float(overnight_radar.get("vix_fear_change_pct", 0.0))
         vix_lvl_c = float(overnight_radar.get("vix_level", 16.0))
 
-        vix_fear_5 = (vix_c >= 5.0 and (vix_lvl_c >= 18.5 or vix_c >= 9.0)) or vix_lvl_c >= 26.0
-        vix_crash_12 = (vix_c >= 12.0 and vix_lvl_c >= 18.0) or vix_c >= 16.0 or vix_lvl_c >= 30.0
+        # V11.6 Fix VIX-Crush: se il VIX è alto (>=26..30) ma sta crollando (vix_c < 0.0 su relief-rally esplosivo), NON blocca!
+        vix_fear_5 = (vix_c >= 5.0 and (vix_lvl_c >= 18.5 or vix_c >= 9.0)) or (vix_lvl_c >= 26.0 and vix_c >= 0.0)
+        vix_crash_12 = (vix_c >= 12.0 and vix_lvl_c >= 18.0) or vix_c >= 16.0 or (vix_lvl_c >= 30.0 and vix_c >= 0.0)
         now_ny_dt = datetime.datetime.now(US_EASTERN_TZ)
         us_live = (
             bool(regime.get("us_market_live", (now_ny_dt.hour * 60 + now_ny_dt.minute) >= 9 * 60 + 30))
             and bool(overnight_radar.get("us_indices_live_today", True))
         )
+
+        # V11.6 Rilevamento Crollo Intraday 0s da Tape GETTEX (immune ai 15m di ritardo Yahoo sugli indici):
+        tape = intraday_0s_tape if isinstance(intraday_0s_tape, dict) else overnight_radar.get("intraday_0s_tape")
+        if isinstance(tape, dict) and bool(tape.get("cash_regime_enforced", False)):
+            tape_br = float(tape.get("breadth_above_vwap", 0.50))
+            eu_crash_0s = (
+                float(tape.get("eu_from_open_pct", 0.0)) <= -0.85
+                and float(tape.get("eu_slope_30m_pct", 0.0)) <= -0.25
+                and tape_br <= 0.18
+            )
+            us_crash_0s = (
+                us_live
+                and float(tape.get("us_from_ny_open_pct", 0.0)) <= -0.90
+                and float(tape.get("us_slope_30m_pct", 0.0)) <= -0.25
+                and tape_br <= 0.22
+            )
+            if eu_crash_0s or us_crash_0s:
+                return True
+
         if us_live:
             return (
                 nasdaq_c <= -1.20
@@ -2362,6 +2520,7 @@ class HybridUncappedIntelligence:
         daily_vault_active: bool = False,
         lunch_profit_lock_active: bool = False,
         market_breadth_above_vwap: float = 0.50,
+        intraday_0s_tape: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """Predicato unico di idoneità all'ingresso condiviso 1:1 tra Panchina (Stagnation Switch) e Ciclo BUY."""
         if not regime.get("allow_new_buys", True) or lunch_profit_lock_active:
@@ -2396,7 +2555,6 @@ class HybridUncappedIntelligence:
         cand_day_range = float(cand.get("day_range_pct", 0.0))
         cand_er = float(cand.get("kaufman_efficiency_ratio", 0.0))
         # V11.5 Fisica Elastica ATR-VWAP + Rampa Pista Serale C0 (0,115% fino alle 16:00 -> 0,170% verso le 17:00):
-        # impedisce ingressi lenti negli ultimi minuti prima della decompressione serale!
         min_atr_required = round(0.115 + 0.055 * runway_prog, 4)
         if cand_atr_pct < min_atr_required:
             return False
@@ -2405,18 +2563,20 @@ class HybridUncappedIntelligence:
             return False
         if cand_atr_pct < 0.13 and cand_day_range < 1.40:
             return False
-        # V11.4 Ampiezza Trasversale di Mercato (Cross-Sectional Breadth): se oltre l'85% dei 39 Colossi
-        # è in capitolazione simultanea sotto il VWAP (< 15% sopra VWAP), ammette solo Leader in Forza Relativa (>= VWAP) o washout profondo (RSI <= 30)
-        if market_breadth_above_vwap < 0.15 and cand_vwap_dist < 0.0 and rsi_5m > 30.0:
+        # V11.6 Chiusura C0 Continua Falla Capitolazione Sistemica (Zero eccezione cieca RSI <= 30 sotto breadth <= 15%):
+        # A breadth <= 15% il pavimento VWAP è esattamente 0,00% (solo veri Leader >= VWAP); tra 15% e 35% scende C0 fino a -0,35%.
+        min_vwap_by_breadth = round(-0.35 * min(1.0, max(0.0, (market_breadth_above_vwap - 0.15) / 0.20)), 4)
+        if cand_vwap_dist < min_vwap_by_breadth:
             return False
         # Un titolo che ha già chiuso in perdita oggi può rientrare (dopo i 60m) solo se ha riconquistato il VWAP con onda pulita (ER >= 0,30)
         if bool(cand.get("had_loss_today", False)) and (cand_er < 0.30 or cand_vwap_dist < 0.0):
             return False
 
-        # V11.2 Invariante #23 (Cecchino Esplosioni Straordinarie 11:15 CET - 08:27 ET, Max 2/4 Slot):
-        # richiede obbligatoriamente feed real-time 0s (GETTEX/T212, mai Yahoo 15m) + uno dei 2 setup straordinari validati (+3,11 EUR / 5gg):
-        # 1) Breakout 5m puro: Score >= 82, RVOL >= 2.20x, breakout_5m, Kaufman ER >= 0.45, VWAP in [0.00%, +0.45%]
-        # 2) Rimbalzo da Valle con volumi forti: Score >= 88, RVOL >= 2.20x, RSI <= 38.0
+        vix_c = float(overnight_status.get("vix_fear_change_pct", 0.0))
+        if vix_c >= 3.50 and not bool(cand.get("strong_for_overnight", False)):
+            return False
+
+        # V11.2/V11.6 Cecchino Esplosioni Straordinarie (11:15 CET - 08:27 ET & Pre-Bell Whipsaw 08:36-09:34 ET, Max 2/4 Slot):
         if regime.get("is_midday_sniper_window", False):
             feed_src = str(cand.get("price_feed_source", ""))
             if feed_src not in ("GETTEX_STREAMING_0S", "T212_LIVE_0MS"):
@@ -2437,8 +2597,51 @@ class HybridUncappedIntelligence:
             if not (is_midday_breakout or is_midday_valley):
                 return False
 
-        if self.is_macro_crash_shield_active(regime, overnight_status) and not bool(cand.get("strong_for_overnight", False)):
+        if self.is_macro_crash_shield_active(regime, overnight_status, intraday_0s_tape) and not bool(cand.get("strong_for_overnight", False)):
             return False
+
+        # V11.6 Selettore Istituzionale Cash-Regime Leader RS (attivo sull'intero universo live >= 8 titoli freschi):
+        # Tratta il Contante EUR come posizione attiva a rischio 0 e spread 0 nei giorni laterali/ribassisti (Breadth < 58%),
+        # aprendo il fuoco solo nei veri trend espansivi sui Leader in Forza Relativa pura!
+        tape = intraday_0s_tape if isinstance(intraday_0s_tape, dict) else overnight_status.get("intraday_0s_tape")
+        if isinstance(tape, dict) and bool(tape.get("cash_regime_enforced", False)):
+            hm_val = regime.get("hm")
+            ny_hm_val = regime.get("ny_hm")
+            if hm_val is not None and ny_hm_val is not None:
+                hm_i = int(hm_val)
+                ny_i = int(ny_hm_val)
+                in_morning_drive = (9 * 60 + 15 <= hm_i < 11 * 60 + 15)
+                in_us_drive = (
+                    bool(regime.get("us_market_live", False))
+                    and ny_i >= 9 * 60 + 35
+                    and hm_i < 16 * 60 + 30
+                )
+                in_midday_super_brk = (
+                    bool(regime.get("is_midday_sniper_window", False))
+                    and bool(cand.get("breakout_5m", False))
+                    and cand_rvol >= 2.50
+                )
+                if not (in_morning_drive or in_us_drive or in_midday_super_brk):
+                    return False
+
+            tape_br = float(tape.get("breadth_above_vwap", market_breadth_above_vwap))
+            eu_open_c = float(tape.get("eu_from_open_pct", 0.0))
+            eu_sl30_c = float(tape.get("eu_slope_30m_pct", 0.0))
+            if tape_br < 0.58 or eu_open_c < 0.12 or eu_sl30_c < 0.0 or vix_c >= 1.50:
+                return False
+            if bool(regime.get("us_market_live", False)) and bool(overnight_status.get("us_indices_live_today", True)):
+                if float(tape.get("us_from_ny_open_pct", 0.0)) < 0.0 or float(tape.get("us_slope_30m_pct", 0.0)) < 0.0:
+                    return False
+
+            mom_plus_vel = float(cand.get("score_momentum", score)) + float(cand.get("velocity_bonus", 0.0))
+            if (
+                not bool(cand.get("true_relative_strength", cand.get("strong_for_overnight", False)))
+                or not (45.0 <= rsi_5m <= 63.0)
+                or not (0.05 <= cand_vwap_dist <= 0.38)
+                or cand_rvol < 1.10
+                or mom_plus_vel < 72.0
+            ):
+                return False
 
         return True
 
@@ -2531,6 +2734,59 @@ def _compute_market_breadth_above_vwap(quant_metrics: Dict[str, Dict[str, Any]])
         return 0.50
     above = sum(1 for m in fresh if float(m.get("vwap_dist_pct", 0.0)) >= 0.0)
     return round(above / len(fresh), 3)
+
+
+def _compute_intraday_0s_tape(quant_metrics: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Calcola in tempo reale (0s GETTEX + 0ms T212) il nastro trasversale dei 32 Colossi UE + 7 Big Tech USA in EUR:
+    ampiezza sopra VWAP, rendimento medio dall'apertura XETRA 09:00 / NYSE 09:30 ET e pendenza 30m.
+    """
+    fresh = [m for m in quant_metrics.values() if bool(m.get("has_fresh_intraday_feed", False))]
+    n_fresh = len(fresh)
+    if n_fresh < 8:
+        return {
+            "sample_size": n_fresh,
+            "cash_regime_enforced": False,
+            "breadth_above_vwap": 0.50,
+            "eu_from_open_pct": 0.0,
+            "us_from_ny_open_pct": 0.0,
+            "eu_slope_30m_pct": 0.0,
+            "us_slope_30m_pct": 0.0,
+        }
+    above = sum(1 for m in fresh if float(m.get("vwap_dist_pct", 0.0)) >= 0.0)
+    breadth = round(above / n_fresh, 3)
+    eu_list = [m for m in fresh if not bool(m.get("is_us_giant", False))]
+    us_list = [m for m in fresh if bool(m.get("is_us_giant", False))]
+    eu_open_vals = [float(m.get("intraday_open_chg_pct", 0.0)) for m in eu_list] or [0.0]
+    us_ny_vals = [float(m.get("ny_open_chg_pct", 0.0)) for m in us_list] or [0.0]
+    eu_sl30_vals = [float(m.get("slope_30m_pct", 0.0)) for m in eu_list] or [0.0]
+    us_sl30_vals = [float(m.get("slope_30m_pct", 0.0)) for m in us_list] or [0.0]
+    return {
+        "sample_size": n_fresh,
+        "cash_regime_enforced": True,
+        "breadth_above_vwap": breadth,
+        "eu_from_open_pct": round(sum(eu_open_vals) / len(eu_open_vals), 3),
+        "us_from_ny_open_pct": round(sum(us_ny_vals) / len(us_ny_vals), 3),
+        "eu_slope_30m_pct": round(sum(eu_sl30_vals) / len(eu_sl30_vals), 3),
+        "us_slope_30m_pct": round(sum(us_sl30_vals) / len(us_sl30_vals), 3),
+    }
+
+
+def _compute_effective_budget_and_cartridge(
+    total_budget_eur: float,
+    realized_net_eur: float,
+    cartridges: int = 4,
+) -> Tuple[float, float, float]:
+    """
+    V11.6 Simmetria Patrimoniale 4/4 Cartucce (Kelly Simmetrico):
+    scala proporzionalmente le 4 cartucce sull'equity effettiva (es. 94,36 EUR -> 4 x 23,59 EUR;
+    100,00 EUR -> 4 x 25,00 EUR; 112,00 EUR -> 4 x 28,00 EUR), eliminando l'asimmetria della 4ª cartuccia!
+    """
+    n_slots = max(1, int(cartridges))
+    compounded_budget_eur = round(max(40.00, float(total_budget_eur) + float(realized_net_eur)), 2)
+    dynamic_cartridge_eur = round(compounded_budget_eur / n_slots, 2)
+    min_slot_eur = max(10.00, round(dynamic_cartridge_eur * 0.72, 2))
+    return compounded_budget_eur, dynamic_cartridge_eur, min_slot_eur
 
 
 def _sync_certified_cash_safe(bot: Trading212AutonomousBot, min_interval_sec: float = 5.5) -> None:
@@ -2630,7 +2886,7 @@ def run_cycle(
         scanner.update_t212_live_price(tkr, cur_px)
 
     # 2. Scansione quantitativa Split-Speed + GETTEX 0s (6s sulle cartucce aperte / 24s sui 39 Colossi o subito se slot libero a ingressi aperti)
-    overnight_status = radar.evaluate_overnight_wave()
+    overnight_status = dict(radar.evaluate_overnight_wave())
     dax_live_pct = float(overnight_status.get("dax_change_pct", 0.0))
     need_full_scan = (len(pos_by_ticker) < bot.cartridges) and bool(regime.get("allow_new_buys", True))
     quant_metrics = scanner.scan_all(
@@ -2639,6 +2895,8 @@ def run_cycle(
         force=need_full_scan,
         active_tickers=list(pos_by_ticker.keys()),
     )
+    intraday_tape = _compute_intraday_0s_tape(quant_metrics)
+    overnight_status["intraday_0s_tape"] = intraday_tape
 
     # Sincronizzazione primo avvio / heartbeat con cassa reale Trading 212 (simmetrica su plus/minusvalenze)
     first_cash_sync = not getattr(bot, "_cash_synced_once", False)
@@ -2659,7 +2917,7 @@ def run_cycle(
     if lifo_dirty:
         bot.tax_tracker.save()
 
-    # BLINDATURA #6: Interesse Composto Automatico di Kelly (Auto-Compounding sul totale storico multi-anno)
+    # BLINDATURA #6: Interesse Composto Automatico di Kelly (Auto-Compounding Simmetrico 4/4 Cartucce sul totale storico multi-anno)
     realized_net_eur = round(
         float(bot.tax_tracker.data.get("profitto_storico_anni_precedenti_eur", 0.0))
         + float(bot.tax_tracker.data.get("plusvalenze_lorde_eur", 0.0))
@@ -2684,11 +2942,17 @@ def run_cycle(
         daily_vault_active,
     ) = _compute_daily_vault_metrics(bot.tax_tracker.data, today_prefix)
     market_breadth_above_vwap = _compute_market_breadth_above_vwap(quant_metrics)
+    today_entries_count = intel.get_today_entries_count(today_prefix, bot.tax_tracker.data)
 
-    compounded_budget_eur = round(bot.total_budget_eur + max(0.0, realized_net_eur), 2)
-    dynamic_cartridge_eur = round(compounded_budget_eur / bot.cartridges, 2)
+    (
+        compounded_budget_eur,
+        dynamic_cartridge_eur,
+        min_slot_eur,
+    ) = _compute_effective_budget_and_cartridge(bot.total_budget_eur, realized_net_eur, bot.cartridges)
 
     def _refresh_bench_candidates(vault_flag: bool) -> List[Dict[str, Any]]:
+        if intel.get_today_entries_count(today_prefix, bot.tax_tracker.data) >= MAX_DAILY_NEW_ENTRIES:
+            return []
         return [
             m
             for b_tkr, m in quant_metrics.items()
@@ -2975,8 +3239,11 @@ def run_cycle(
             - float(bot.tax_tracker.data.get("minusvalenze_lorde_eur", 0.0)),
             2,
         )
-        compounded_budget_eur = round(bot.total_budget_eur + max(0.0, realized_net_eur), 2)
-        dynamic_cartridge_eur = round(compounded_budget_eur / bot.cartridges, 2)
+        (
+            compounded_budget_eur,
+            dynamic_cartridge_eur,
+            min_slot_eur,
+        ) = _compute_effective_budget_and_cartridge(bot.total_budget_eur, realized_net_eur, bot.cartridges)
         (
             today_realized_net_eur,
             today_peak_realized_eur,
@@ -2985,6 +3252,7 @@ def run_cycle(
         ) = _compute_daily_vault_metrics(bot.tax_tracker.data, today_prefix)
 
     active_count = len(cartridge_statuses)
+    today_entries_count = intel.get_today_entries_count(today_prefix, bot.tax_tracker.data)
     pre_entry_equity = round(bot.total_budget_eur + realized_net_eur + unrealized_pnl_100e, 2)
     if pre_entry_equity >= bot.target_equity_eur:
         regime = dict(regime)
@@ -2995,12 +3263,13 @@ def run_cycle(
         bot.cartridges,
         int(regime.get("max_active_slots", bot.cartridges)),
     )
-    max_investable_before_4th = round(compounded_budget_eur - 18.00, 2)
+    max_investable_before_4th = round(compounded_budget_eur - min_slot_eur, 2)
     # V11.4 Invariante #24 (Zero Rotazioni su Cache Stantia): se a inizio ciclo le cartucce erano piene
     # (need_full_scan == False) e una vendita a metà ciclo ha liberato uno slot, forza una scansione
     # fresca a 0s su tutta la panchina prima di ordinare i candidati d'acquisto!
     if (
         regime["allow_new_buys"]
+        and today_entries_count < MAX_DAILY_NEW_ENTRIES
         and active_count < effective_slot_cap
         and invested_100e <= max_investable_before_4th
         and not need_full_scan
@@ -3012,6 +3281,8 @@ def run_cycle(
             active_tickers=list(pos_by_ticker.keys()),
         )
         market_breadth_above_vwap = _compute_market_breadth_above_vwap(quant_metrics)
+        intraday_tape = _compute_intraday_0s_tape(quant_metrics)
+        overnight_status["intraday_0s_tape"] = intraday_tape
 
     ranked_candidates = sorted(
         quant_metrics.values(),
@@ -3023,7 +3294,12 @@ def run_cycle(
         reverse=True,
     )
 
-    if regime["allow_new_buys"] and active_count < effective_slot_cap and invested_100e <= max_investable_before_4th:
+    if (
+        regime["allow_new_buys"]
+        and today_entries_count < MAX_DAILY_NEW_ENTRIES
+        and active_count < effective_slot_cap
+        and invested_100e <= max_investable_before_4th
+    ):
         active_sectors = {
             c.get("settore_markowitz")
             for c in cartridge_statuses
@@ -3041,7 +3317,11 @@ def run_cycle(
             pass
 
         for cand in ranked_candidates:
-            if active_count >= effective_slot_cap or invested_100e > max_investable_before_4th:
+            if (
+                active_count >= effective_slot_cap
+                or invested_100e > max_investable_before_4th
+                or today_entries_count >= MAX_DAILY_NEW_ENTRIES
+            ):
                 break
             tkr = cand["ticker"]
             if tkr in pos_by_ticker or tkr in pending_by_ticker or tkr in live_broker_tickers:
@@ -3074,7 +3354,7 @@ def run_cycle(
             broker_free = getattr(bot, "_t212_free_cash", None)
             if broker_free is not None:
                 alloc_eur = min(alloc_eur, round(max(0.0, float(broker_free)) * 0.998, 2))
-            if alloc_eur < 18.00:
+            if alloc_eur < min_slot_eur:
                 break
 
             effective_alloc = (
@@ -3082,8 +3362,8 @@ def run_cycle(
                 if remaining_budget <= (dynamic_cartridge_eur + 0.50)
                 else alloc_eur
             )
-            # Taglia dimensionata su limit_px per non eccedere MAI il margine riservato da Trading 212 sulla 4ª cartuccia
-            qty_to_buy = round(effective_alloc / limit_px, 4) if limit_px > 0 else 0.0
+            # Taglia quantizzata per difetto (math.floor monotono) su limit_px: (qty_to_buy * limit_px) <= effective_alloc SEMPRE
+            qty_to_buy = Trading212Client.quantize_buy_quantity_floor(effective_alloc, limit_px, decimals=4)
             if qty_to_buy <= 0:
                 continue
 
@@ -3097,8 +3377,8 @@ def run_cycle(
                         time_validity="DAY",
                     )
                 except Exception as ord_err:
-                    fallback_qty = round(effective_alloc / limit_px, 2)
-                    if fallback_qty > 0 and fallback_qty != qty_to_buy and (fallback_qty * live_px) >= 18.00 and "400" in str(ord_err):
+                    fallback_qty = Trading212Client.quantize_buy_quantity_floor(effective_alloc, limit_px, decimals=2)
+                    if fallback_qty > 0 and fallback_qty != qty_to_buy and (fallback_qty * live_px) >= min_slot_eur and "400" in str(ord_err):
                         qty_to_buy = fallback_qty
                         order_res = client.place_limit_order(
                             ticker=tkr,
@@ -3160,6 +3440,7 @@ def run_cycle(
                     fill_px = float(matched_pos.get("averagePrice") or live_px)
                     est_cost = round(filled_qty * fill_px, 2)
                     opened_now_ts = time.time()
+                    today_entries_count = intel.record_daily_entry(today_prefix, bot.tax_tracker.data)
                     bot.tax_tracker.record_buy(ticker=tkr, quantity=filled_qty, price_eur=fill_px)
                     real_orders_executed = True
                     if broker_free is not None:
@@ -3177,7 +3458,7 @@ def run_cycle(
                     active_count += 1
                     active_sectors.add(cand_sector)
                     msg = (
-                        f"INGRESSO V11.5 LIMIT PROTETTO ({cand_squad} / {cand_sector}) -> BUY {filled_qty} {tkr} ({meta['name']}) "
+                        f"INGRESSO V11.6 LIMIT PROTETTO ({cand_squad} / {cand_sector}, Lancio #{today_entries_count}/{MAX_DAILY_NEW_ENTRIES}) -> BUY {filled_qty} {tkr} ({meta['name']}) "
                         f"a {fill_px:.4f} EUR (Tetto Limit MiFID: {limit_px:.4f} EUR, Tot: {est_cost:.2f} EUR) | "
                         f"Score: {score}/100 (ATR: {cand.get('atr_5m_volatility_pct', 0.0):.3f}%, RVOL: {cand.get('rvol_ratio', 0.0)}x, RSI: {rsi_5m}) | Order ID: {ord_id}"
                     )
@@ -3262,8 +3543,11 @@ def run_cycle(
         - float(bot.tax_tracker.data.get("minusvalenze_lorde_eur", 0.0)),
         2,
     )
-    compounded_budget_eur = round(bot.total_budget_eur + max(0.0, realized_net_eur), 2)
-    dynamic_cartridge_eur = round(compounded_budget_eur / bot.cartridges, 2)
+    (
+        compounded_budget_eur,
+        dynamic_cartridge_eur,
+        min_slot_eur,
+    ) = _compute_effective_budget_and_cartridge(bot.total_budget_eur, realized_net_eur, bot.cartridges)
     virtual_100e_equity = round(bot.total_budget_eur + realized_net_eur + unrealized_pnl_100e, 2)
     free_cash_100e = round(max(0.0, compounded_budget_eur - invested_100e), 2)
 
@@ -3289,7 +3573,11 @@ def run_cycle(
                 - float(bot.tax_tracker.data.get("minusvalenze_lorde_eur", 0.0)),
                 2,
             )
-            compounded_budget_eur = round(bot.total_budget_eur + max(0.0, realized_net_eur), 2)
+            (
+                compounded_budget_eur,
+                dynamic_cartridge_eur,
+                min_slot_eur,
+            ) = _compute_effective_budget_and_cartridge(bot.total_budget_eur, realized_net_eur, bot.cartridges)
             virtual_100e_equity = round(bot.total_budget_eur + realized_net_eur + unrealized_pnl_100e, 2)
             free_cash_100e = round(max(0.0, compounded_budget_eur - invested_100e), 2)
             regime = dict(regime)
@@ -3315,20 +3603,24 @@ def run_cycle(
     state = {
         "timestamp": now.isoformat(timespec="seconds"),
         "cycle": cycle_num,
-        "mode": "INSTITUTIONAL_V11_5_LTS_ZERO_CEROTTI",
+        "mode": "INSTITUTIONAL_V11_6_LTS_ZERO_CEROTTI",
         "blindature_attive_v6_istituzionali": [
-            "1. Occhio Real-Time 0s GETTEX + Zero-Ghost Cache V11.5 (39/39 titoli in streaming 0s Monaco + Guardia Barra Congelata :00 + VWAP Peso Proporzionale)",
-            "2. Blocco 2 Intraday Puro + Taper VWAP Scale-Invariant su ATR (1,30*ATR) + Signed Kaufman ER + Aste 13:00/17:25 escluse da RVOL",
-            "3. Marketable Limit Orders MiFID II (+1,00% cap su tick RTS 11 + Eventual-Consistency Fill Re-Check + Cooldown Retry 5m Puro)",
-            f"4. Allocazione 4 Decimali & Kelly su LimitPrice (Budget: {compounded_budget_eur:.2f} EUR -> 4 Cartucce da {dynamic_cartridge_eur:.2f} EUR)",
-            f"5. Matrice Markowitz {len(ASSET_PROFILES)} Colossi EUR Zero-Fee + Breadth ({round(market_breadth_above_vwap*100,1):.1f}% >= VWAP, 4 settori distinti)",
-            "6. Curva Monotona Bilaterale C0 Salva-Utile + Climax Retention + Scudo Mobile Integrale (Zero salti sinistri e zero buchi su flash-gap)",
-            "7. Airbag Simmetrico Elastico su ATR (~-0,54%..-0,72% oltre 8m + Taglio Catastrofico Istantaneo -1,35% sotto 8m)",
-            "8. Orologio DST-Safe + Chiusura Serale Intelligente 4/4 Libere (Rampa 16:00-17:00, Decompressione C0 17:00-17:25, Flat Integrale 17:25-17:29 CET)",
+            "1. Occhio Real-Time 0s GETTEX + Nastro 0s EU32/US7 V11.6 (39/39 titoli in streaming 0s Monaco + Scudo Crollo 0s + Immune VIX-Crush)",
+            f"2. Selettore Cash-Regime Leader RS + Tetto Anti-Overtrading ({today_entries_count}/{MAX_DAILY_NEW_ENTRIES} lanci oggi, Breadth >= 58% per aprire fuoco)",
+            "3. Marketable Limit Orders MiFID II (+1,00% cap su tick RTS 11 + Rate-Limit >= 2,05s + Quantizzazione math.floor Anti-Overrun)",
+            f"4. Simmetria Patrimoniale 4/4 Cartucce (Budget Attivo: {compounded_budget_eur:.2f} EUR -> 4 Cartucce Simmetriche da {dynamic_cartridge_eur:.2f} EUR)",
+            f"5. Matrice Markowitz {len(ASSET_PROFILES)} Colossi EUR Zero-Fee + Chiusura C0 Capitolazione Breadth ({round(market_breadth_above_vwap*100,1):.1f}% >= VWAP)",
+            "6. Curva Monotona Bilaterale C0 Anti-Spread (+1,00% Pre-Scudo SOL 3A Senza Buchi -> +1,30% Curva 1B -> +1,60% Scudo Mobile Senza Tetto)",
+            "7. Orizzonte Anti-Rumore Browniano 5m (Stop Tesi Invalidata ~-1,40% oltre 12m + Airbag Invalicabile -1,75%)",
+            "8. Orologio DST-Safe + Scudo Pre-Bell Whipsaw USA (08:36-09:34 ET) + Custodia Selettiva C1 & Taglio Rapido 09:05",
             f"9. Trailing Daily Vault (Picco oggi: {today_peak_realized_eur:+.2f} EUR, Attiva su ritracciamento >=0,30 EUR: {daily_vault_active}) + Riconciliazione 730 Simmetrica",
         ],
         "regime_mercato_attivo": regime,
         "ampiezza_mercato_sopra_vwap_pct": round(market_breadth_above_vwap * 100.0, 1),
+        "intraday_0s_tape": intraday_tape,
+        "daily_entries_date": today_prefix,
+        "daily_entries_count": today_entries_count,
+        "max_daily_new_entries": MAX_DAILY_NEW_ENTRIES,
         "radar_onda_notturna_wall_street": overnight_status,
         "account_id": 52318994,
         "budget_iniziale_vincolato_eur": 100.00,
@@ -3364,7 +3656,7 @@ def run_cycle(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Trading 212 V11.5 LTS Zero Cerotti Daemon")
+    parser = argparse.ArgumentParser(description="Trading 212 V11.6 LTS Anti-Spread Zero Cerotti Daemon")
     parser.add_argument(
         "--cycles",
         type=int,
@@ -3374,13 +3666,13 @@ def main():
     args, _ = parser.parse_known_args()
 
     print(
-        "=== AVVIO DEMONE V11.5 LTS ZERO CEROTTI (GETTEX 0s STREAMING + 39 COLOSSI UE/USA IN EUR + MIFID LIMIT +1%) ===",
+        "=== AVVIO DEMONE V11.6 LTS ANTI-SPREAD ZERO CEROTTI (8/8 BLINDATURE + CASH-REGIME LEADER RS + GETTEX 0s + MIFID LIMIT) ===",
         flush=True,
     )
     client = load_client()
     added_giants = discover_and_verify_eur_giants(client)
     print(
-        f"[RADAR DINAMICO V11.5] Universo EUR Zero-Fee attivo: {len(ASSET_PROFILES)} Colossi (32 UE + 7 Big Tech USA in EUR, +{added_giants} verificati via ISIN, Feed GETTEX 0s)",
+        f"[RADAR DINAMICO V11.6] Universo EUR Zero-Fee attivo: {len(ASSET_PROFILES)} Colossi (32 UE + 7 Big Tech USA in EUR, +{added_giants} verificati via ISIN, Feed GETTEX 0s)",
         flush=True,
     )
     bot = Trading212AutonomousBot(client=client, total_budget_eur=100.00, cartridges=4, annual_target_pct=0.30)
@@ -3431,12 +3723,13 @@ def main():
                 f"Valore 100€: {state['valore_totale_portafoglio_100e_eur']:.2f} EUR "
                 f"(Cassa: {state['profitto_realizzato_in_cassa_eur']:+.2f} EUR, "
                 f"Aperto: {state['profitto_aperto_non_realizzato_eur']:+.2f} EUR, "
-                f"Cartuccia Kelly: {state['taglia_cartuccia_composta_eur']:.2f} EUR) | "
+                f"Cartuccia Kelly: {state['taglia_cartuccia_composta_eur']:.2f} EUR, "
+                f"Lanci Oggi: {state.get('daily_entries_count', 0)}/{MAX_DAILY_NEW_ENTRIES}) | "
                 f"Radar Notte: {ov['verdict']} (Nasdaq {ov['nasdaq_change_pct']:+.2f}%, VIX {ov.get('vix_level', 16.0):.1f} [{ov['vix_fear_change_pct']:+.2f}%])",
                 flush=True,
             )
             for act in state["ultime_azioni_bot"]:
-                print(f"   >>> [AZIONE V11.5]: {act}", flush=True)
+                print(f"   >>> [AZIONE V11.6]: {act}", flush=True)
         except Exception as e:
             print(f"[ATTENZIONE] Errore temporaneo nel ciclo #{cycle}: {e}", flush=True)
 

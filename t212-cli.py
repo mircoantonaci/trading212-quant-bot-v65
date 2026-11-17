@@ -93,7 +93,7 @@ def fmt_px(val: float) -> str:
 
 def cmd_status() -> None:
     print("\n" + "═" * 90)
-    print(" 🛡️  TRADING 212 AUTONOMOUS QUANT BOT — V11.5 LTS ZERO CEROTTI (ISTITUZIONALE)")
+    print(" 🛡️  TRADING 212 AUTONOMOUS QUANT BOT — V11.6 LTS ZERO CEROTTI (ANTI-SPREAD)")
     print("═" * 90)
 
     pids = get_daemon_pids()
@@ -109,7 +109,7 @@ def cmd_status() -> None:
 
     updated_at = state.get("timestamp", "N/D")
     cycle = state.get("cycle", 0)
-    arch = state.get("mode", "INSTITUTIONAL_V11_5_LTS_ZERO_CEROTTI")
+    arch = state.get("mode", "INSTITUTIONAL_V11_6_LTS_ZERO_CEROTTI")
     val_100 = float(state.get("valore_totale_portafoglio_100e_eur", 100.0))
     net_profit = float(state.get("guadagno_totale_netto_eur", 0.0))
     realized_net = float(state.get("profitto_realizzato_in_cassa_eur", 0.0))

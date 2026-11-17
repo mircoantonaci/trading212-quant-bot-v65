@@ -180,13 +180,13 @@ class TestQuantInvariantsV11(unittest.TestCase):
             self.assertIsNotNone(reason, f"Buco nella scala salva-utile a pnl={drop_pnl}")
 
     def test_09_airbag_cap_and_clean_epoch_isolation(self):
-        """Invariante #9: Airbag attivo sotto -0.72% dopo 8m e vecchi stop pre-V11 ignorati al 100%."""
+        """Invariante #9: Airbag Anti-Rumore V11.6 attivo <= -1.75% e vecchi stop pre-V11 ignorati al 100%."""
         intel = daemon.HybridUncappedIntelligence()
         intel.peak_pnl_pct["SAPd_EQ"] = 0.0
         intel.position_open_time["SAPd_EQ"] = datetime.datetime.now().timestamp() - 600  # 10 min
         regime = {"is_morning_gap_harvest": False, "is_pre_close_window": False}
         metrics = {"atr_5m_volatility_pct": 0.18, "green_hook_confirmed": True, "vwap_dist_pct": 0.0, "rsi_5m": 50.0}
-        reason = intel.evaluate_uncapped_exit("SAPd_EQ", -0.0073, regime, 0.0, {}, metrics, 0.0, False)
+        reason = intel.evaluate_uncapped_exit("SAPd_EQ", -0.0176, regime, 0.0, {}, metrics, 0.0, False)
         self.assertIsNotNone(reason)
         self.assertIn("AIRBAG", reason)
 
@@ -396,13 +396,21 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertFalse(intel.is_eligible_entry_candidate(ordinary_cand, reg_lunch, ov_ok))
         self.assertFalse(intel.is_eligible_entry_candidate(elite_cand, reg_lunch, ov_ok))
 
-        # Alle 14:40 CET (08:40 ET, Pre-Market USA dopo i dati macro), il blocco pranzo termina e i candidati idonei (>= 58 pt) passano
+        # V11.6 Fix #6: Alle 14:40 CET (08:40 ET, Pre-Bell USA) lo Scudo Whipsaw Pre-Bell blocca i setup ordinari;
+        # alle 15:36 CET (09:36 ET, dopo la prima candela 5m NYSE) si apre l'onda Wall Street e i candidati idonei (>= 58 pt) passano!
         pre_us_dt = datetime.datetime(2026, 11, 12, 14, 40, 0, tzinfo=daemon.MARKET_TZ)
         reg_pre_us = intel.get_intraday_regime(pre_us_dt)
-        self.assertTrue(reg_pre_us["allow_new_buys"])
-        self.assertTrue(intel.is_eligible_entry_candidate(ordinary_cand, reg_pre_us, ov_ok))
+        self.assertTrue(reg_pre_us["is_midday_sniper_window"])
+        self.assertEqual(reg_pre_us["max_active_slots"], 2)
+        self.assertFalse(intel.is_eligible_entry_candidate(ordinary_cand, reg_pre_us, ov_ok))
+
+        post_bell_dt = datetime.datetime(2026, 11, 12, 15, 36, 0, tzinfo=daemon.MARKET_TZ)
+        reg_post_bell = intel.get_intraday_regime(post_bell_dt)
+        self.assertTrue(reg_post_bell["allow_new_buys"])
+        self.assertFalse(reg_post_bell["is_midday_sniper_window"])
+        self.assertTrue(intel.is_eligible_entry_candidate(ordinary_cand, reg_post_bell, ov_ok))
         low_score_cand = dict(ordinary_cand, quant_buy_score=55.0)  # < BASE_MIN_BUY_SCORE (58.0)
-        self.assertFalse(intel.is_eligible_entry_candidate(low_score_cand, reg_pre_us, ov_ok))
+        self.assertFalse(intel.is_eligible_entry_candidate(low_score_cand, reg_post_bell, ov_ok))
 
     def test_15_continuous_monotonic_profit_protection_curve(self):
         """Invariante #15: curva salva-utile monotona non-decrescente ovunque, senza scalini ciechi tra +0.58% e shield_act."""
@@ -945,7 +953,7 @@ class TestQuantInvariantsV11(unittest.TestCase):
         class _RotationBroker:
             def __init__(self):
                 self.positions = [
-                    {"ticker": "MRKd_EQ", "quantity": 0.16, "averagePrice": 150.0, "currentPrice": 148.5, "ppl": -0.24},
+                    {"ticker": "MRKd_EQ", "quantity": 0.16, "averagePrice": 150.0, "currentPrice": 147.20, "ppl": -0.45},
                     {"ticker": "ADYENa_EQ", "quantity": 0.03, "averagePrice": 860.0, "currentPrice": 862.0, "ppl": 0.06},
                     {"ticker": "PRXa_EQ", "quantity": 0.70, "averagePrice": 35.5, "currentPrice": 35.6, "ppl": 0.07},
                     {"ticker": "MUV2d_EQ", "quantity": 0.04, "averagePrice": 592.0, "currentPrice": 593.0, "ppl": 0.04},
@@ -995,7 +1003,7 @@ class TestQuantInvariantsV11(unittest.TestCase):
             sap_sc = 0.0 if f_flag else 87.0
             sap_eh = False if f_flag else True
             return {
-                "MRKd_EQ": {"ticker": "MRKd_EQ", "name": "Merck", "squad": "SQUADRA_1_CECCHINO_GIORNALIERO", "sector": "PHARMA_BIOTECH", "live_price_eur": 148.5, "rsi_5m": 32.0, "vwap_dist_pct": -0.40, "atr_5m_volatility_pct": 0.15, "day_range_pct": 1.6, "rvol_ratio": 1.2, "quant_buy_score": 0.0, "green_hook_confirmed": False, "entry_hook_confirmed": False, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "COLTELLO_IN_CADUTA_ATTENDERE_UNCINO_VERDE"},
+                "MRKd_EQ": {"ticker": "MRKd_EQ", "name": "Merck", "squad": "SQUADRA_1_CECCHINO_GIORNALIERO", "sector": "PHARMA_BIOTECH", "live_price_eur": 147.20, "rsi_5m": 32.0, "vwap_dist_pct": -0.40, "atr_5m_volatility_pct": 0.15, "day_range_pct": 1.6, "rvol_ratio": 1.2, "quant_buy_score": 0.0, "green_hook_confirmed": False, "entry_hook_confirmed": False, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "COLTELLO_IN_CADUTA_ATTENDERE_UNCINO_VERDE"},
                 "SAPd_EQ": {"ticker": "SAPd_EQ", "name": "SAP", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "SOFTWARE_CLOUD", "live_price_eur": 212.7, "rsi_5m": 31.0, "vwap_dist_pct": -0.30, "atr_5m_volatility_pct": 0.20, "day_range_pct": 1.5, "rvol_ratio": 1.8, "quant_buy_score": sap_sc, "green_hook_confirmed": False, "entry_hook_confirmed": sap_eh, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "COLTELLO_IN_CADUTA_ATTENDERE_UNCINO_VERDE"},
                 "EOANd_EQ": {"ticker": "EOANd_EQ", "name": "E.ON", "squad": "SQUADRA_1_CECCHINO_GIORNALIERO", "sector": "UTILITIES_RETI_ELETTRICHE", "live_price_eur": 19.50, "rsi_5m": 58.0, "vwap_dist_pct": 0.22, "atr_5m_volatility_pct": 0.15, "day_range_pct": 1.6, "rvol_ratio": 1.3, "quant_buy_score": 78.0, "green_hook_confirmed": True, "entry_hook_confirmed": True, "strong_for_overnight": True, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT"},
             }
@@ -1173,18 +1181,20 @@ class TestQuantInvariantsV11(unittest.TestCase):
         }
         rs_leader = dict(sub_vwap_laggard, ticker="NVDd_EQ", vwap_dist_pct=0.14, strong_for_overnight=True)
         deep_washout = dict(sub_vwap_laggard, ticker="ASMLa_EQ", vwap_dist_pct=-0.22, rsi_5m=28.5)
-        # In capitolazione (breadth = 0.10 < 0.15): il ritardatario sotto VWAP è bloccato, il Leader >= VWAP e il washout RSI<=30 passano!
+        # V11.6 Fix #4: In capitolazione (breadth = 0.10 <= 0.15 -> min_vwap_by_breadth = 0.00%):
+        # sia il ritardatario sia il washout RSI<=30 sotto VWAP sono BLOCCATI senza eccezioni, mentre il Leader >= VWAP passa!
         self.assertFalse(intel.is_eligible_entry_candidate(sub_vwap_laggard, reg_open, ov_ok, market_breadth_above_vwap=0.10))
         self.assertTrue(intel.is_eligible_entry_candidate(rs_leader, reg_open, ov_ok, market_breadth_above_vwap=0.10))
-        self.assertTrue(intel.is_eligible_entry_candidate(deep_washout, reg_open, ov_ok, market_breadth_above_vwap=0.10))
-        # In mercato normale (breadth = 0.50): anche il pullback sano -0.08% passa regolarmente
+        self.assertFalse(intel.is_eligible_entry_candidate(deep_washout, reg_open, ov_ok, market_breadth_above_vwap=0.10))
+        # In mercato ampio (breadth = 0.50 >= 0.35 -> min_vwap_by_breadth = -0.35%): anche pullback/washout sano passano regolarmente
         self.assertTrue(intel.is_eligible_entry_candidate(sub_vwap_laggard, reg_open, ov_ok, market_breadth_above_vwap=0.50))
+        self.assertTrue(intel.is_eligible_entry_candidate(deep_washout, reg_open, ov_ok, market_breadth_above_vwap=0.50))
 
         # 4) Sblocco Istantaneo Liquidità di Rotazione 4/4 -> 3/4 -> 4/4 nello stesso ciclo anche con cassa iniziale 0.64 EUR e lag REST!
         class _TightCashRotationBroker:
             def __init__(self):
                 self.positions = [
-                    {"ticker": "MRKd_EQ", "quantity": 0.1667, "averagePrice": 150.0, "currentPrice": 148.5, "ppl": -0.25},
+                    {"ticker": "MRKd_EQ", "quantity": 0.1667, "averagePrice": 150.0, "currentPrice": 147.20, "ppl": -0.47},
                     {"ticker": "ADYENa_EQ", "quantity": 0.0290, "averagePrice": 860.0, "currentPrice": 862.0, "ppl": 0.06},
                     {"ticker": "PRXa_EQ", "quantity": 0.7000, "averagePrice": 35.5, "currentPrice": 35.6, "ppl": 0.07},
                     {"ticker": "MUV2d_EQ", "quantity": 0.0420, "averagePrice": 592.0, "currentPrice": 593.0, "ppl": 0.04},
@@ -1225,10 +1235,10 @@ class TestQuantInvariantsV11(unittest.TestCase):
         bot.tax_tracker.save()
         intel_rot = daemon.HybridUncappedIntelligence()
         intel_rot.prev_open_snapshot.clear()
-        intel_rot.position_open_time["MRKd_EQ"] = now_epoch - 1200.0  # 20m a -1.00% -> Airbag libera ~24.75 EUR!
+        intel_rot.position_open_time["MRKd_EQ"] = now_epoch - 1200.0  # 20m a -1.87% -> Airbag V11.6 libera ~24.54 EUR!
         rot_scan = daemon.QuantMarketScanner()
         rot_scan.scan_all = lambda **kw: {
-            "MRKd_EQ": {"ticker": "MRKd_EQ", "name": "Merck", "squad": "SQUADRA_1_CECCHINO_GIORNALIERO", "sector": "PHARMA_BIOTECH", "live_price_eur": 148.5, "rsi_5m": 32.0, "vwap_dist_pct": -0.40, "atr_5m_volatility_pct": 0.16, "day_range_pct": 1.6, "rvol_ratio": 1.2, "quant_buy_score": 0.0, "green_hook_confirmed": False, "entry_hook_confirmed": False, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "COLTELLO_IN_CADUTA_ATTENDERE_UNCINO_VERDE"},
+            "MRKd_EQ": {"ticker": "MRKd_EQ", "name": "Merck", "squad": "SQUADRA_1_CECCHINO_GIORNALIERO", "sector": "PHARMA_BIOTECH", "live_price_eur": 147.20, "rsi_5m": 32.0, "vwap_dist_pct": -0.40, "atr_5m_volatility_pct": 0.16, "day_range_pct": 1.6, "rvol_ratio": 1.2, "quant_buy_score": 0.0, "green_hook_confirmed": False, "entry_hook_confirmed": False, "strong_for_overnight": False, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "COLTELLO_IN_CADUTA_ATTENDERE_UNCINO_VERDE"},
             "ASMLa_EQ": {"ticker": "ASMLa_EQ", "name": "ASML", "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": "CHIP_LITOGRAFIA_WAFER", "live_price_eur": 720.0, "rsi_5m": 56.0, "vwap_dist_pct": 0.18, "atr_5m_volatility_pct": 0.24, "day_range_pct": 2.1, "rvol_ratio": 1.6, "quant_buy_score": 84.0, "green_hook_confirmed": True, "entry_hook_confirmed": True, "strong_for_overnight": True, "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT"},
         }
 
@@ -1244,7 +1254,7 @@ class TestQuantInvariantsV11(unittest.TestCase):
 
         self.assertEqual(len(tight_broker.limit_buys), 1)
         self.assertEqual(tight_broker.limit_buys[0][0], "ASMLa_EQ")
-        self.assertEqual(st_rot["mode"], "INSTITUTIONAL_V11_5_LTS_ZERO_CEROTTI")
+        self.assertEqual(st_rot["mode"], "INSTITUTIONAL_V11_6_LTS_ZERO_CEROTTI")
 
         # 5) Persistenza su disco di OvernightWaveRadar attraverso i riavvii batch Cloud:
         tmp_radar_cache = "/tmp/test_v114_radar_cache.json"
@@ -1964,6 +1974,205 @@ class TestQuantInvariantsV11(unittest.TestCase):
             self.assertTrue(intel_cull.can_buy_ticker("SAPd_EQ", 100.46, 0.15))
             m_clean = daemon.QuantMarketScanner().fetch_5m_metrics("SAPd_EQ", tax_data=cull_bot.tax_tracker.data)
         self.assertFalse(m_clean["had_loss_today"])
+
+    def test_34_v116_anti_spread_8_of_8_blindatura_and_cash_regime_leader_rs(self):
+        """Invariante #34: Blindatura Completa V11.6 Opzione A (8/8 bug risolti + Selettore Cash-Regime Leader RS + Max 2 ingressi/giorno persistenti)."""
+        daemon.discover_and_verify_eur_giants(None)
+        real_dt = datetime.datetime
+
+        # FIX #1: Cartucce Simmetriche 4/4 proporzionali al capitale effettivo (94.36 EUR -> 4 x 23.59 EUR, 112.00 EUR -> 4 x 28.00 EUR)
+        eff_94, slot_94, min_94 = daemon._compute_effective_budget_and_cartridge(100.0, -5.64, 4)
+        self.assertAlmostEqual(eff_94, 94.36, places=2)
+        self.assertAlmostEqual(slot_94, 23.59, places=2)
+        self.assertAlmostEqual(slot_94 * 4, eff_94, places=2)
+        self.assertAlmostEqual(min_94, 16.98, places=2)
+
+        eff_112, slot_112, _ = daemon._compute_effective_budget_and_cartridge(100.0, 12.0, 4)
+        self.assertAlmostEqual(eff_112, 112.0, places=2)
+        self.assertAlmostEqual(slot_112, 28.0, places=2)
+
+        # FIX #2: Quantizzazione monotona math.floor (zero sforamento cassa per round-half-even) + pacing >= 2.05s su Limit BUY
+        for alloc_eur in [23.59, 18.87, 25.00]:
+            for px in [17.83, 148.55, 212.75, 720.40, 862.50]:
+                q4 = Trading212Client.quantize_buy_quantity_floor(alloc_eur, px, decimals=4)
+                q2 = Trading212Client.quantize_buy_quantity_floor(alloc_eur, px, decimals=2)
+                self.assertGreater(q4, 0.0)
+                self.assertLessEqual(round(q4 * px, 8), alloc_eur + 1e-9)
+                self.assertLessEqual(round(q2 * px, 8), alloc_eur + 1e-9)
+
+        dummy_client = Trading212Client(api_key="k", api_secret="s", mode="demo")
+        dummy_client._last_limit_order_ts = 1000.0
+        slept_calls = []
+        with patch("time.monotonic", side_effect=[1000.5, 1002.1]), patch(
+            "time.sleep", side_effect=lambda s: slept_calls.append(s)
+        ), patch.object(dummy_client, "_request", return_value={"id": "LIM_OK"}):
+            dummy_client.place_limit_order("SAPd_EQ", 0.11, 210.0)
+        self.assertEqual(len(slept_calls), 1)
+        self.assertAlmostEqual(slept_calls[0], 1.55, places=2)
+
+        # FIX #3: Continuità C0 bilaterale della curva salva-utile V11.6 (shield_act >= 0.0145) + chiusura gap PRE_SHIELD_1A (< -0.05%)
+        intel = daemon.HybridUncappedIntelligence()
+        st_below, fl_below = intel.compute_profit_protection_floor(0.0099, 0.0160, 0.0045, 0.0020, False)
+        self.assertEqual(st_below, "NONE")
+        self.assertIsNone(fl_below)
+
+        st_be, fl_be = intel.compute_profit_protection_floor(0.0100, 0.0160, 0.0045, 0.0020, False)
+        self.assertEqual(st_be, "PRE_SHIELD_1A")
+        self.assertAlmostEqual(fl_be, 0.0030, places=4)
+
+        _, fl_1299 = intel.compute_profit_protection_floor(0.01299, 0.0160, 0.0045, 0.0020, False)
+        _, fl_1300 = intel.compute_profit_protection_floor(0.0130, 0.0160, 0.0045, 0.0020, False)
+        _, fl_1599 = intel.compute_profit_protection_floor(0.01599, 0.0160, 0.0045, 0.0020, False)
+        st_trail, fl_1600 = intel.compute_profit_protection_floor(0.0160, 0.0160, 0.0045, 0.0020, False)
+        self.assertAlmostEqual(fl_1299, fl_1300, places=3)  # C0 a +1.30%
+        self.assertAlmostEqual(fl_1599, fl_1600, places=3)  # C0 a +1.60%
+        self.assertEqual(st_trail, "UNCAPPED_SHIELD_2")
+        self.assertAlmostEqual(fl_1600, 0.0115, places=4)
+
+        # Flash-drop da picco +1.05% direttamente a -0.22% con rottura VWAP: PRE_SHIELD_1A scatta senza buchi!
+        t_open_flash = real_dt(2026, 11, 18, 10, 0, 0, tzinfo=daemon.MARKET_TZ).timestamp()
+        intel.peak_pnl_pct["SAPd_EQ"] = 0.0105
+        intel.position_open_time["SAPd_EQ"] = t_open_flash
+        reg_open = {"allow_new_buys": True, "is_midday_sniper_window": False, "is_morning_gap_harvest": False, "is_pre_close_window": False, "us_market_live": True, "hm": 620, "ny_hm": 600, "now_date_iso": "2026-11-18"}
+        m_broken = {
+            "atr_5m_volatility_pct": 0.20, "elastic_shield_act_raw": 0.0160, "elastic_shield_pull_raw": 0.0045,
+            "green_hook_confirmed": False, "vwap_dist_pct": -0.18, "rsi_5m": 41.0,
+        }
+        with patch("time.time", return_value=t_open_flash + 900.0):
+            exit_flash = intel.evaluate_uncapped_exit("SAPd_EQ", -0.0022, reg_open, 0.0, {}, m_broken, 0.0, False)
+        self.assertIsNotNone(exit_flash)
+        self.assertIn("BLINDATURA #1A", exit_flash)
+
+        # FIX #5: VIX alto ma in crollo (VIX=28.5, vix_chg=-11.0% = VIX-Crush Rally) NON attiva falso crash shield;
+        #         mentre un vero tape crash 0s GETTEX (EU32/US7) lo attiva istantaneamente anche con Yahoo ritardato!
+        ov_vix_crush = {
+            "allow_overnight_hold": True, "nasdaq_change_pct": 0.85, "sp500_change_pct": 0.70,
+            "dax_change_pct": 0.65, "vix_fear_change_pct": -11.0, "vix_level": 28.5,
+        }
+        calm_tape = {"cash_regime_enforced": True, "breadth_above_vwap": 0.65, "eu_from_open_pct": 0.35, "eu_slope_30m_pct": 0.14, "us_from_ny_open_pct": 0.40, "us_slope_30m_pct": 0.18}
+        crash_tape_0s = {"cash_regime_enforced": True, "breadth_above_vwap": 0.12, "eu_from_open_pct": -0.95, "eu_slope_30m_pct": -0.32, "us_from_ny_open_pct": -1.05, "us_slope_30m_pct": -0.35}
+        self.assertFalse(intel.is_macro_crash_shield_active(reg_open, ov_vix_crush, calm_tape))
+        self.assertTrue(intel.is_macro_crash_shield_active(reg_open, ov_vix_crush, crash_tape_0s))
+
+        # FIX #6: Scudo Whipsaw Pre-Bell & Prima Candela 5m NYSE (08:36-09:34 ET bloccata, 09:35 ET aperta)
+        dt_0932_et = real_dt(2026, 11, 18, 15, 32, 0, tzinfo=daemon.MARKET_TZ)  # 09:32 ET
+        dt_0935_et = real_dt(2026, 11, 18, 15, 35, 0, tzinfo=daemon.MARKET_TZ)  # 09:35 ET
+        self.assertTrue(intel.get_intraday_regime(dt_0932_et)["is_midday_sniper_window"])
+        self.assertFalse(intel.get_intraday_regime(dt_0935_et)["is_midday_sniper_window"])
+        self.assertEqual(intel.get_intraday_regime(dt_0935_et)["code"], "FASE_3_ONDA_WALL_STREET_SENZA_TETTO")
+
+        # FIX #7: Orizzonte Anti-Rumore +/-1.40%..1.60% (oscillazione fisiologica -0.95% tenuta senza stop suicida; invalidazione -1.45% tagliata)
+        intel.peak_pnl_pct["NVDd_EQ"] = 0.0010
+        intel.position_open_time["NVDd_EQ"] = t_open_flash
+        with patch("time.time", return_value=t_open_flash + 900.0):  # +15 min
+            self.assertIsNone(intel.evaluate_uncapped_exit("NVDd_EQ", -0.0095, reg_open, 0.0, {}, m_broken, 0.0, False))
+            cut_145 = intel.evaluate_uncapped_exit("NVDd_EQ", -0.0145, reg_open, 0.0, {}, m_broken, 0.0, False)
+        self.assertIsNotNone(cut_145)
+        self.assertIn("TAGLIO CHIRURGICO TESI INVALIDATA", cut_145)
+
+        # FIX #8: Selettore Cash-Regime Leader RS (sample >= 8) + Tetto persistente MAX_DAILY_NEW_ENTRIES = 2 su 94.36 EUR!
+        def _mk_tape_stock(tkr: str, vwap: float, open_chg: float, sl30: float, score: float = 82.0, us: bool = False) -> dict:
+            return {
+                "ticker": tkr, "name": tkr, "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": f"SEC_{tkr}",
+                "is_us_giant": us, "price_feed_source": "GETTEX_STREAMING_0S", "live_price_eur": 100.0,
+                "vwap_dist_pct": vwap, "intraday_open_chg_pct": open_chg, "ny_open_chg_pct": open_chg if us else 0.0,
+                "slope_15m_pct": 0.18, "slope_30m_pct": sl30, "signed_kaufman_er": 0.42, "kaufman_efficiency_ratio": 0.42,
+                "rsi_5m": 56.0, "rvol_ratio": 1.45, "atr_5m_volatility_pct": 0.22, "day_range_pct": 1.60,
+                "elastic_shield_act_raw": 0.0160, "elastic_shield_pull_raw": 0.0045,
+                "score_momentum": score - 4.0, "score_pullback": 0.0, "velocity_bonus": 4.0, "quant_buy_score": score,
+                "true_relative_strength": vwap >= 0.05 and sl30 > 0, "strong_for_overnight": vwap >= 0.05 and sl30 > 0,
+                "green_hook_confirmed": vwap >= 0.0, "entry_hook_confirmed": vwap >= 0.0, "had_loss_today": False,
+                "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT",
+            }
+
+        # (8a) Mercato laterale/choppy (breadth 3/10 = 0.30 < 0.58): 0 ingressi autorizzati in Cash-Regime!
+        choppy_universe = {f"T{i}d_EQ": _mk_tape_stock(f"T{i}d_EQ", 0.18 if i < 3 else -0.15, 0.20 if i < 3 else -0.25, 0.12 if i < 3 else -0.10) for i in range(10)}
+        tape_choppy = daemon._compute_intraday_0s_tape(choppy_universe)
+        self.assertTrue(tape_choppy["cash_regime_enforced"])
+        self.assertFalse(
+            intel.is_eligible_entry_candidate(
+                choppy_universe["T0d_EQ"], reg_open, ov_vix_crush,
+                market_breadth_above_vwap=tape_choppy["breadth_above_vwap"], intraday_0s_tape=tape_choppy,
+            )
+        )
+
+        # (8b) Mercato sano (breadth 8/10 = 0.80 >= 0.58, EU open +0.28%): esegue esattamente 2 cartucce da ~23.59 EUR su 94.36 EUR
+        #      e blocca la 3a entrata giornaliera anche dopo un riavvio completo della VM Cloud!
+        bull_universe = {
+            "SAPd_EQ": _mk_tape_stock("SAPd_EQ", 0.20, 0.35, 0.22, score=86.0),
+            "ASMLa_EQ": _mk_tape_stock("ASMLa_EQ", 0.18, 0.32, 0.20, score=84.0),
+            "IFXd_EQ": _mk_tape_stock("IFXd_EQ", 0.16, 0.30, 0.18, score=82.0),
+            "SIEd_EQ": _mk_tape_stock("SIEd_EQ", 0.15, 0.28, 0.16, score=80.0),
+            "DTGd_EQ": _mk_tape_stock("DTGd_EQ", 0.12, 0.25, 0.14, score=78.0),
+            "EOANd_EQ": _mk_tape_stock("EOANd_EQ", 0.10, 0.22, 0.12, score=76.0),
+            "NVDd_EQ": _mk_tape_stock("NVDd_EQ", 0.22, 0.40, 0.25, score=85.0, us=True),
+            "MSFd_EQ": _mk_tape_stock("MSFd_EQ", 0.14, 0.26, 0.15, score=79.0, us=True),
+            "MRKd_EQ": _mk_tape_stock("MRKd_EQ", -0.10, -0.05, -0.04, score=0.0),
+            "DBKd_EQ": _mk_tape_stock("DBKd_EQ", -0.08, -0.04, -0.03, score=0.0),
+        }
+
+        class _V116CashBroker:
+            def __init__(self):
+                self.positions = []
+                self.free_cash = 94.36
+                self.buys = []
+
+            def get_open_positions(self):
+                return list(self.positions)
+
+            def get_pending_orders(self):
+                return []
+
+            def get_account_cash(self):
+                return {"result": -5.64, "free": round(self.free_cash, 2)}
+
+            def place_limit_order(self, ticker: str, quantity: float, limit_price: float, time_validity: str = "DAY"):
+                assert quantity > 0.0
+                cost = round(quantity * limit_price, 4)
+                self.free_cash -= cost
+                self.buys.append((ticker, quantity, limit_price, cost))
+                self.positions.append({"ticker": ticker, "quantity": quantity, "averagePrice": limit_price, "currentPrice": limit_price, "ppl": 0.0})
+                return {"id": f"BUY_{ticker}"}
+
+            def cancel_order(self, order_id):
+                return None
+
+            def place_market_order(self, ticker: str, quantity: float):
+                return {"id": "MKT"}
+
+        v116_broker = _V116CashBroker()
+        v116_bot = daemon.Trading212AutonomousBot(client=v116_broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
+        v116_bot.tax_tracker = ItalianTaxTracker730(filepath=self._tmp_tax_path)
+        v116_bot.tax_tracker.reconcile_certified_cash_result(-5.64)
+
+        v116_scanner = daemon.QuantMarketScanner()
+        v116_scanner.scan_all = lambda **kw: bull_universe
+
+        class _DummyRadar34:
+            def evaluate_overnight_wave(self):
+                return {"verdict": "OK", "allow_overnight_hold": True, "nasdaq_change_pct": 0.35, "sp500_change_pct": 0.25, "dax_change_pct": 0.30, "vix_fear_change_pct": -1.5, "vix_level": 15.8}
+
+        dt_morn_drive = real_dt(2026, 11, 18, 9, 45, 0, tzinfo=daemon.MARKET_TZ)
+        with patch.object(daemon, "LIMIT_FILL_POLL_SEC", 0.0), patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_morn_drive.timestamp()):
+            mock_dt.now.side_effect = lambda tz=None: dt_morn_drive.astimezone(tz) if tz else dt_morn_drive.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            intel_v116 = daemon.HybridUncappedIntelligence()
+            st1 = daemon.run_cycle(v116_bot, intel_v116, v116_scanner, _DummyRadar34(), 1)
+            # Simula riavvio completo VM Cloud a metà giornata: deve leggere 2/2 ingressi già eseguiti oggi da disco e NON sparare la 3a cartuccia!
+            intel_rebooted = daemon.HybridUncappedIntelligence()
+            intel_rebooted.sync_from_tax_data(v116_bot.tax_tracker.data)
+            st2 = daemon.run_cycle(v116_bot, intel_rebooted, v116_scanner, _DummyRadar34(), 2)
+
+        self.assertEqual(len(v116_broker.buys), 2)
+        self.assertEqual([b[0] for b in v116_broker.buys], ["SAPd_EQ", "NVDd_EQ"])
+        for _, _, _, cost in v116_broker.buys:
+            self.assertLessEqual(cost, 23.59 + 1e-6)
+            self.assertGreaterEqual(cost, 23.40)
+        self.assertEqual(st1["daily_entries_count"], 2)
+        self.assertEqual(st2["daily_entries_count"], 2)
+        self.assertEqual(st2["max_daily_new_entries"], 2)
+        self.assertAlmostEqual(st2["taglia_cartuccia_composta_eur"], 23.59, places=2)
 
 
 if __name__ == "__main__":
