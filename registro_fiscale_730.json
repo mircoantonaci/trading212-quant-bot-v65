@@ -5,18 +5,7 @@
   "valore_iniziale_quadro_w_eur": 100.0,
   "valore_finale_stimato_quadro_w_eur": 100.86,
   "giorni_detenzione_ivafe": 365,
-  "lotti_aperti_lifo": {
-    "BMWd_EQ": [
-      {
-        "timestamp": "2026-11-17T16:28:32",
-        "ticker": "BMWd_EQ",
-        "isin": "DE0005190003",
-        "quantity": 0.44,
-        "price_eur": 56.5,
-        "total_eur": 24.86
-      }
-    ]
-  },
+  "lotti_aperti_lifo": {},
   "operazioni_chiuse": [
     {
       "timestamp": "2026-11-05T09:44:17",
@@ -1943,12 +1932,21 @@
       "corrispettivo_eur": 24.55,
       "costo_lifo_eur": 24.73,
       "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-17T16:53:18",
+      "ticker": "BMWd_EQ",
+      "quantity": 0.44,
+      "sell_price_eur": 56.11,
+      "corrispettivo_eur": 24.69,
+      "costo_lifo_eur": 24.86,
+      "risultato_fiscale_eur": -0.17
     }
   ],
-  "totale_corrispettivi_vendita_eur": 5254.25,
-  "totale_costi_carico_lifo_eur": 5260.49,
+  "totale_corrispettivi_vendita_eur": 5278.94,
+  "totale_costi_carico_lifo_eur": 5285.35,
   "plusvalenze_lorde_eur": 16.33,
-  "minusvalenze_lorde_eur": 21.77,
+  "minusvalenze_lorde_eur": 21.97,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
