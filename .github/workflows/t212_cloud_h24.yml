@@ -2,14 +2,10 @@ name: "🛡️ Trading 212 Autonomous Quant Bot V11.5 LTS (Cloud H24 Zero Cerott
 
 on:
   schedule:
-    # Sonde scaglionate anti-ritardo coda GitHub Actions (se arrivano prima delle 07:30 Europe/Rome escono in 2s a costo zero):
-    - cron: "15 23 * * 0-4"
-    - cron: "20 1 * * 1-5"
-    - cron: "25 3 * * 1-5"
-    # Avvio nominale DST-Safe alle 06:35 UTC (07:35 CET inverno / 08:35 CEST estate): sempre in anticipo sulle 09:00 Europe/Rome!
-    - cron: "35 6 * * 1-5"
-    # Watchdog di sicurezza non distruttivo (11:45 UTC = 12:45 CET / 13:45 CEST, cancel-in-progress: false)
-    - cron: "45 11 * * 1-5"
+    # Watchdog auto-riparante ogni 2 ore (Domenica sera -> Venerdì pomeriggio):
+    # non usa lock di concorrenza; avvia la catena workflow_dispatch solo se nessuna sessione è già attiva!
+    - cron: "15 18,20,22 * * 0"
+    - cron: "15 0,2,4,6,7,8,10,12,14 * * 1-5"
   workflow_dispatch:
     inputs:
       cycles:
@@ -21,19 +17,52 @@ on:
         required: false
         default: "auto"
 
-concurrency:
-  group: t212-quant-v11-cloud-runner
-  cancel-in-progress: false
-
 permissions:
   contents: write
   actions: write
 
 jobs:
+  watchdog-check:
+    name: "🔍 Watchdog Anti-Coda Cron (Avvia catena H24 solo se ferma)"
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TZ: Europe/Rome
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: "⚡ Verifica catena workflow_dispatch attiva"
+        run: |
+          DOW=$(date +%u)
+          HOUR=$(date +%H)
+          MIN=$(date +%M)
+          HM=$((10#$HOUR * 60 + 10#$MIN))
+
+          # Finestra operativa catena H24: da Domenica 21:00 Europe/Rome fino a Venerdì 17:30 Europe/Rome
+          if [ "$DOW" -eq 6 ] || { [ "$DOW" -eq 7 ] && [ "$HM" -lt 1260 ]; } || { [ "$DOW" -eq 5 ] && [ "$HM" -ge 1050 ]; }; then
+            echo "🏖️ Finestra weekend (100% Cash EUR C1). Nessun avvio richiesto."
+            exit 0
+          fi
+
+          ACTIVE_COUNT=$(gh run list --repo "${{ github.repository }}" --workflow "t212_cloud_h24.yml" --limit 10 --json event,status \
+            --jq '[.[] | select(.event == "workflow_dispatch" and (.status == "in_progress" or .status == "queued" or .status == "waiting" or .status == "pending"))] | length')
+
+          if [ "${ACTIVE_COUNT:-0}" -gt 0 ]; then
+            echo "✅ Catena Cloud H24 già attiva ($ACTIVE_COUNT workflow_dispatch in corso). Uscita immediata a costo zero."
+            exit 0
+          fi
+
+          echo "🚀 Nessuna sessione workflow_dispatch attiva rilevata ($(date)): riaccensione istantanea catena Cloud H24..."
+          gh workflow run t212_cloud_h24.yml --repo "${{ github.repository }}"
+
   quant-bot-v11:
-    name: "Motore Continuo V11.5 Zero Cerotti (09:00-17:36 Europe/Rome)"
+    name: "Motore Continuo & Ponte H24 V11.5 Zero Cerotti (Lun-Ven)"
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 330
+    concurrency:
+      group: t212-quant-v11-cloud-runner
+      cancel-in-progress: false
     env:
       TZ: Europe/Rome
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -72,31 +101,56 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p "test_*.py" -v
 
-      - name: "🛡️ Sessione Continua 6s (MiFID Limit +1% + Cache 5m Persistente + Checkpoint Git)"
+      - name: "🛡️ Sessione Continua 6s + Ponte Notturno Autonomo Lun-Ven"
         id: run-session
         run: |
           git config user.name "t212-quant-bot[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
+          DOW=$(date +%u)
           HOUR=$(date +%H)
           MIN=$(date +%M)
           HM=$((10#$HOUR * 60 + 10#$MIN))
-          if [ "${{ github.event_name }}" = "schedule" ] && [ "$HM" -lt 450 ]; then
-            echo "⏭️ Sonda cron scaglionata eseguita in anticipo (ore $(date +%H:%M) Europe/Rome < 07:30). Uscita immediata a costo zero."
+
+          # 1) Stop netto Weekend C1 (da Venerdì >= 17:36 fino a Domenica < 21:00 Europe/Rome)
+          if [ "$DOW" -eq 6 ] || { [ "$DOW" -eq 7 ] && [ "$HM" -lt 1260 ]; } || { [ "$DOW" -eq 5 ] && [ "$HM" -ge 1056 ]; }; then
+            echo "🏁 Fine settimana C1 (100% Cash EUR, ore $(date +%H:%M)). Catena a riposo fino a Domenica sera."
             echo "ran_session=false" >> "$GITHUB_OUTPUT"
+            echo "relay_mode=none" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ "$HM" -ge 1056 ]; then
-            echo "🏁 Borsa Europea già chiusa (ore $(date +%H:%M) Europe/Rome). Uscita immediata watchdog."
+
+          # 2) Ponte Notturno Autonomo (17:36 -> 08:45 Europe/Rome, zero dipendenza dalla coda cron di GitHub!):
+          #    dorme leggero a 0 API calls per max 295m e passa il testimone via workflow_dispatch (<4s) fino alle 08:45 esatte,
+          #    quando lancia una VM fresca da 330m dedicata al Turno Mattutino 08:50 -> 12:25!
+          if [ "$HM" -ge 1056 ] || [ "$HM" -lt 525 ] || [ "$DOW" -eq 7 ]; then
+            echo "🌙 Ponte Notturno Autonomo attivo ($(date '+%a %H:%M %Z')) -> presidio verso apertura 08:45 Europe/Rome..."
             echo "ran_session=false" >> "$GITHUB_OUTPUT"
+            SLEPT_MIN=0
+            while [ "$SLEPT_MIN" -lt 295 ]; do
+              sleep 60
+              SLEPT_MIN=$((SLEPT_MIN + 1))
+              DOW=$(date +%u)
+              HOUR=$(date +%H)
+              MIN=$(date +%M)
+              HM=$((10#$HOUR * 60 + 10#$MIN))
+              if [ "$DOW" -le 5 ] && [ "$HM" -ge 525 ] && [ "$HM" -lt 1056 ]; then
+                echo "☀️ Raggiunte le $(date +%H:%M) Europe/Rome! Lancio VM fresca dedicata al Turno Mattutino..."
+                echo "relay_mode=fresh_morning" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            done
+            echo "🔄 Cambio turno Ponte Notturno dopo ${SLEPT_MIN}m ($(date +%H:%M) Europe/Rome)..."
+            echo "relay_mode=night_bridge" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
           echo "ran_session=true" >> "$GITHUB_OUTPUT"
 
-          # Attesa leggera pre-apertura fino alle 08:50 Europe/Rome (530 min) in inverno (CET)
+          # 3) Pre-apertura breve (08:45 -> 08:50 Europe/Rome) sulla VM mattutina appena avviata
           while [ "$HM" -lt 530 ]; do
-            echo "⏳ Pre-apertura Borsa ($(date +%H:%M) Europe/Rome < 08:50): attesa 30s..."
-            sleep 30
+            echo "⏳ Pre-apertura Borsa ($(date +%H:%M) Europe/Rome < 08:50): attesa 20s..."
+            sleep 20
             HOUR=$(date +%H)
             MIN=$(date +%M)
             HM=$((10#$HOUR * 60 + 10#$MIN))
@@ -111,19 +165,20 @@ jobs:
 
           echo "🚀 Avvio Sessione Continua V11.5 Zero Cerotti per max $TOTAL_CYCLES cicli da 6s (Ora Borsa: $(date))"
           while [ "$DONE" -lt "$TOTAL_CYCLES" ]; do
+            DOW=$(date +%u)
             HOUR=$(date +%H)
             MIN=$(date +%M)
             HM=$((10#$HOUR * 60 + 10#$MIN))
 
-            # Se sono passate le 17:36 Europe/Rome (1056 min), la Borsa Europea è chiusa: termina il turno
+            # Chiusura seduta alle 17:36 Europe/Rome (1056 min):
             if [ "$HM" -ge 1056 ]; then
               echo "🏁 Borsa Europea chiusa (ore $(date +%H:%M)). Fine sessione giornaliera."
               break
             fi
 
-            # Nel turno mattutino (RELAY_MODE != false), passa il testimone alle 12:25 (745 min, in piena Pausa Pranzo) ben prima del timeout 330m
+            # Nel turno mattutino (RELAY_MODE != false), passa il testimone alle 12:25 (745 min) al Turno Pomeridiano
             if [ "$RELAY_MODE" != "false" ] && [ "$HM" -ge 745 ] && [ "$DONE" -ge 50 ]; then
-              echo "🔄 Passaggio di testimone programmato delle $(date +%H:%M) al Turno Pomeridiano (311m fino alle 17:36)..."
+              echo "🔄 Passaggio di testimone programmato delle $(date +%H:%M) al Turno Pomeridiano (fino alle 17:36)..."
               break
             fi
 
@@ -146,6 +201,18 @@ jobs:
           python3 t212-cli.py status
           python3 t212-cli.py tax-730
 
+          DOW=$(date +%u)
+          HOUR=$(date +%H)
+          MIN=$(date +%M)
+          HM=$((10#$HOUR * 60 + 10#$MIN))
+          if [ "$RELAY_MODE" != "false" ] && [ "$HM" -ge 735 ] && [ "$HM" -le 1005 ]; then
+            echo "relay_mode=afternoon" >> "$GITHUB_OUTPUT"
+          elif [ "$DOW" -le 4 ] && [ "$HM" -ge 1050 ]; then
+            echo "relay_mode=night_bridge" >> "$GITHUB_OUTPUT"
+          else
+            echo "relay_mode=none" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: "💾 Salva Cache Candele 5m & Radar per la Staffetta Pomeridiana (Zero Git Bloat)"
         if: "!cancelled() && steps.run-session.outputs.ran_session == 'true' && hashFiles('.scanner_5m_cache.json') != ''"
         uses: actions/cache/save@v4
@@ -155,18 +222,22 @@ jobs:
             .radar_wave_cache.json
           key: t212-intraday-cache-${{ runner.os }}-${{ steps.cache-key.outputs.stamp }}
 
-      - name: "🔁 Auto-Staffetta Istantanea Turno Pomeridiano (12:25 -> 17:36 Europe/Rome)"
-        if: "!cancelled()"
+      - name: "🔁 Auto-Staffetta Perpetua Lun-Ven (Mattina -> Pomeriggio -> Ponte Notturno -> 08:45)"
+        if: "!cancelled() && steps.run-session.outcome == 'success'"
         run: |
+          MODE="${{ steps.run-session.outputs.relay_mode }}"
           HOUR=$(date +%H)
           MIN=$(date +%M)
           HM=$((10#$HOUR * 60 + 10#$MIN))
-          RELAY="${{ github.event.inputs.relay_afternoon || 'auto' }}"
 
-          # Se siamo tra le 12:15 e le 16:45 Europe/Rome, lancia via workflow_dispatch il turno pomeridiano continuo fino alle 17:36
-          if [ "$RELAY" != "false" ] && [ "$HM" -ge 735 ] && [ "$HM" -le 1005 ]; then
+          if [ "$MODE" = "afternoon" ]; then
             REMAINING_MIN=$((1058 - HM))
             NEXT_CYCLES=$((REMAINING_MIN * 10 + 60))
             echo "⚡ Attivazione Staffetta Pomeridiana V11.5 ($NEXT_CYCLES cicli da 6s fino alle 17:36 Europe/Rome)..."
-            gh workflow run t212_cloud_h24.yml --repo "${{ github.repository }}" -f cycles="$NEXT_CYCLES" -f relay_afternoon="false" || true
+            gh workflow run t212_cloud_h24.yml --repo "${{ github.repository }}" -f cycles="$NEXT_CYCLES" -f relay_afternoon="false"
+          elif [ "$MODE" = "night_bridge" ] || [ "$MODE" = "fresh_morning" ]; then
+            echo "⚡ Attivazione Staffetta Automatica ($MODE alle $(date +%H:%M) Europe/Rome, 0s coda)..."
+            gh workflow run t212_cloud_h24.yml --repo "${{ github.repository }}"
+          else
+            echo "⏹️ Nessuna staffetta successiva richiesta (mode=$MODE)."
           fi
