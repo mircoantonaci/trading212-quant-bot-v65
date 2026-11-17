@@ -15,6 +15,36 @@
         "price_eur": 60.8293,
         "total_eur": 24.94
       }
+    ],
+    "SIEd_EQ": [
+      {
+        "timestamp": "2026-11-17T15:00:52",
+        "ticker": "SIEd_EQ",
+        "isin": "DE0007236101",
+        "quantity": 0.0906,
+        "price_eur": 273.0684,
+        "total_eur": 24.74
+      }
+    ],
+    "ASMLa_EQ": [
+      {
+        "timestamp": "2026-11-17T15:01:27",
+        "ticker": "ASMLa_EQ",
+        "isin": "NL0010273215",
+        "quantity": 0.0193,
+        "price_eur": 1281.3472,
+        "total_eur": 24.73
+      }
+    ],
+    "ADSd_EQ": [
+      {
+        "timestamp": "2026-11-17T15:01:34",
+        "ticker": "ADSd_EQ",
+        "isin": "DE000A1EWWW0",
+        "quantity": 0.1423,
+        "price_eur": 173.9283,
+        "total_eur": 24.75
+      }
     ]
   },
   "operazioni_chiuse": [
