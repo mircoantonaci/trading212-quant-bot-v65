@@ -15,16 +15,6 @@
         "price_eur": 60.8293,
         "total_eur": 24.94
       }
-    ],
-    "BASd_EQ": [
-      {
-        "timestamp": "2026-11-17T10:50:07",
-        "ticker": "BASd_EQ",
-        "isin": "DE000BASF111",
-        "quantity": 0.46,
-        "price_eur": 53.413,
-        "total_eur": 24.57
-      }
     ]
   },
   "operazioni_chiuse": [
@@ -1854,12 +1844,21 @@
       "corrispettivo_eur": 24.64,
       "costo_lifo_eur": 24.78,
       "risultato_fiscale_eur": -0.14
+    },
+    {
+      "timestamp": "2026-11-17T13:39:22",
+      "ticker": "BASd_EQ",
+      "quantity": 0.46,
+      "sell_price_eur": 53.12,
+      "corrispettivo_eur": 24.44,
+      "costo_lifo_eur": 24.57,
+      "risultato_fiscale_eur": -0.13
     }
   ],
-  "totale_corrispettivi_vendita_eur": 4982.72,
-  "totale_costi_carico_lifo_eur": 4987.92,
-  "plusvalenze_lorde_eur": 15.63,
-  "minusvalenze_lorde_eur": 19.98,
+  "totale_corrispettivi_vendita_eur": 5007.16,
+  "totale_costi_carico_lifo_eur": 5012.49,
+  "plusvalenze_lorde_eur": 15.76,
+  "minusvalenze_lorde_eur": 20.23,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
