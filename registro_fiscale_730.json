@@ -16,14 +16,14 @@
         "total_eur": 24.74
       }
     ],
-    "ASMLa_EQ": [
+    "FB2Ad_EQ": [
       {
-        "timestamp": "2026-11-17T15:01:27",
-        "ticker": "ASMLa_EQ",
-        "isin": "NL0010273215",
-        "quantity": 0.0193,
-        "price_eur": 1281.3472,
-        "total_eur": 24.73
+        "timestamp": "2026-11-17T15:29:07",
+        "ticker": "FB2Ad_EQ",
+        "isin": "US30303M1027",
+        "quantity": 0.0435,
+        "price_eur": 568.9655,
+        "total_eur": 24.75
       }
     ]
   },
@@ -1881,12 +1881,21 @@
       "corrispettivo_eur": 24.79,
       "costo_lifo_eur": 24.94,
       "risultato_fiscale_eur": -0.15
+    },
+    {
+      "timestamp": "2026-11-17T15:32:59",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.0193,
+      "sell_price_eur": 1272.5,
+      "corrispettivo_eur": 24.56,
+      "costo_lifo_eur": 24.73,
+      "risultato_fiscale_eur": -0.17
     }
   ],
-  "totale_corrispettivi_vendita_eur": 5056.84,
-  "totale_costi_carico_lifo_eur": 5062.18,
+  "totale_corrispettivi_vendita_eur": 5081.4,
+  "totale_costi_carico_lifo_eur": 5086.91,
   "plusvalenze_lorde_eur": 16.05,
-  "minusvalenze_lorde_eur": 20.53,
+  "minusvalenze_lorde_eur": 20.72,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
