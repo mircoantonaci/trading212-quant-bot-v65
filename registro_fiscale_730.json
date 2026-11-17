@@ -25,6 +25,16 @@
         "price_eur": 60.8293,
         "total_eur": 24.94
       }
+    ],
+    "BASd_EQ": [
+      {
+        "timestamp": "2026-11-17T10:50:07",
+        "ticker": "BASd_EQ",
+        "isin": "DE000BASF111",
+        "quantity": 0.46,
+        "price_eur": 53.413,
+        "total_eur": 24.57
+      }
     ]
   },
   "operazioni_chiuse": [
