@@ -16,14 +16,34 @@
         "total_eur": 24.74
       }
     ],
-    "FB2Ad_EQ": [
+    "AMZd_EQ": [
       {
-        "timestamp": "2026-11-17T15:29:07",
-        "ticker": "FB2Ad_EQ",
-        "isin": "US30303M1027",
-        "quantity": 0.0435,
-        "price_eur": 568.9655,
+        "timestamp": "2026-11-17T15:39:12",
+        "ticker": "AMZd_EQ",
+        "isin": "US0231351067",
+        "quantity": 0.1054,
+        "price_eur": 234.8197,
         "total_eur": 24.75
+      }
+    ],
+    "DBKd_EQ": [
+      {
+        "timestamp": "2026-11-17T15:41:58",
+        "ticker": "DBKd_EQ",
+        "isin": "DE0005140008",
+        "quantity": 0.79,
+        "price_eur": 31.4937,
+        "total_eur": 24.88
+      }
+    ],
+    "APCd_EQ": [
+      {
+        "timestamp": "2026-11-17T15:46:11",
+        "ticker": "APCd_EQ",
+        "isin": "US0378331005",
+        "quantity": 0.077,
+        "price_eur": 321.9481,
+        "total_eur": 24.79
       }
     ]
   },
@@ -1890,12 +1910,21 @@
       "corrispettivo_eur": 24.56,
       "costo_lifo_eur": 24.73,
       "risultato_fiscale_eur": -0.17
+    },
+    {
+      "timestamp": "2026-11-17T15:44:24",
+      "ticker": "FB2Ad_EQ",
+      "quantity": 0.0435,
+      "sell_price_eur": 564.9,
+      "corrispettivo_eur": 24.57,
+      "costo_lifo_eur": 24.75,
+      "risultato_fiscale_eur": -0.18
     }
   ],
-  "totale_corrispettivi_vendita_eur": 5081.4,
-  "totale_costi_carico_lifo_eur": 5086.91,
-  "plusvalenze_lorde_eur": 16.05,
-  "minusvalenze_lorde_eur": 20.72,
+  "totale_corrispettivi_vendita_eur": 5105.97,
+  "totale_costi_carico_lifo_eur": 5111.66,
+  "plusvalenze_lorde_eur": 16.23,
+  "minusvalenze_lorde_eur": 21.09,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
