@@ -35,6 +35,16 @@
         "price_eur": 257.0686,
         "total_eur": 24.73
       }
+    ],
+    "BMWd_EQ": [
+      {
+        "timestamp": "2026-11-17T16:28:32",
+        "ticker": "BMWd_EQ",
+        "isin": "DE0005190003",
+        "quantity": 0.44,
+        "price_eur": 56.5,
+        "total_eur": 24.86
+      }
     ]
   },
   "operazioni_chiuse": [
