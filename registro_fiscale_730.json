@@ -35,6 +35,16 @@
         "price_eur": 53.413,
         "total_eur": 24.57
       }
+    ],
+    "SIEd_EQ": [
+      {
+        "timestamp": "2026-11-17T10:52:02",
+        "ticker": "SIEd_EQ",
+        "isin": "DE0007236101",
+        "quantity": 0.0909,
+        "price_eur": 272.4972,
+        "total_eur": 24.77
+      }
     ]
   },
   "operazioni_chiuse": [
