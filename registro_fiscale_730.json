@@ -6,16 +6,6 @@
   "valore_finale_stimato_quadro_w_eur": 100.86,
   "giorni_detenzione_ivafe": 365,
   "lotti_aperti_lifo": {
-    "ALVd_EQ": [
-      {
-        "timestamp": "2026-11-17T10:29:51",
-        "ticker": "ALVd_EQ",
-        "isin": "DE0008404005",
-        "quantity": 0.0523,
-        "price_eur": 473.805,
-        "total_eur": 24.78
-      }
-    ],
     "DPWd_EQ": [
       {
         "timestamp": "2026-11-17T10:33:50",
@@ -1855,12 +1845,21 @@
       "corrispettivo_eur": 24.64,
       "costo_lifo_eur": 24.77,
       "risultato_fiscale_eur": -0.13
+    },
+    {
+      "timestamp": "2026-11-17T13:02:15",
+      "ticker": "ALVd_EQ",
+      "quantity": 0.0523,
+      "sell_price_eur": 471.2,
+      "corrispettivo_eur": 24.64,
+      "costo_lifo_eur": 24.78,
+      "risultato_fiscale_eur": -0.14
     }
   ],
-  "totale_corrispettivi_vendita_eur": 4958.08,
-  "totale_costi_carico_lifo_eur": 4963.14,
-  "plusvalenze_lorde_eur": 15.49,
-  "minusvalenze_lorde_eur": 19.71,
+  "totale_corrispettivi_vendita_eur": 4982.72,
+  "totale_costi_carico_lifo_eur": 4987.92,
+  "plusvalenze_lorde_eur": 15.63,
+  "minusvalenze_lorde_eur": 19.98,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
