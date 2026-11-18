@@ -6,7 +6,7 @@
     "1. Occhio Real-Time 0s GETTEX + Nastro 0s EU32/US7 V11.6 (39/39 titoli in streaming 0s Monaco + Scudo Crollo 0s + Immune VIX-Crush)",
     "2. Selettore Cash-Regime Leader RS + Tetto Anti-Overtrading (0/2 lanci oggi, Breadth >= 58% per aprire fuoco)",
     "3. Marketable Limit Orders MiFID II (+1,00% cap su tick RTS 11 + Rate-Limit >= 2,05s + Quantizzazione math.floor Anti-Overrun)",
-    "4. Simmetria Patrimoniale 4/4 Cartucce (Budget Attivo: 94.36 EUR -> 4 Cartucce Simmetriche da 23.59 EUR)",
+    "4. Simmetria Patrimoniale 4/4 Cartucce (Budget Attivo: 100.00 EUR -> 4 Cartucce Simmetriche da 25.00 EUR)",
     "5. Matrice Markowitz 39 Colossi EUR Zero-Fee + Chiusura C0 Capitolazione Breadth (20.5% >= VWAP)",
     "6. Curva Monotona Bilaterale C0 Anti-Spread (+1,00% Pre-Scudo SOL 3A Senza Buchi -> +1,30% Curva 1B -> +1,60% Scudo Mobile Senza Tetto)",
     "7. Orizzonte Anti-Rumore Browniano 5m (Stop Tesi Invalidata ~-1,40% oltre 12m + Airbag Invalicabile -1,75%)",
@@ -67,16 +67,16 @@
   },
   "account_id": 52318994,
   "budget_iniziale_vincolato_eur": 100.0,
-  "budget_composto_attivo_kelly_eur": 94.36,
-  "taglia_cartuccia_composta_eur": 23.59,
+  "budget_composto_attivo_kelly_eur": 100.0,
+  "taglia_cartuccia_composta_eur": 25.0,
   "cassaforte_giornaliera_attiva": false,
   "cassaforte_giornaliera_picco_eur": 0.0,
   "capitale_impegnato_cartucce_eur": 0.0,
-  "liquidita_libera_su_100e_eur": 94.36,
-  "profitto_realizzato_in_cassa_eur": -5.64,
+  "liquidita_libera_su_100e_eur": 100.0,
+  "profitto_realizzato_in_cassa_eur": 0.0,
   "profitto_aperto_non_realizzato_eur": 0.0,
-  "guadagno_totale_netto_eur": -5.64,
-  "valore_totale_portafoglio_100e_eur": 94.36,
+  "guadagno_totale_netto_eur": 0.0,
+  "valore_totale_portafoglio_100e_eur": 100.0,
   "target_incasso_automatico_eur": 130.0,
   "commissioni_pagate_eur": 0.0,
   "classifica_scanner_quantitativo_5m": [
@@ -4299,13 +4299,13 @@
   "riepilogo_fiscale_730": {
     "QUADRO_W_MONITORAGGIO": {
       "Valore_Iniziale_EUR": 100.0,
-      "Valore_Finale_31_12_EUR": 94.36,
+      "Valore_Finale_31_12_EUR": 100.0,
       "IVAFE_Dovuta_EUR": 0.0,
       "Nota_IVAFE": "Esente (sotto soglia minima di 12,00 EUR)"
     },
     "QUADRO_T_PLUSVALENZE_LIFO": {
-      "Totale_Corrispettivi_Vendita_EUR": 5278.94,
-      "Totale_Costi_Carico_LIFO_EUR": 5285.35,
+      "Totale_Corrispettivi_Vendita_EUR": 0.0,
+      "Totale_Costi_Carico_LIFO_EUR": 0.0,
       "Plusvalenza_Netta_Imponibile_EUR": 0.0,
       "Imposta_Sostitutiva_26_EUR": 0.0,
       "Nota_Versamento": "Nessun versamento F24 dovuto (sotto franchigia 12,00 EUR)"

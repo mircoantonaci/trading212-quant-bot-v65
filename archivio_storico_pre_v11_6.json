@@ -1,0 +1,1954 @@
+{
+  "anno_fiscale": 2026,
+  "broker": "Trading 212 (Conto Invest - EUR)",
+  "stato_estero_codice": "040 (Cipro) / 031 (Regno Unito)",
+  "valore_iniziale_quadro_w_eur": 100.0,
+  "valore_finale_stimato_quadro_w_eur": 100.86,
+  "giorni_detenzione_ivafe": 365,
+  "lotti_aperti_lifo": {},
+  "operazioni_chiuse": [
+    {
+      "timestamp": "2026-11-05T09:44:17",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.11,
+      "sell_price_eur": 217.97,
+      "corrispettivo_eur": 23.98,
+      "costo_lifo_eur": 23.46,
+      "risultato_fiscale_eur": 0.52
+    },
+    {
+      "timestamp": "2026-11-05T10:09:10",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.13,
+      "sell_price_eur": 279.88,
+      "corrispettivo_eur": 36.38,
+      "costo_lifo_eur": 35.73,
+      "risultato_fiscale_eur": 0.65
+    },
+    {
+      "timestamp": "2026-11-05T10:16:21",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.29,
+      "sell_price_eur": 49.442,
+      "corrispettivo_eur": 14.34,
+      "costo_lifo_eur": 14.32,
+      "risultato_fiscale_eur": 0.02
+    },
+    {
+      "timestamp": "2026-11-05T11:01:43",
+      "ticker": "ALVd_EQ",
+      "quantity": 0.04,
+      "sell_price_eur": 462.0,
+      "corrispettivo_eur": 18.48,
+      "costo_lifo_eur": 18.56,
+      "risultato_fiscale_eur": -0.08
+    },
+    {
+      "timestamp": "2026-11-05T12:00:42",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.51,
+      "sell_price_eur": 49.603,
+      "corrispettivo_eur": 25.3,
+      "costo_lifo_eur": 25.18,
+      "risultato_fiscale_eur": 0.11
+    },
+    {
+      "timestamp": "2026-11-05T12:10:47",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.02,
+      "sell_price_eur": 1314.2,
+      "corrispettivo_eur": 26.28,
+      "costo_lifo_eur": 26.26,
+      "risultato_fiscale_eur": 0.02
+    },
+    {
+      "timestamp": "2026-11-05T14:20:11",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.11,
+      "sell_price_eur": 218.59,
+      "corrispettivo_eur": 24.04,
+      "costo_lifo_eur": 24.0,
+      "risultato_fiscale_eur": 0.05
+    },
+    {
+      "timestamp": "2026-11-05T14:20:14",
+      "ticker": "ALVd_EQ",
+      "quantity": 0.05,
+      "sell_price_eur": 465.7,
+      "corrispettivo_eur": 23.29,
+      "costo_lifo_eur": 23.19,
+      "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-05T15:08:12",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.09,
+      "sell_price_eur": 277.67,
+      "corrispettivo_eur": 24.99,
+      "costo_lifo_eur": 24.86,
+      "risultato_fiscale_eur": 0.13
+    },
+    {
+      "timestamp": "2026-11-05T16:06:06",
+      "ticker": "DTEd_EQ",
+      "quantity": 0.85,
+      "sell_price_eur": 26.11,
+      "corrispettivo_eur": 22.19,
+      "costo_lifo_eur": 22.54,
+      "risultato_fiscale_eur": -0.35
+    },
+    {
+      "timestamp": "2026-11-05T16:24:15",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.02,
+      "sell_price_eur": 1237.3,
+      "corrispettivo_eur": 24.75,
+      "costo_lifo_eur": 24.9,
+      "risultato_fiscale_eur": -0.15
+    },
+    {
+      "timestamp": "2026-11-05T17:04:10",
+      "ticker": "DTEd_EQ",
+      "quantity": 0.96,
+      "sell_price_eur": 26.38,
+      "corrispettivo_eur": 25.32,
+      "costo_lifo_eur": 25.13,
+      "risultato_fiscale_eur": 0.19
+    },
+    {
+      "timestamp": "2026-11-05T17:04:57",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.88,
+      "sell_price_eur": 28.72,
+      "corrispettivo_eur": 25.27,
+      "costo_lifo_eur": 25.17,
+      "risultato_fiscale_eur": 0.11
+    },
+    {
+      "timestamp": "2026-11-06T09:30:20",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.09,
+      "sell_price_eur": 269.14,
+      "corrispettivo_eur": 24.22,
+      "costo_lifo_eur": 24.54,
+      "risultato_fiscale_eur": -0.32
+    },
+    {
+      "timestamp": "2026-11-06T09:30:23",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.12,
+      "sell_price_eur": 212.98,
+      "corrispettivo_eur": 25.56,
+      "costo_lifo_eur": 26.23,
+      "risultato_fiscale_eur": -0.67
+    },
+    {
+      "timestamp": "2026-11-06T12:05:20",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.02,
+      "sell_price_eur": 1288.5,
+      "corrispettivo_eur": 25.77,
+      "costo_lifo_eur": 25.64,
+      "risultato_fiscale_eur": 0.13
+    },
+    {
+      "timestamp": "2026-11-06T12:51:27",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.91,
+      "sell_price_eur": 27.0,
+      "corrispettivo_eur": 24.57,
+      "costo_lifo_eur": 25.16,
+      "risultato_fiscale_eur": -0.59
+    },
+    {
+      "timestamp": "2026-11-06T12:54:42",
+      "ticker": "CBKd_EQ",
+      "quantity": 0.58,
+      "sell_price_eur": 38.06,
+      "corrispettivo_eur": 22.07,
+      "costo_lifo_eur": 22.6,
+      "risultato_fiscale_eur": -0.53
+    },
+    {
+      "timestamp": "2026-11-06T13:14:56",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 880.3,
+      "corrispettivo_eur": 26.41,
+      "costo_lifo_eur": 26.93,
+      "risultato_fiscale_eur": -0.52
+    },
+    {
+      "timestamp": "2026-11-06T13:35:35",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.53,
+      "sell_price_eur": 46.762,
+      "corrispettivo_eur": 24.78,
+      "costo_lifo_eur": 24.74,
+      "risultato_fiscale_eur": 0.04
+    },
+    {
+      "timestamp": "2026-11-06T13:40:42",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.08,
+      "sell_price_eur": 265.72,
+      "corrispettivo_eur": 21.26,
+      "costo_lifo_eur": 21.24,
+      "risultato_fiscale_eur": 0.02
+    },
+    {
+      "timestamp": "2026-11-06T13:54:37",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.22,
+      "sell_price_eur": 117.06,
+      "corrispettivo_eur": 25.75,
+      "costo_lifo_eur": 25.53,
+      "risultato_fiscale_eur": 0.22
+    },
+    {
+      "timestamp": "2026-11-06T14:08:40",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.12,
+      "sell_price_eur": 209.51,
+      "corrispettivo_eur": 25.14,
+      "costo_lifo_eur": 25.19,
+      "risultato_fiscale_eur": -0.05
+    },
+    {
+      "timestamp": "2026-11-06T14:10:51",
+      "ticker": "DTEd_EQ",
+      "quantity": 0.87,
+      "sell_price_eur": 25.64,
+      "corrispettivo_eur": 22.31,
+      "costo_lifo_eur": 22.32,
+      "risultato_fiscale_eur": -0.01
+    },
+    {
+      "timestamp": "2026-11-06T14:30:10",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 813.4,
+      "corrispettivo_eur": 24.4,
+      "costo_lifo_eur": 24.2,
+      "risultato_fiscale_eur": 0.2
+    },
+    {
+      "timestamp": "2026-11-06T14:40:23",
+      "ticker": "ALVd_EQ",
+      "quantity": 0.06,
+      "sell_price_eur": 447.5,
+      "corrispettivo_eur": 26.85,
+      "costo_lifo_eur": 26.9,
+      "risultato_fiscale_eur": -0.05
+    },
+    {
+      "timestamp": "2026-11-06T14:41:08",
+      "ticker": "CBKd_EQ",
+      "quantity": 0.6,
+      "sell_price_eur": 38.4,
+      "corrispettivo_eur": 23.04,
+      "costo_lifo_eur": 23.08,
+      "risultato_fiscale_eur": -0.04
+    },
+    {
+      "timestamp": "2026-11-06T15:10:10",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.88,
+      "sell_price_eur": 27.2,
+      "corrispettivo_eur": 23.94,
+      "costo_lifo_eur": 23.91,
+      "risultato_fiscale_eur": 0.03
+    },
+    {
+      "timestamp": "2026-11-06T15:12:00",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.02,
+      "sell_price_eur": 1300.5,
+      "corrispettivo_eur": 26.01,
+      "costo_lifo_eur": 25.94,
+      "risultato_fiscale_eur": 0.07
+    },
+    {
+      "timestamp": "2026-11-06T15:33:54",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.09,
+      "sell_price_eur": 261.87,
+      "corrispettivo_eur": 23.57,
+      "costo_lifo_eur": 23.76,
+      "risultato_fiscale_eur": -0.19
+    },
+    {
+      "timestamp": "2026-11-06T15:34:41",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.12,
+      "sell_price_eur": 210.02,
+      "corrispettivo_eur": 25.2,
+      "costo_lifo_eur": 25.12,
+      "risultato_fiscale_eur": 0.08
+    },
+    {
+      "timestamp": "2026-11-06T15:37:14",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.17,
+      "sell_price_eur": 143.38,
+      "corrispettivo_eur": 24.37,
+      "costo_lifo_eur": 24.32,
+      "risultato_fiscale_eur": 0.05
+    },
+    {
+      "timestamp": "2026-11-06T15:38:02",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.54,
+      "sell_price_eur": 46.056,
+      "corrispettivo_eur": 24.87,
+      "costo_lifo_eur": 24.83,
+      "risultato_fiscale_eur": 0.04
+    },
+    {
+      "timestamp": "2026-11-06T15:43:14",
+      "ticker": "CBKd_EQ",
+      "quantity": 0.65,
+      "sell_price_eur": 38.65,
+      "corrispettivo_eur": 25.12,
+      "costo_lifo_eur": 25.05,
+      "risultato_fiscale_eur": 0.07
+    },
+    {
+      "timestamp": "2026-11-06T16:11:38",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.17,
+      "sell_price_eur": 142.23,
+      "corrispettivo_eur": 24.18,
+      "costo_lifo_eur": 24.43,
+      "risultato_fiscale_eur": -0.25
+    },
+    {
+      "timestamp": "2026-11-06T16:28:28",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 901.7,
+      "corrispettivo_eur": 27.05,
+      "costo_lifo_eur": 26.95,
+      "risultato_fiscale_eur": 0.1
+    },
+    {
+      "timestamp": "2026-11-06T16:31:25",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 813.6,
+      "corrispettivo_eur": 24.41,
+      "costo_lifo_eur": 24.38,
+      "risultato_fiscale_eur": 0.03
+    },
+    {
+      "timestamp": "2026-11-06T17:14:48",
+      "ticker": "CBKd_EQ",
+      "quantity": 0.65,
+      "sell_price_eur": 38.34,
+      "corrispettivo_eur": 24.92,
+      "costo_lifo_eur": 24.9,
+      "risultato_fiscale_eur": 0.02
+    },
+    {
+      "timestamp": "2026-11-06T17:15:15",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.02,
+      "sell_price_eur": 1272.9,
+      "corrispettivo_eur": 25.46,
+      "costo_lifo_eur": 25.43,
+      "risultato_fiscale_eur": 0.03
+    },
+    {
+      "timestamp": "2026-11-06T17:15:41",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.17,
+      "sell_price_eur": 142.86,
+      "corrispettivo_eur": 24.29,
+      "costo_lifo_eur": 24.26,
+      "risultato_fiscale_eur": 0.03
+    },
+    {
+      "timestamp": "2026-11-09T09:00:27",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 895.5,
+      "corrispettivo_eur": 26.86,
+      "costo_lifo_eur": 27.1,
+      "risultato_fiscale_eur": -0.23
+    },
+    {
+      "timestamp": "2026-11-09T09:02:39",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 806.8,
+      "corrispettivo_eur": 24.2,
+      "costo_lifo_eur": 24.5,
+      "risultato_fiscale_eur": -0.3
+    },
+    {
+      "timestamp": "2026-11-09T09:04:50",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.12,
+      "sell_price_eur": 213.92,
+      "corrispettivo_eur": 25.67,
+      "costo_lifo_eur": 25.27,
+      "risultato_fiscale_eur": 0.4
+    },
+    {
+      "timestamp": "2026-11-09T09:11:12",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.09,
+      "sell_price_eur": 264.89,
+      "corrispettivo_eur": 23.84,
+      "costo_lifo_eur": 23.74,
+      "risultato_fiscale_eur": 0.1
+    },
+    {
+      "timestamp": "2026-11-09T09:13:23",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.86,
+      "sell_price_eur": 27.7,
+      "corrispettivo_eur": 23.82,
+      "costo_lifo_eur": 23.73,
+      "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-09T09:21:52",
+      "ticker": "CBKd_EQ",
+      "quantity": 0.65,
+      "sell_price_eur": 39.41,
+      "corrispettivo_eur": 25.62,
+      "costo_lifo_eur": 25.49,
+      "risultato_fiscale_eur": 0.13
+    },
+    {
+      "timestamp": "2026-11-09T09:27:32",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.55,
+      "sell_price_eur": 46.304,
+      "corrispettivo_eur": 25.47,
+      "costo_lifo_eur": 25.35,
+      "risultato_fiscale_eur": 0.12
+    },
+    {
+      "timestamp": "2026-11-09T09:46:24",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 820.5,
+      "corrispettivo_eur": 24.61,
+      "costo_lifo_eur": 24.19,
+      "risultato_fiscale_eur": 0.43
+    },
+    {
+      "timestamp": "2026-11-09T09:52:03",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.02,
+      "sell_price_eur": 1305.5,
+      "corrispettivo_eur": 26.11,
+      "costo_lifo_eur": 25.9,
+      "risultato_fiscale_eur": 0.21
+    },
+    {
+      "timestamp": "2026-11-09T09:52:06",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.21,
+      "sell_price_eur": 119.75,
+      "corrispettivo_eur": 25.15,
+      "costo_lifo_eur": 25.01,
+      "risultato_fiscale_eur": 0.14
+    },
+    {
+      "timestamp": "2026-11-09T10:07:12",
+      "ticker": "ALVd_EQ",
+      "quantity": 0.05,
+      "sell_price_eur": 452.3,
+      "corrispettivo_eur": 22.62,
+      "costo_lifo_eur": 22.51,
+      "risultato_fiscale_eur": 0.11
+    },
+    {
+      "timestamp": "2026-11-09T10:13:12",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 899.8,
+      "corrispettivo_eur": 26.99,
+      "costo_lifo_eur": 26.93,
+      "risultato_fiscale_eur": 0.06
+    },
+    {
+      "timestamp": "2026-11-09T10:22:04",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 824.6,
+      "corrispettivo_eur": 24.74,
+      "costo_lifo_eur": 24.65,
+      "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-09T10:42:46",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.91,
+      "sell_price_eur": 27.74,
+      "corrispettivo_eur": 25.24,
+      "costo_lifo_eur": 25.16,
+      "risultato_fiscale_eur": 0.08
+    },
+    {
+      "timestamp": "2026-11-09T11:01:22",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.17,
+      "sell_price_eur": 145.71,
+      "corrispettivo_eur": 24.77,
+      "costo_lifo_eur": 24.69,
+      "risultato_fiscale_eur": 0.08
+    },
+    {
+      "timestamp": "2026-11-09T11:31:26",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.2,
+      "sell_price_eur": 119.8,
+      "corrispettivo_eur": 23.96,
+      "costo_lifo_eur": 23.86,
+      "risultato_fiscale_eur": 0.1
+    },
+    {
+      "timestamp": "2026-11-09T11:51:50",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 819.1,
+      "corrispettivo_eur": 24.57,
+      "costo_lifo_eur": 24.5,
+      "risultato_fiscale_eur": 0.07
+    },
+    {
+      "timestamp": "2026-11-09T12:15:00",
+      "ticker": "DTEd_EQ",
+      "quantity": 0.98,
+      "sell_price_eur": 25.82,
+      "corrispettivo_eur": 25.3,
+      "costo_lifo_eur": 25.22,
+      "risultato_fiscale_eur": 0.08
+    },
+    {
+      "timestamp": "2026-11-09T12:23:47",
+      "ticker": "CBKd_EQ",
+      "quantity": 0.61,
+      "sell_price_eur": 39.64,
+      "corrispettivo_eur": 24.18,
+      "costo_lifo_eur": 24.12,
+      "risultato_fiscale_eur": 0.06
+    },
+    {
+      "timestamp": "2026-11-09T12:24:13",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.2,
+      "sell_price_eur": 120.09,
+      "corrispettivo_eur": 24.02,
+      "costo_lifo_eur": 23.94,
+      "risultato_fiscale_eur": 0.08
+    },
+    {
+      "timestamp": "2026-11-09T12:39:25",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 902.2,
+      "corrispettivo_eur": 27.07,
+      "costo_lifo_eur": 26.96,
+      "risultato_fiscale_eur": 0.11
+    },
+    {
+      "timestamp": "2026-11-09T12:39:28",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 818.2,
+      "corrispettivo_eur": 24.55,
+      "costo_lifo_eur": 24.49,
+      "risultato_fiscale_eur": 0.06
+    },
+    {
+      "timestamp": "2026-11-09T13:52:12",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.17,
+      "sell_price_eur": 146.48,
+      "corrispettivo_eur": 24.9,
+      "costo_lifo_eur": 24.84,
+      "risultato_fiscale_eur": 0.06
+    },
+    {
+      "timestamp": "2026-11-09T13:55:51",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 820.6,
+      "corrispettivo_eur": 24.62,
+      "costo_lifo_eur": 24.56,
+      "risultato_fiscale_eur": 0.06
+    },
+    {
+      "timestamp": "2026-11-09T14:06:24",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.87,
+      "sell_price_eur": 27.45,
+      "corrispettivo_eur": 23.88,
+      "costo_lifo_eur": 24.04,
+      "risultato_fiscale_eur": -0.16
+    },
+    {
+      "timestamp": "2026-11-09T14:11:04",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.21,
+      "sell_price_eur": 120.57,
+      "corrispettivo_eur": 25.32,
+      "costo_lifo_eur": 25.2,
+      "risultato_fiscale_eur": 0.12
+    },
+    {
+      "timestamp": "2026-11-09T14:28:16",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 895.1,
+      "corrispettivo_eur": 26.85,
+      "costo_lifo_eur": 27.03,
+      "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-09T14:57:00",
+      "ticker": "CBKd_EQ",
+      "quantity": 0.63,
+      "sell_price_eur": 39.94,
+      "corrispettivo_eur": 25.16,
+      "costo_lifo_eur": 25.07,
+      "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-09T15:05:54",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 836.4,
+      "corrispettivo_eur": 25.09,
+      "costo_lifo_eur": 24.64,
+      "risultato_fiscale_eur": 0.45
+    },
+    {
+      "timestamp": "2026-11-09T15:31:55",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.12,
+      "sell_price_eur": 212.16,
+      "corrispettivo_eur": 25.46,
+      "costo_lifo_eur": 25.66,
+      "risultato_fiscale_eur": -0.2
+    },
+    {
+      "timestamp": "2026-11-09T15:40:29",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 890.4,
+      "corrispettivo_eur": 26.71,
+      "costo_lifo_eur": 26.88,
+      "risultato_fiscale_eur": -0.17
+    },
+    {
+      "timestamp": "2026-11-09T15:46:35",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.16,
+      "sell_price_eur": 147.46,
+      "corrispettivo_eur": 23.59,
+      "costo_lifo_eur": 23.47,
+      "risultato_fiscale_eur": 0.12
+    },
+    {
+      "timestamp": "2026-11-09T15:56:51",
+      "ticker": "DTEd_EQ",
+      "quantity": 0.92,
+      "sell_price_eur": 25.86,
+      "corrispettivo_eur": 23.79,
+      "costo_lifo_eur": 23.73,
+      "risultato_fiscale_eur": 0.06
+    },
+    {
+      "timestamp": "2026-11-09T17:25:33",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.91,
+      "sell_price_eur": 27.4,
+      "corrispettivo_eur": 24.93,
+      "costo_lifo_eur": 24.89,
+      "risultato_fiscale_eur": 0.04
+    },
+    {
+      "timestamp": "2026-11-10T09:00:28",
+      "ticker": "CBKd_EQ",
+      "quantity": 0.63,
+      "sell_price_eur": 39.7,
+      "corrispettivo_eur": 25.01,
+      "costo_lifo_eur": 25.21,
+      "risultato_fiscale_eur": -0.2
+    },
+    {
+      "timestamp": "2026-11-10T09:00:31",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 880.7,
+      "corrispettivo_eur": 26.42,
+      "costo_lifo_eur": 26.65,
+      "risultato_fiscale_eur": -0.23
+    },
+    {
+      "timestamp": "2026-11-10T09:01:05",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 858.6,
+      "corrispettivo_eur": 25.76,
+      "costo_lifo_eur": 25.0,
+      "risultato_fiscale_eur": 0.76
+    },
+    {
+      "timestamp": "2026-11-10T09:01:30",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.16,
+      "sell_price_eur": 151.08,
+      "corrispettivo_eur": 24.17,
+      "costo_lifo_eur": 23.58,
+      "risultato_fiscale_eur": 0.59
+    },
+    {
+      "timestamp": "2026-11-10T09:07:00",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.52,
+      "sell_price_eur": 49.997,
+      "corrispettivo_eur": 26.0,
+      "costo_lifo_eur": 26.47,
+      "risultato_fiscale_eur": -0.47
+    },
+    {
+      "timestamp": "2026-11-10T09:07:26",
+      "ticker": "AIRd_EQ",
+      "quantity": 0.12,
+      "sell_price_eur": 209.53,
+      "corrispettivo_eur": 25.14,
+      "costo_lifo_eur": 24.98,
+      "risultato_fiscale_eur": 0.16
+    },
+    {
+      "timestamp": "2026-11-10T09:11:44",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.93,
+      "sell_price_eur": 27.38,
+      "corrispettivo_eur": 25.46,
+      "costo_lifo_eur": 25.69,
+      "risultato_fiscale_eur": -0.23
+    },
+    {
+      "timestamp": "2026-11-10T09:58:32",
+      "ticker": "VNAd_EQ",
+      "quantity": 1.46,
+      "sell_price_eur": 17.342,
+      "corrispettivo_eur": 25.32,
+      "costo_lifo_eur": 25.29,
+      "risultato_fiscale_eur": 0.03
+    },
+    {
+      "timestamp": "2026-11-10T10:01:18",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.02,
+      "sell_price_eur": 1342.5,
+      "corrispettivo_eur": 26.85,
+      "costo_lifo_eur": 27.11,
+      "risultato_fiscale_eur": -0.26
+    },
+    {
+      "timestamp": "2026-11-10T10:10:52",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.2,
+      "sell_price_eur": 125.87,
+      "corrispettivo_eur": 25.17,
+      "costo_lifo_eur": 25.39,
+      "risultato_fiscale_eur": -0.22
+    },
+    {
+      "timestamp": "2026-11-10T10:21:33",
+      "ticker": "ALVd_EQ",
+      "quantity": 0.05,
+      "sell_price_eur": 461.8,
+      "corrispettivo_eur": 23.09,
+      "costo_lifo_eur": 23.06,
+      "risultato_fiscale_eur": 0.03
+    },
+    {
+      "timestamp": "2026-11-10T10:36:01",
+      "ticker": "CBKd_EQ",
+      "quantity": 0.62,
+      "sell_price_eur": 40.84,
+      "corrispettivo_eur": 25.32,
+      "costo_lifo_eur": 25.23,
+      "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-10T10:36:04",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.17,
+      "sell_price_eur": 152.19,
+      "corrispettivo_eur": 25.87,
+      "costo_lifo_eur": 25.66,
+      "risultato_fiscale_eur": 0.21
+    },
+    {
+      "timestamp": "2026-11-10T11:05:50",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.91,
+      "sell_price_eur": 27.55,
+      "corrispettivo_eur": 25.07,
+      "costo_lifo_eur": 24.97,
+      "risultato_fiscale_eur": 0.1
+    },
+    {
+      "timestamp": "2026-11-10T11:15:50",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.49,
+      "sell_price_eur": 51.199,
+      "corrispettivo_eur": 25.09,
+      "costo_lifo_eur": 25.37,
+      "risultato_fiscale_eur": -0.28
+    },
+    {
+      "timestamp": "2026-11-10T11:32:39",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 866.9,
+      "corrispettivo_eur": 26.01,
+      "costo_lifo_eur": 26.24,
+      "risultato_fiscale_eur": -0.23
+    },
+    {
+      "timestamp": "2026-11-10T11:39:35",
+      "ticker": "AIRd_EQ",
+      "quantity": 0.12,
+      "sell_price_eur": 209.89,
+      "corrispettivo_eur": 25.19,
+      "costo_lifo_eur": 25.13,
+      "risultato_fiscale_eur": 0.06
+    },
+    {
+      "timestamp": "2026-11-10T11:43:07",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.02,
+      "sell_price_eur": 1344.7,
+      "corrispettivo_eur": 26.89,
+      "costo_lifo_eur": 27.07,
+      "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-10T12:05:31",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.17,
+      "sell_price_eur": 151.93,
+      "corrispettivo_eur": 25.83,
+      "costo_lifo_eur": 25.74,
+      "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-10T12:11:18",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.19,
+      "sell_price_eur": 124.8,
+      "corrispettivo_eur": 23.71,
+      "costo_lifo_eur": 23.9,
+      "risultato_fiscale_eur": -0.19
+    },
+    {
+      "timestamp": "2026-11-10T12:21:17",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.12,
+      "sell_price_eur": 210.72,
+      "corrispettivo_eur": 25.29,
+      "costo_lifo_eur": 25.2,
+      "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-10T12:43:16",
+      "ticker": "CBKd_EQ",
+      "quantity": 0.62,
+      "sell_price_eur": 40.51,
+      "corrispettivo_eur": 25.12,
+      "costo_lifo_eur": 25.27,
+      "risultato_fiscale_eur": -0.15
+    },
+    {
+      "timestamp": "2026-11-10T12:49:48",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.92,
+      "sell_price_eur": 27.59,
+      "corrispettivo_eur": 25.38,
+      "costo_lifo_eur": 25.31,
+      "risultato_fiscale_eur": 0.07
+    },
+    {
+      "timestamp": "2026-11-10T12:58:36",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.48,
+      "sell_price_eur": 50.728,
+      "corrispettivo_eur": 24.35,
+      "costo_lifo_eur": 24.58,
+      "risultato_fiscale_eur": -0.23
+    },
+    {
+      "timestamp": "2026-11-10T13:45:03",
+      "ticker": "BAYNd_EQ",
+      "quantity": 0.44,
+      "sell_price_eur": 57.05,
+      "corrispettivo_eur": 25.1,
+      "costo_lifo_eur": 25.0,
+      "risultato_fiscale_eur": 0.1
+    },
+    {
+      "timestamp": "2026-11-10T14:19:58",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 863.7,
+      "corrispettivo_eur": 25.91,
+      "costo_lifo_eur": 26.16,
+      "risultato_fiscale_eur": -0.25
+    },
+    {
+      "timestamp": "2026-11-10T14:30:42",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.08,
+      "sell_price_eur": 273.78,
+      "corrispettivo_eur": 21.9,
+      "costo_lifo_eur": 22.12,
+      "risultato_fiscale_eur": -0.22
+    },
+    {
+      "timestamp": "2026-11-10T14:30:45",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 867.3,
+      "corrispettivo_eur": 26.02,
+      "costo_lifo_eur": 26.33,
+      "risultato_fiscale_eur": -0.31
+    },
+    {
+      "timestamp": "2026-11-10T15:19:41",
+      "ticker": "DTEd_EQ",
+      "quantity": 0.95,
+      "sell_price_eur": 26.43,
+      "corrispettivo_eur": 25.11,
+      "costo_lifo_eur": 25.06,
+      "risultato_fiscale_eur": 0.05
+    },
+    {
+      "timestamp": "2026-11-10T15:32:48",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.12,
+      "sell_price_eur": 210.12,
+      "corrispettivo_eur": 25.21,
+      "costo_lifo_eur": 25.46,
+      "risultato_fiscale_eur": -0.25
+    },
+    {
+      "timestamp": "2026-11-10T15:36:44",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.17,
+      "sell_price_eur": 151.24,
+      "corrispettivo_eur": 25.71,
+      "costo_lifo_eur": 25.69,
+      "risultato_fiscale_eur": 0.02
+    },
+    {
+      "timestamp": "2026-11-10T16:50:27",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.89,
+      "sell_price_eur": 28.26,
+      "corrispettivo_eur": 25.15,
+      "costo_lifo_eur": 24.97,
+      "risultato_fiscale_eur": 0.18
+    },
+    {
+      "timestamp": "2026-11-10T17:10:04",
+      "ticker": "BAYNd_EQ",
+      "quantity": 0.44,
+      "sell_price_eur": 56.95,
+      "corrispettivo_eur": 25.06,
+      "costo_lifo_eur": 24.99,
+      "risultato_fiscale_eur": 0.07
+    },
+    {
+      "timestamp": "2026-11-11T09:36:41",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.88,
+      "sell_price_eur": 27.86,
+      "corrispettivo_eur": 24.52,
+      "costo_lifo_eur": 25.03,
+      "risultato_fiscale_eur": -0.51
+    },
+    {
+      "timestamp": "2026-11-11T10:19:27",
+      "ticker": "ALVd_EQ",
+      "quantity": 0.05,
+      "sell_price_eur": 461.6,
+      "corrispettivo_eur": 23.08,
+      "costo_lifo_eur": 23.32,
+      "risultato_fiscale_eur": -0.24
+    },
+    {
+      "timestamp": "2026-11-11T10:35:00",
+      "ticker": "AIRd_EQ",
+      "quantity": 0.12,
+      "sell_price_eur": 208.47,
+      "corrispettivo_eur": 25.02,
+      "costo_lifo_eur": 25.26,
+      "risultato_fiscale_eur": -0.24
+    },
+    {
+      "timestamp": "2026-11-11T11:13:22",
+      "ticker": "DTEd_EQ",
+      "quantity": 0.94,
+      "sell_price_eur": 25.96,
+      "corrispettivo_eur": 24.4,
+      "costo_lifo_eur": 24.36,
+      "risultato_fiscale_eur": 0.04
+    },
+    {
+      "timestamp": "2026-11-11T11:35:00",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.19,
+      "sell_price_eur": 129.93,
+      "corrispettivo_eur": 24.69,
+      "costo_lifo_eur": 24.64,
+      "risultato_fiscale_eur": 0.05
+    },
+    {
+      "timestamp": "2026-11-11T12:07:05",
+      "ticker": "BAYNd_EQ",
+      "quantity": 0.44,
+      "sell_price_eur": 56.56,
+      "corrispettivo_eur": 24.89,
+      "costo_lifo_eur": 25.13,
+      "risultato_fiscale_eur": -0.24
+    },
+    {
+      "timestamp": "2026-11-11T12:42:56",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.16,
+      "sell_price_eur": 158.28,
+      "corrispettivo_eur": 25.32,
+      "costo_lifo_eur": 25.28,
+      "risultato_fiscale_eur": 0.04
+    },
+    {
+      "timestamp": "2026-11-11T13:05:20",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.47,
+      "sell_price_eur": 52.548,
+      "corrispettivo_eur": 24.7,
+      "costo_lifo_eur": 24.66,
+      "risultato_fiscale_eur": 0.04
+    },
+    {
+      "timestamp": "2026-11-11T13:47:00",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.19,
+      "sell_price_eur": 131.09,
+      "corrispettivo_eur": 24.91,
+      "costo_lifo_eur": 24.89,
+      "risultato_fiscale_eur": 0.02
+    },
+    {
+      "timestamp": "2026-11-11T14:00:48",
+      "ticker": "VNAd_EQ",
+      "quantity": 1.47,
+      "sell_price_eur": 16.883,
+      "corrispettivo_eur": 24.82,
+      "costo_lifo_eur": 24.97,
+      "risultato_fiscale_eur": -0.15
+    },
+    {
+      "timestamp": "2026-11-11T14:35:13",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.19,
+      "sell_price_eur": 130.57,
+      "corrispettivo_eur": 24.81,
+      "costo_lifo_eur": 24.75,
+      "risultato_fiscale_eur": 0.06
+    },
+    {
+      "timestamp": "2026-11-11T14:35:16",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.16,
+      "sell_price_eur": 157.57,
+      "corrispettivo_eur": 25.21,
+      "costo_lifo_eur": 25.47,
+      "risultato_fiscale_eur": -0.26
+    },
+    {
+      "timestamp": "2026-11-11T14:37:17",
+      "ticker": "DTEd_EQ",
+      "quantity": 0.94,
+      "sell_price_eur": 25.88,
+      "corrispettivo_eur": 24.33,
+      "costo_lifo_eur": 24.48,
+      "risultato_fiscale_eur": -0.15
+    },
+    {
+      "timestamp": "2026-11-11T15:03:17",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.02,
+      "sell_price_eur": 1393.7,
+      "corrispettivo_eur": 27.87,
+      "costo_lifo_eur": 28.04,
+      "risultato_fiscale_eur": -0.17
+    },
+    {
+      "timestamp": "2026-11-11T15:32:37",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.19,
+      "sell_price_eur": 129.22,
+      "corrispettivo_eur": 24.55,
+      "costo_lifo_eur": 24.77,
+      "risultato_fiscale_eur": -0.22
+    },
+    {
+      "timestamp": "2026-11-11T15:32:39",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.48,
+      "sell_price_eur": 51.537,
+      "corrispettivo_eur": 24.74,
+      "costo_lifo_eur": 24.99,
+      "risultato_fiscale_eur": -0.25
+    },
+    {
+      "timestamp": "2026-11-11T15:39:23",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.79,
+      "sell_price_eur": 27.77,
+      "corrispettivo_eur": 21.94,
+      "costo_lifo_eur": 21.79,
+      "risultato_fiscale_eur": 0.15
+    },
+    {
+      "timestamp": "2026-11-11T15:40:17",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.12,
+      "sell_price_eur": 211.22,
+      "corrispettivo_eur": 25.35,
+      "costo_lifo_eur": 25.21,
+      "risultato_fiscale_eur": 0.14
+    },
+    {
+      "timestamp": "2026-11-11T16:20:56",
+      "ticker": "INGAa_EQ",
+      "quantity": 0.84,
+      "sell_price_eur": 30.011,
+      "corrispettivo_eur": 25.21,
+      "costo_lifo_eur": 25.11,
+      "risultato_fiscale_eur": 0.1
+    },
+    {
+      "timestamp": "2026-11-11T16:49:42",
+      "ticker": "DTGd_EQ",
+      "quantity": 0.59,
+      "sell_price_eur": 42.45,
+      "corrispettivo_eur": 25.05,
+      "costo_lifo_eur": 25.2,
+      "risultato_fiscale_eur": -0.15
+    },
+    {
+      "timestamp": "2026-11-11T16:53:10",
+      "ticker": "ASMa_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 721.1,
+      "corrispettivo_eur": 21.63,
+      "costo_lifo_eur": 21.55,
+      "risultato_fiscale_eur": 0.08
+    },
+    {
+      "timestamp": "2026-11-12T09:00:50",
+      "ticker": "BMWd_EQ",
+      "quantity": 0.43,
+      "sell_price_eur": 58.58,
+      "corrispettivo_eur": 25.19,
+      "costo_lifo_eur": 24.85,
+      "risultato_fiscale_eur": 0.34
+    },
+    {
+      "timestamp": "2026-11-12T09:01:56",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.12,
+      "sell_price_eur": 212.13,
+      "corrispettivo_eur": 25.46,
+      "costo_lifo_eur": 25.24,
+      "risultato_fiscale_eur": 0.22
+    },
+    {
+      "timestamp": "2026-11-12T09:04:29",
+      "ticker": "DTGd_EQ",
+      "quantity": 0.59,
+      "sell_price_eur": 42.62,
+      "corrispettivo_eur": 25.15,
+      "costo_lifo_eur": 24.97,
+      "risultato_fiscale_eur": 0.18
+    },
+    {
+      "timestamp": "2026-11-12T09:09:34",
+      "ticker": "PRXa_EQ",
+      "quantity": 0.67,
+      "sell_price_eur": 36.708,
+      "corrispettivo_eur": 24.59,
+      "costo_lifo_eur": 24.82,
+      "risultato_fiscale_eur": -0.23
+    },
+    {
+      "timestamp": "2026-11-12T09:38:17",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 797.2,
+      "corrispettivo_eur": 23.92,
+      "costo_lifo_eur": 24.08,
+      "risultato_fiscale_eur": -0.16
+    },
+    {
+      "timestamp": "2026-11-12T09:42:58",
+      "ticker": "DTGd_EQ",
+      "quantity": 0.59,
+      "sell_price_eur": 42.76,
+      "corrispettivo_eur": 25.23,
+      "costo_lifo_eur": 25.13,
+      "risultato_fiscale_eur": 0.1
+    },
+    {
+      "timestamp": "2026-11-12T10:01:02",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.16,
+      "sell_price_eur": 157.98,
+      "corrispettivo_eur": 25.28,
+      "costo_lifo_eur": 25.18,
+      "risultato_fiscale_eur": 0.1
+    },
+    {
+      "timestamp": "2026-11-12T10:26:24",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.19,
+      "sell_price_eur": 134.21,
+      "corrispettivo_eur": 25.5,
+      "costo_lifo_eur": 25.21,
+      "risultato_fiscale_eur": 0.29
+    },
+    {
+      "timestamp": "2026-11-12T10:51:57",
+      "ticker": "ASMa_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 727.1,
+      "corrispettivo_eur": 21.81,
+      "costo_lifo_eur": 21.63,
+      "risultato_fiscale_eur": 0.18
+    },
+    {
+      "timestamp": "2026-11-12T11:27:02",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.09,
+      "sell_price_eur": 287.47,
+      "corrispettivo_eur": 25.87,
+      "costo_lifo_eur": 26.05,
+      "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-12T12:08:47",
+      "ticker": "MRKd_EQ",
+      "quantity": 0.16,
+      "sell_price_eur": 154.57,
+      "corrispettivo_eur": 24.73,
+      "costo_lifo_eur": 24.88,
+      "risultato_fiscale_eur": -0.15
+    },
+    {
+      "timestamp": "2026-11-12T12:27:13",
+      "ticker": "ASMa_EQ",
+      "quantity": 0.03,
+      "sell_price_eur": 726.4,
+      "corrispettivo_eur": 21.79,
+      "costo_lifo_eur": 21.95,
+      "risultato_fiscale_eur": -0.16
+    },
+    {
+      "timestamp": "2026-11-12T12:56:59",
+      "ticker": "INGAa_EQ",
+      "quantity": 0.83,
+      "sell_price_eur": 30.167,
+      "corrispettivo_eur": 25.04,
+      "costo_lifo_eur": 24.94,
+      "risultato_fiscale_eur": 0.1
+    },
+    {
+      "timestamp": "2026-11-12T13:26:52",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.19,
+      "sell_price_eur": 132.83,
+      "corrispettivo_eur": 25.24,
+      "costo_lifo_eur": 25.4,
+      "risultato_fiscale_eur": -0.16
+    },
+    {
+      "timestamp": "2026-11-12T13:33:27",
+      "ticker": "RWEd_EQ",
+      "quantity": 0.42,
+      "sell_price_eur": 58.83,
+      "corrispettivo_eur": 24.71,
+      "costo_lifo_eur": 24.85,
+      "risultato_fiscale_eur": -0.14
+    },
+    {
+      "timestamp": "2026-11-12T13:33:36",
+      "ticker": "MUV2d_EQ",
+      "quantity": 0.04,
+      "sell_price_eur": 583.1,
+      "corrispettivo_eur": 23.32,
+      "costo_lifo_eur": 23.18,
+      "risultato_fiscale_eur": 0.14
+    },
+    {
+      "timestamp": "2026-11-12T14:08:55",
+      "ticker": "DPWd_EQ",
+      "quantity": 0.41,
+      "sell_price_eur": 60.47,
+      "corrispettivo_eur": 24.79,
+      "costo_lifo_eur": 24.93,
+      "risultato_fiscale_eur": -0.14
+    },
+    {
+      "timestamp": "2026-11-12T14:58:10",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.0183,
+      "sell_price_eur": 1357.5,
+      "corrispettivo_eur": 24.84,
+      "costo_lifo_eur": 25.01,
+      "risultato_fiscale_eur": -0.17
+    },
+    {
+      "timestamp": "2026-11-12T15:07:01",
+      "ticker": "MUV2d_EQ",
+      "quantity": 0.0429,
+      "sell_price_eur": 585.1,
+      "corrispettivo_eur": 25.1,
+      "costo_lifo_eur": 24.98,
+      "risultato_fiscale_eur": 0.12
+    },
+    {
+      "timestamp": "2026-11-12T15:10:40",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.1181,
+      "sell_price_eur": 211.13,
+      "corrispettivo_eur": 24.93,
+      "costo_lifo_eur": 24.82,
+      "risultato_fiscale_eur": 0.11
+    },
+    {
+      "timestamp": "2026-11-12T15:35:09",
+      "ticker": "DBKd_EQ",
+      "quantity": 0.75,
+      "sell_price_eur": 33.468,
+      "corrispettivo_eur": 25.1,
+      "costo_lifo_eur": 24.99,
+      "risultato_fiscale_eur": 0.11
+    },
+    {
+      "timestamp": "2026-11-12T15:44:11",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.49,
+      "sell_price_eur": 51.737,
+      "corrispettivo_eur": 25.35,
+      "costo_lifo_eur": 25.3,
+      "risultato_fiscale_eur": 0.05
+    },
+    {
+      "timestamp": "2026-11-12T15:50:11",
+      "ticker": "ALVd_EQ",
+      "quantity": 0.0529,
+      "sell_price_eur": 473.1,
+      "corrispettivo_eur": 25.03,
+      "costo_lifo_eur": 24.98,
+      "risultato_fiscale_eur": 0.05
+    },
+    {
+      "timestamp": "2026-11-12T15:54:19",
+      "ticker": "ASMa_EQ",
+      "quantity": 0.0347,
+      "sell_price_eur": 722.6,
+      "corrispettivo_eur": 25.07,
+      "costo_lifo_eur": 25.04,
+      "risultato_fiscale_eur": 0.03
+    },
+    {
+      "timestamp": "2026-11-12T15:59:21",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.1179,
+      "sell_price_eur": 209.29,
+      "corrispettivo_eur": 24.68,
+      "costo_lifo_eur": 24.58,
+      "risultato_fiscale_eur": 0.1
+    },
+    {
+      "timestamp": "2026-11-12T16:01:39",
+      "ticker": "BASd_EQ",
+      "quantity": 0.45,
+      "sell_price_eur": 54.67,
+      "corrispettivo_eur": 24.6,
+      "costo_lifo_eur": 24.74,
+      "risultato_fiscale_eur": -0.14
+    },
+    {
+      "timestamp": "2026-11-12T17:13:15",
+      "ticker": "AIXAd_EQ",
+      "quantity": 0.74,
+      "sell_price_eur": 33.88,
+      "corrispettivo_eur": 25.07,
+      "costo_lifo_eur": 24.78,
+      "risultato_fiscale_eur": 0.29
+    },
+    {
+      "timestamp": "2026-11-12T17:15:36",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.1877,
+      "sell_price_eur": 133.62,
+      "corrispettivo_eur": 25.08,
+      "costo_lifo_eur": 24.87,
+      "risultato_fiscale_eur": 0.21
+    },
+    {
+      "timestamp": "2026-11-12T17:20:15",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.0182,
+      "sell_price_eur": 1381.9,
+      "corrispettivo_eur": 25.15,
+      "costo_lifo_eur": 24.93,
+      "risultato_fiscale_eur": 0.22
+    },
+    {
+      "timestamp": "2026-11-13T09:08:16",
+      "ticker": "BESIa_EQ",
+      "quantity": 0.1579,
+      "sell_price_eur": 156.82,
+      "corrispettivo_eur": 24.76,
+      "costo_lifo_eur": 25.0,
+      "risultato_fiscale_eur": -0.24
+    },
+    {
+      "timestamp": "2026-11-13T09:08:17",
+      "ticker": "ASMa_EQ",
+      "quantity": 0.0343,
+      "sell_price_eur": 716.8,
+      "corrispettivo_eur": 24.59,
+      "costo_lifo_eur": 24.96,
+      "risultato_fiscale_eur": -0.37
+    },
+    {
+      "timestamp": "2026-11-13T09:08:17",
+      "ticker": "DBKd_EQ",
+      "quantity": 0.74,
+      "sell_price_eur": 33.182,
+      "corrispettivo_eur": 24.55,
+      "costo_lifo_eur": 24.8,
+      "risultato_fiscale_eur": -0.25
+    },
+    {
+      "timestamp": "2026-11-13T09:34:42",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.0888,
+      "sell_price_eur": 275.38,
+      "corrispettivo_eur": 24.45,
+      "costo_lifo_eur": 24.63,
+      "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-13T09:52:28",
+      "ticker": "DPWd_EQ",
+      "quantity": 0.41,
+      "sell_price_eur": 60.35,
+      "corrispettivo_eur": 24.74,
+      "costo_lifo_eur": 24.88,
+      "risultato_fiscale_eur": -0.14
+    },
+    {
+      "timestamp": "2026-11-13T10:25:08",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.48,
+      "sell_price_eur": 51.313,
+      "corrispettivo_eur": 24.63,
+      "costo_lifo_eur": 24.55,
+      "risultato_fiscale_eur": 0.08
+    },
+    {
+      "timestamp": "2026-11-13T10:36:47",
+      "ticker": "SHLd_EQ",
+      "quantity": 0.57,
+      "sell_price_eur": 43.99,
+      "corrispettivo_eur": 25.07,
+      "costo_lifo_eur": 24.97,
+      "risultato_fiscale_eur": 0.1
+    },
+    {
+      "timestamp": "2026-11-13T10:43:13",
+      "ticker": "VNAd_EQ",
+      "quantity": 1.47,
+      "sell_price_eur": 16.733,
+      "corrispettivo_eur": 24.6,
+      "costo_lifo_eur": 24.75,
+      "risultato_fiscale_eur": -0.15
+    },
+    {
+      "timestamp": "2026-11-13T11:10:51",
+      "ticker": "MTXd_EQ",
+      "quantity": 0.0705,
+      "sell_price_eur": 352.5,
+      "corrispettivo_eur": 24.85,
+      "costo_lifo_eur": 24.83,
+      "risultato_fiscale_eur": 0.02
+    },
+    {
+      "timestamp": "2026-11-13T11:24:46",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.0288,
+      "sell_price_eur": 862.0,
+      "corrispettivo_eur": 24.83,
+      "costo_lifo_eur": 24.78,
+      "risultato_fiscale_eur": 0.05
+    },
+    {
+      "timestamp": "2026-11-13T12:04:51",
+      "ticker": "AIRd_EQ",
+      "quantity": 0.1201,
+      "sell_price_eur": 206.77,
+      "corrispettivo_eur": 24.83,
+      "costo_lifo_eur": 24.72,
+      "risultato_fiscale_eur": 0.11
+    },
+    {
+      "timestamp": "2026-11-13T12:05:05",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.0182,
+      "sell_price_eur": 1370.3,
+      "corrispettivo_eur": 24.94,
+      "costo_lifo_eur": 24.83,
+      "risultato_fiscale_eur": 0.11
+    },
+    {
+      "timestamp": "2026-11-13T12:32:47",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.1859,
+      "sell_price_eur": 132.52,
+      "corrispettivo_eur": 24.64,
+      "costo_lifo_eur": 24.78,
+      "risultato_fiscale_eur": -0.14
+    },
+    {
+      "timestamp": "2026-11-13T14:46:55",
+      "ticker": "AMDd_EQ",
+      "quantity": 0.0476,
+      "sell_price_eur": 517.28,
+      "corrispettivo_eur": 24.62,
+      "costo_lifo_eur": 24.8,
+      "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-13T14:49:37",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.48,
+      "sell_price_eur": 51.158,
+      "corrispettivo_eur": 24.56,
+      "costo_lifo_eur": 24.71,
+      "risultato_fiscale_eur": -0.15
+    },
+    {
+      "timestamp": "2026-11-13T15:00:24",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.0182,
+      "sell_price_eur": 1353.6,
+      "corrispettivo_eur": 24.64,
+      "costo_lifo_eur": 24.77,
+      "risultato_fiscale_eur": -0.13
+    },
+    {
+      "timestamp": "2026-11-13T15:31:20",
+      "ticker": "AMZd_EQ",
+      "quantity": 0.1015,
+      "sell_price_eur": 242.38,
+      "corrispettivo_eur": 24.6,
+      "costo_lifo_eur": 24.79,
+      "risultato_fiscale_eur": -0.19
+    },
+    {
+      "timestamp": "2026-11-13T15:35:49",
+      "ticker": "MRKd_EQ",
+      "quantity": 0.1657,
+      "sell_price_eur": 149.08,
+      "corrispettivo_eur": 24.7,
+      "costo_lifo_eur": 24.84,
+      "risultato_fiscale_eur": -0.14
+    },
+    {
+      "timestamp": "2026-11-13T15:50:06",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.1161,
+      "sell_price_eur": 213.83,
+      "corrispettivo_eur": 24.83,
+      "costo_lifo_eur": 24.74,
+      "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-13T15:55:02",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.0287,
+      "sell_price_eur": 868.6,
+      "corrispettivo_eur": 24.93,
+      "costo_lifo_eur": 24.75,
+      "risultato_fiscale_eur": 0.18
+    },
+    {
+      "timestamp": "2026-11-13T16:09:18",
+      "ticker": "PRXa_EQ",
+      "quantity": 0.7,
+      "sell_price_eur": 35.767,
+      "corrispettivo_eur": 25.04,
+      "costo_lifo_eur": 24.88,
+      "risultato_fiscale_eur": 0.16
+    },
+    {
+      "timestamp": "2026-11-13T16:40:01",
+      "ticker": "MUV2d_EQ",
+      "quantity": 0.0418,
+      "sell_price_eur": 594.8,
+      "corrispettivo_eur": 24.86,
+      "costo_lifo_eur": 24.78,
+      "risultato_fiscale_eur": 0.08
+    },
+    {
+      "timestamp": "2026-11-13T16:45:01",
+      "ticker": "RWEd_EQ",
+      "quantity": 0.41,
+      "sell_price_eur": 59.53,
+      "corrispettivo_eur": 24.41,
+      "costo_lifo_eur": 24.54,
+      "risultato_fiscale_eur": -0.13
+    },
+    {
+      "timestamp": "2026-11-13T16:54:53",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.0327,
+      "sell_price_eur": 761.0,
+      "corrispettivo_eur": 24.88,
+      "costo_lifo_eur": 24.79,
+      "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-13T16:56:15",
+      "ticker": "ZALd_EQ",
+      "quantity": 0.86,
+      "sell_price_eur": 28.6,
+      "corrispettivo_eur": 24.6,
+      "costo_lifo_eur": 24.73,
+      "risultato_fiscale_eur": -0.13
+    },
+    {
+      "timestamp": "2026-11-13T17:15:05",
+      "ticker": "AIRd_EQ",
+      "quantity": 0.1203,
+      "sell_price_eur": 206.17,
+      "corrispettivo_eur": 24.8,
+      "costo_lifo_eur": 24.73,
+      "risultato_fiscale_eur": 0.07
+    },
+    {
+      "timestamp": "2026-11-16T09:30:31",
+      "ticker": "EOANd_EQ",
+      "quantity": 1.27,
+      "sell_price_eur": 19.386,
+      "corrispettivo_eur": 24.62,
+      "costo_lifo_eur": 24.81,
+      "risultato_fiscale_eur": -0.19
+    },
+    {
+      "timestamp": "2026-11-16T10:10:03",
+      "ticker": "MUV2d_EQ",
+      "quantity": 0.0419,
+      "sell_price_eur": 595.6,
+      "corrispettivo_eur": 24.96,
+      "costo_lifo_eur": 24.81,
+      "risultato_fiscale_eur": 0.15
+    },
+    {
+      "timestamp": "2026-11-16T11:55:23",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.1158,
+      "sell_price_eur": 212.83,
+      "corrispettivo_eur": 24.65,
+      "costo_lifo_eur": 24.78,
+      "risultato_fiscale_eur": -0.13
+    },
+    {
+      "timestamp": "2026-11-16T13:11:34",
+      "ticker": "ENRd_EQ",
+      "quantity": 0.1897,
+      "sell_price_eur": 129.59,
+      "corrispettivo_eur": 24.58,
+      "costo_lifo_eur": 24.76,
+      "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-16T14:39:36",
+      "ticker": "BAYNd_EQ",
+      "quantity": 0.434,
+      "sell_price_eur": 57.11,
+      "corrispettivo_eur": 24.79,
+      "costo_lifo_eur": 24.74,
+      "risultato_fiscale_eur": 0.05
+    },
+    {
+      "timestamp": "2026-11-16T15:07:14",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.5,
+      "sell_price_eur": 49.277,
+      "corrispettivo_eur": 24.64,
+      "costo_lifo_eur": 24.55,
+      "risultato_fiscale_eur": 0.09
+    },
+    {
+      "timestamp": "2026-11-16T15:28:56",
+      "ticker": "AMDd_EQ",
+      "quantity": 0.0536,
+      "sell_price_eur": 458.28,
+      "corrispettivo_eur": 24.56,
+      "costo_lifo_eur": 24.74,
+      "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-16T15:30:22",
+      "ticker": "APCd_EQ",
+      "quantity": 0.0761,
+      "sell_price_eur": 323.67,
+      "corrispettivo_eur": 24.63,
+      "costo_lifo_eur": 24.77,
+      "risultato_fiscale_eur": -0.14
+    },
+    {
+      "timestamp": "2026-11-16T15:37:27",
+      "ticker": "MSFd_EQ",
+      "quantity": 0.0519,
+      "sell_price_eur": 473.84,
+      "corrispettivo_eur": 24.59,
+      "costo_lifo_eur": 24.77,
+      "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-16T16:00:18",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.5,
+      "sell_price_eur": 48.698,
+      "corrispettivo_eur": 24.35,
+      "costo_lifo_eur": 24.54,
+      "risultato_fiscale_eur": -0.19
+    },
+    {
+      "timestamp": "2026-11-16T16:05:50",
+      "ticker": "DBKd_EQ",
+      "quantity": 0.74,
+      "sell_price_eur": 33.074,
+      "corrispettivo_eur": 24.47,
+      "costo_lifo_eur": 24.62,
+      "risultato_fiscale_eur": -0.15
+    },
+    {
+      "timestamp": "2026-11-16T16:07:51",
+      "ticker": "RHMd_EQ",
+      "quantity": 0.0314,
+      "sell_price_eur": 783.8,
+      "corrispettivo_eur": 24.61,
+      "costo_lifo_eur": 24.77,
+      "risultato_fiscale_eur": -0.16
+    },
+    {
+      "timestamp": "2026-11-16T16:15:24",
+      "ticker": "ADYENa_EQ",
+      "quantity": 0.0282,
+      "sell_price_eur": 869.7,
+      "corrispettivo_eur": 24.53,
+      "costo_lifo_eur": 24.7,
+      "risultato_fiscale_eur": -0.17
+    },
+    {
+      "timestamp": "2026-11-16T16:36:52",
+      "ticker": "NVDd_EQ",
+      "quantity": 0.1709,
+      "sell_price_eur": 144.02,
+      "corrispettivo_eur": 24.61,
+      "costo_lifo_eur": 24.79,
+      "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-16T17:10:02",
+      "ticker": "DTGd_EQ",
+      "quantity": 0.57,
+      "sell_price_eur": 43.2,
+      "corrispettivo_eur": 24.62,
+      "costo_lifo_eur": 24.71,
+      "risultato_fiscale_eur": -0.09
+    },
+    {
+      "timestamp": "2026-11-16T17:13:10",
+      "ticker": "RWEd_EQ",
+      "quantity": 0.42,
+      "sell_price_eur": 59.43,
+      "corrispettivo_eur": 24.96,
+      "costo_lifo_eur": 24.95,
+      "risultato_fiscale_eur": 0.01
+    },
+    {
+      "timestamp": "2026-11-16T17:25:01",
+      "ticker": "FB2Ad_EQ",
+      "quantity": 0.0433,
+      "sell_price_eur": 573.1,
+      "corrispettivo_eur": 24.82,
+      "costo_lifo_eur": 24.81,
+      "risultato_fiscale_eur": 0.01
+    },
+    {
+      "timestamp": "2026-11-16T17:25:02",
+      "ticker": "DTEd_EQ",
+      "quantity": 0.91,
+      "sell_price_eur": 27.0,
+      "corrispettivo_eur": 24.57,
+      "costo_lifo_eur": 24.66,
+      "risultato_fiscale_eur": -0.09
+    },
+    {
+      "timestamp": "2026-11-17T11:50:15",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.0909,
+      "sell_price_eur": 271.02,
+      "corrispettivo_eur": 24.64,
+      "costo_lifo_eur": 24.77,
+      "risultato_fiscale_eur": -0.13
+    },
+    {
+      "timestamp": "2026-11-17T13:02:15",
+      "ticker": "ALVd_EQ",
+      "quantity": 0.0523,
+      "sell_price_eur": 471.2,
+      "corrispettivo_eur": 24.64,
+      "costo_lifo_eur": 24.78,
+      "risultato_fiscale_eur": -0.14
+    },
+    {
+      "timestamp": "2026-11-17T13:39:22",
+      "ticker": "BASd_EQ",
+      "quantity": 0.46,
+      "sell_price_eur": 53.12,
+      "corrispettivo_eur": 24.44,
+      "costo_lifo_eur": 24.57,
+      "risultato_fiscale_eur": -0.13
+    },
+    {
+      "timestamp": "2026-11-17T15:18:13",
+      "ticker": "ADSd_EQ",
+      "quantity": 0.1423,
+      "sell_price_eur": 174.88,
+      "corrispettivo_eur": 24.89,
+      "costo_lifo_eur": 24.75,
+      "risultato_fiscale_eur": 0.14
+    },
+    {
+      "timestamp": "2026-11-17T15:21:52",
+      "ticker": "DPWd_EQ",
+      "quantity": 0.41,
+      "sell_price_eur": 60.47,
+      "corrispettivo_eur": 24.79,
+      "costo_lifo_eur": 24.94,
+      "risultato_fiscale_eur": -0.15
+    },
+    {
+      "timestamp": "2026-11-17T15:32:59",
+      "ticker": "ASMLa_EQ",
+      "quantity": 0.0193,
+      "sell_price_eur": 1272.5,
+      "corrispettivo_eur": 24.56,
+      "costo_lifo_eur": 24.73,
+      "risultato_fiscale_eur": -0.17
+    },
+    {
+      "timestamp": "2026-11-17T15:44:24",
+      "ticker": "FB2Ad_EQ",
+      "quantity": 0.0435,
+      "sell_price_eur": 564.9,
+      "corrispettivo_eur": 24.57,
+      "costo_lifo_eur": 24.75,
+      "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-17T16:09:37",
+      "ticker": "DBKd_EQ",
+      "quantity": 0.79,
+      "sell_price_eur": 31.268,
+      "corrispettivo_eur": 24.7,
+      "costo_lifo_eur": 24.88,
+      "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-17T16:19:04",
+      "ticker": "AMZd_EQ",
+      "quantity": 0.1054,
+      "sell_price_eur": 235.29,
+      "corrispettivo_eur": 24.8,
+      "costo_lifo_eur": 24.75,
+      "risultato_fiscale_eur": 0.05
+    },
+    {
+      "timestamp": "2026-11-17T16:25:46",
+      "ticker": "IFXd_EQ",
+      "quantity": 0.51,
+      "sell_price_eur": 48.997,
+      "corrispettivo_eur": 24.99,
+      "costo_lifo_eur": 24.94,
+      "risultato_fiscale_eur": 0.05
+    },
+    {
+      "timestamp": "2026-11-17T16:40:40",
+      "ticker": "SIEd_EQ",
+      "quantity": 0.0906,
+      "sell_price_eur": 271.59,
+      "corrispettivo_eur": 24.61,
+      "costo_lifo_eur": 24.74,
+      "risultato_fiscale_eur": -0.13
+    },
+    {
+      "timestamp": "2026-11-17T16:41:45",
+      "ticker": "APCd_EQ",
+      "quantity": 0.077,
+      "sell_price_eur": 319.83,
+      "corrispettivo_eur": 24.63,
+      "costo_lifo_eur": 24.79,
+      "risultato_fiscale_eur": -0.16
+    },
+    {
+      "timestamp": "2026-11-17T16:43:18",
+      "ticker": "ABEAd_EQ",
+      "quantity": 0.0962,
+      "sell_price_eur": 255.17,
+      "corrispettivo_eur": 24.55,
+      "costo_lifo_eur": 24.73,
+      "risultato_fiscale_eur": -0.18
+    },
+    {
+      "timestamp": "2026-11-17T16:53:18",
+      "ticker": "BMWd_EQ",
+      "quantity": 0.44,
+      "sell_price_eur": 56.11,
+      "corrispettivo_eur": 24.69,
+      "costo_lifo_eur": 24.86,
+      "risultato_fiscale_eur": -0.17
+    }
+  ],
+  "totale_corrispettivi_vendita_eur": 5278.94,
+  "totale_costi_carico_lifo_eur": 5285.35,
+  "plusvalenze_lorde_eur": 16.33,
+  "minusvalenze_lorde_eur": 21.97,
+  "imponibile_netto_eur": 0.0,
+  "imposta_sostitutiva_26_eur": 0.0,
+  "zainetto_fiscale_residuo_eur": 0.0,
+  "v11_clean_epoch_ts": "2026-11-12T15:30:00"
+}
