@@ -788,13 +788,15 @@ class TestQuantInvariantsV11(unittest.TestCase):
             self.assertEqual(scanner_live.refresh_gettex_live_quotes(force=True), 0)
 
     def test_21_us_big_tech_eur_universe_and_markowitz_sector_isolation(self):
-        """Invariante #21: 39 Colossi EUR Zero-Fee (32 UE + 7 Big Tech USA in EUR), 100% GETTEX 0s e isolamento Markowitz."""
+        """Invariante #21: 44 Colossi EUR Zero-Fee (37 UE incl. 5 Campioni Green/Acqua/Circolare + 7 Big Tech USA in EUR), 100% GETTEX 0s e isolamento Markowitz."""
         daemon.discover_and_verify_eur_giants(None)
         expected_us_eur = {"NVDd_EQ", "MSFd_EQ", "APCd_EQ", "AMZd_EQ", "ABEAd_EQ", "FB2Ad_EQ", "AMDd_EQ"}
+        expected_green_eur = {"HEId_EQ", "NDX1d_EQ", "NDAd_EQ", "LIGHTa_EQ", "AALBa_EQ"}
         self.assertTrue(expected_us_eur.issubset(set(daemon.ASSET_PROFILES.keys())))
+        self.assertTrue(expected_green_eur.issubset(set(daemon.ASSET_PROFILES.keys())))
         # FREd_EQ ("" in t212_verified_universe.json) deve essere escluso per evitare ordini HTTP 400 su ticker inesistenti
         self.assertNotIn("FREd_EQ", daemon.ASSET_PROFILES)
-        self.assertEqual(len(daemon.ASSET_PROFILES), 39)
+        self.assertEqual(len(daemon.ASSET_PROFILES), 44)
 
         for tkr, prof in daemon.ASSET_PROFILES.items():
             meta = daemon.EUR_ZERO_FEE_UNIVERSE[tkr]
@@ -802,13 +804,25 @@ class TestQuantInvariantsV11(unittest.TestCase):
             self.assertEqual(meta["tobin_tax"], "0.00%", f"Tobin tax non zero su {tkr}")
             self.assertTrue(str(prof.get("gettex", "")).startswith("GETTEX:"), f"Simbolo GETTEX mancante su {tkr}")
 
-        # Isolamento settoriale Markowitz sulle Big Tech USA correlate:
+        # Isolamento settoriale Markowitz sulle Big Tech USA correlate e Rinnovabili:
         # NVIDIA + AMD condividono CHIP_ACCELERATORI_AI; Alphabet + Meta condividono DIGITAL_ADS_SOCIAL_AI;
-        # Microsoft + SAP condividono SOFTWARE_CLOUD; Amazon + Zalando condividono ECOMMERCE_CONSUMER.
+        # Microsoft + SAP condividono SOFTWARE_CLOUD; Amazon + Zalando condividono ECOMMERCE_CONSUMER;
+        # Nordex + RWE condividono ENERGIA_RINNOVABILE_POWER; i 4 nuovi pilastri Green hanno settori distinti.
         self.assertEqual(daemon.ASSET_PROFILES["NVDd_EQ"]["sector"], daemon.ASSET_PROFILES["AMDd_EQ"]["sector"])
         self.assertEqual(daemon.ASSET_PROFILES["ABEAd_EQ"]["sector"], daemon.ASSET_PROFILES["FB2Ad_EQ"]["sector"])
         self.assertEqual(daemon.ASSET_PROFILES["MSFd_EQ"]["sector"], daemon.ASSET_PROFILES["SAPd_EQ"]["sector"])
         self.assertEqual(daemon.ASSET_PROFILES["AMZd_EQ"]["sector"], daemon.ASSET_PROFILES["ZALd_EQ"]["sector"])
+        self.assertEqual(daemon.ASSET_PROFILES["NDX1d_EQ"]["sector"], daemon.ASSET_PROFILES["RWEd_EQ"]["sector"])
+        self.assertEqual(
+            len({
+                daemon.ASSET_PROFILES["HEId_EQ"]["sector"],
+                daemon.ASSET_PROFILES["NDX1d_EQ"]["sector"],
+                daemon.ASSET_PROFILES["NDAd_EQ"]["sector"],
+                daemon.ASSET_PROFILES["LIGHTa_EQ"]["sector"],
+                daemon.ASSET_PROFILES["AALBa_EQ"]["sector"],
+            }),
+            5,
+        )
 
     def test_22_true_green_hook_blocks_post_spike_red_candle_reversals(self):
         """Invariante #22: True Green Hook blocca candele 5m rosse/in discesa post-spike (caso reale AMDd_EQ 14:38) e promuove vere candele verdi (MRKd_EQ)."""
