@@ -1976,7 +1976,7 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertFalse(m_clean["had_loss_today"])
 
     def test_34_v116_anti_spread_8_of_8_blindatura_and_cash_regime_leader_rs(self):
-        """Invariante #34: Blindatura Completa V11.6 Opzione A (8/8 bug risolti + Selettore Cash-Regime Leader RS + Max 2 ingressi/giorno persistenti)."""
+        """Invariante #34: Blindatura Completa V11.6 Opzione A (8/8 bug risolti + Cash-Regime Leader RS + 4/4 Cartucce su 4 Settori Distinti Zero Ping-Pong)."""
         daemon.discover_and_verify_eur_giants(None)
         real_dt = datetime.datetime
 
@@ -2070,16 +2070,25 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertIsNotNone(cut_145)
         self.assertIn("TAGLIO CHIRURGICO TESI INVALIDATA", cut_145)
 
-        # FIX #8: Selettore Cash-Regime Leader RS (sample >= 8) + Tetto persistente MAX_DAILY_NEW_ENTRIES = 2 su 94.36 EUR!
-        def _mk_tape_stock(tkr: str, vwap: float, open_chg: float, sl30: float, score: float = 82.0, us: bool = False) -> dict:
+        # FIX #8: Selettore Cash-Regime Leader RS (sample >= 8) + 4/4 Cartucce su 4 Settori Markowitz Distinti + Zero Ping-Pong (max 1 sparo/cartuccia/giorno)!
+        def _mk_tape_stock(
+            tkr: str,
+            vwap: float,
+            open_chg: float,
+            sl30: float,
+            score: float = 82.0,
+            us: bool = False,
+            sector: str = "",
+        ) -> dict:
+            sec = sector or daemon.ASSET_PROFILES.get(tkr, {}).get("sector", f"SEC_{tkr}")
             return {
-                "ticker": tkr, "name": tkr, "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": f"SEC_{tkr}",
+                "ticker": tkr, "name": tkr, "squad": "SQUADRA_2_CAVALCA_ONDA", "sector": sec,
                 "is_us_giant": us, "price_feed_source": "GETTEX_STREAMING_0S", "live_price_eur": 100.0,
                 "vwap_dist_pct": vwap, "intraday_open_chg_pct": open_chg, "ny_open_chg_pct": open_chg if us else 0.0,
                 "slope_15m_pct": 0.18, "slope_30m_pct": sl30, "signed_kaufman_er": 0.42, "kaufman_efficiency_ratio": 0.42,
                 "rsi_5m": 56.0, "rvol_ratio": 1.45, "atr_5m_volatility_pct": 0.22, "day_range_pct": 1.60,
                 "elastic_shield_act_raw": 0.0160, "elastic_shield_pull_raw": 0.0045,
-                "score_momentum": score - 4.0, "score_pullback": 0.0, "velocity_bonus": 4.0, "quant_buy_score": score,
+                "score_momentum": max(0.0, score - 4.0), "score_pullback": 0.0, "velocity_bonus": 4.0 if score > 0 else 0.0, "quant_buy_score": score,
                 "true_relative_strength": vwap >= 0.05 and sl30 > 0, "strong_for_overnight": vwap >= 0.05 and sl30 > 0,
                 "green_hook_confirmed": vwap >= 0.0, "entry_hook_confirmed": vwap >= 0.0, "had_loss_today": False,
                 "has_fresh_intraday_feed": True, "fase_onda_sinusoidale": "SUPER_TREND_VERO_POSITIVO_BREAKOUT",
@@ -2096,17 +2105,41 @@ class TestQuantInvariantsV11(unittest.TestCase):
             )
         )
 
-        # (8b) Mercato sano (breadth 8/10 = 0.80 >= 0.58, EU open +0.28%): esegue esattamente 2 cartucce da ~23.59 EUR su 94.36 EUR
-        #      e blocca la 3a entrata giornaliera anche dopo un riavvio completo della VM Cloud!
-        bull_universe = {
+        # (8a-bis) Migrazione seamless hot-reload (es. BMWd_EQ acquistata alle 09:19 prima di daily_entries_sectors):
+        #          ricostruisce automaticamente AUTOMOTIVE_PREMIUM da lotti_aperti_lifo senza perdere il vincolo settoriale!
+        intel_legacy = daemon.HybridUncappedIntelligence()
+        legacy_tx = {
+            "daily_entries_date": "2026-11-19",
+            "daily_entries_count": 1,
+            "lotti_aperti_lifo": {
+                "BMWd_EQ": [{"timestamp": "2026-11-19T09:19:52", "ticker": "BMWd_EQ", "quantity": 0.47, "price_eur": 54.8723}],
+            },
+            "operazioni_chiuse": [],
+        }
+        self.assertEqual(
+            intel_legacy.get_today_used_sectors("2026-11-19", legacy_tx),
+            {daemon.ASSET_PROFILES["BMWd_EQ"]["sector"]},
+        )
+        self.assertEqual(legacy_tx.get("daily_entries_sectors"), [daemon.ASSET_PROFILES["BMWd_EQ"]["sector"]])
+
+        # (8b) Mercato rialzista sano (breadth 8/10 = 0.80 >= 0.58, EU open +0.28%):
+        #      - Ciclo 1 (09:45 CET): 3 Leader partono su 3 settori distinti (SAPd_EQ, NVDd_EQ, ASMLa_EQ), mentre AMDd_EQ (84.5 pt, stesso settore di NVDd_EQ) viene saltata!
+        #      - Ciclo 2 (10:15 CET): NVDd_EQ viene venduta in profitto liberando cassa e slot; partono AMDd_EQ (84.5 pt, stesso settore già usato oggi!),
+        #        SIEd_EQ (80.0 pt, 4° settore distinto) e DTGd_EQ (78.0 pt, 5° settore).
+        #        Il motore DEVE:
+        #          1) bloccare AMDd_EQ (settore SEMICONDUTTORI_AI già usato oggi anche se NVDd_EQ è ormai chiusa -> Zero Ping-Pong settoriale!);
+        #          2) acquistare SIEd_EQ come 4ª cartuccia sul 4° settore distinto;
+        #          3) bloccare DTGd_EQ nonostante ci sia uno slot libero (4/4 spari giornalieri raggiunti -> max 1 sparo/cartuccia/giorno!);
+        #          4) mantenere il blocco 4/4 anche dopo un riavvio completo della VM Cloud (Ciclo 3).
+        bull_wave_1 = {
             "SAPd_EQ": _mk_tape_stock("SAPd_EQ", 0.20, 0.35, 0.22, score=86.0),
-            "ASMLa_EQ": _mk_tape_stock("ASMLa_EQ", 0.18, 0.32, 0.20, score=84.0),
-            "IFXd_EQ": _mk_tape_stock("IFXd_EQ", 0.16, 0.30, 0.18, score=82.0),
-            "SIEd_EQ": _mk_tape_stock("SIEd_EQ", 0.15, 0.28, 0.16, score=80.0),
-            "DTGd_EQ": _mk_tape_stock("DTGd_EQ", 0.12, 0.25, 0.14, score=78.0),
-            "EOANd_EQ": _mk_tape_stock("EOANd_EQ", 0.10, 0.22, 0.12, score=76.0),
             "NVDd_EQ": _mk_tape_stock("NVDd_EQ", 0.22, 0.40, 0.25, score=85.0, us=True),
-            "MSFd_EQ": _mk_tape_stock("MSFd_EQ", 0.14, 0.26, 0.15, score=79.0, us=True),
+            "AMDd_EQ": _mk_tape_stock("AMDd_EQ", 0.21, 0.38, 0.24, score=84.5, us=True),  # Stesso settore di NVDd_EQ!
+            "ASMLa_EQ": _mk_tape_stock("ASMLa_EQ", 0.18, 0.32, 0.20, score=84.0),
+            "SIEd_EQ": _mk_tape_stock("SIEd_EQ", 0.03, 0.20, 0.08, score=52.0),  # Non ancora in breakout nel Ciclo 1
+            "DTGd_EQ": _mk_tape_stock("DTGd_EQ", 0.03, 0.18, 0.07, score=51.0),
+            "IFXd_EQ": _mk_tape_stock("IFXd_EQ", 0.04, 0.22, 0.08, score=53.0),
+            "EOANd_EQ": _mk_tape_stock("EOANd_EQ", 0.04, 0.20, 0.06, score=50.0),
             "MRKd_EQ": _mk_tape_stock("MRKd_EQ", -0.10, -0.05, -0.04, score=0.0),
             "DBKd_EQ": _mk_tape_stock("DBKd_EQ", -0.08, -0.04, -0.03, score=0.0),
         }
@@ -2115,7 +2148,9 @@ class TestQuantInvariantsV11(unittest.TestCase):
             def __init__(self):
                 self.positions = []
                 self.free_cash = 94.36
+                self.realized_res = -5.64
                 self.buys = []
+                self.sells = []
 
             def get_open_positions(self):
                 return list(self.positions)
@@ -2124,7 +2159,7 @@ class TestQuantInvariantsV11(unittest.TestCase):
                 return []
 
             def get_account_cash(self):
-                return {"result": -5.64, "free": round(self.free_cash, 2)}
+                return {"result": round(self.realized_res, 2), "free": round(self.free_cash, 2)}
 
             def place_limit_order(self, ticker: str, quantity: float, limit_price: float, time_validity: str = "DAY"):
                 assert quantity > 0.0
@@ -2138,15 +2173,25 @@ class TestQuantInvariantsV11(unittest.TestCase):
                 return None
 
             def place_market_order(self, ticker: str, quantity: float):
-                return {"id": "MKT"}
+                if quantity < 0:
+                    matched = next((p for p in self.positions if p["ticker"] == ticker), None)
+                    if matched is not None:
+                        proceeds = round(abs(quantity) * float(matched["currentPrice"]), 4)
+                        pnl = round((float(matched["currentPrice"]) - float(matched["averagePrice"])) * abs(quantity), 4)
+                        self.free_cash += proceeds
+                        self.realized_res += pnl
+                        self.positions = [p for p in self.positions if p["ticker"] != ticker]
+                        self.sells.append((ticker, abs(quantity), float(matched["currentPrice"])))
+                return {"id": f"MKT_{ticker}"}
 
         v116_broker = _V116CashBroker()
         v116_bot = daemon.Trading212AutonomousBot(client=v116_broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
         v116_bot.tax_tracker = ItalianTaxTracker730(filepath=self._tmp_tax_path)
         v116_bot.tax_tracker.reconcile_certified_cash_result(-5.64)
 
+        active_wave = [bull_wave_1]
         v116_scanner = daemon.QuantMarketScanner()
-        v116_scanner.scan_all = lambda **kw: bull_universe
+        v116_scanner.scan_all = lambda **kw: active_wave[0]
 
         class _DummyRadar34:
             def evaluate_overnight_wave(self):
@@ -2159,20 +2204,49 @@ class TestQuantInvariantsV11(unittest.TestCase):
             mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
             intel_v116 = daemon.HybridUncappedIntelligence()
             st1 = daemon.run_cycle(v116_bot, intel_v116, v116_scanner, _DummyRadar34(), 1)
-            # Simula riavvio completo VM Cloud a metà giornata: deve leggere 2/2 ingressi già eseguiti oggi da disco e NON sparare la 3a cartuccia!
+
+        self.assertEqual([b[0] for b in v116_broker.buys], ["SAPd_EQ", "NVDd_EQ", "ASMLa_EQ"])
+        self.assertEqual(st1["daily_entries_count"], 3)
+        self.assertEqual(len(st1["daily_entries_sectors"]), 3)
+
+        # Ora alle 10:15 CET: NVDd_EQ è salita a +1.95% e ritraccia a +1.35% (Scudo Mobile incassa in utile e libera slot + cassa!),
+        # mentre in panchina accelerano AMDd_EQ (84.5 pt, stesso settore SEMICONDUTTORI_AI già usato oggi!), SIEd_EQ (80.0 pt, 4° settore) e DTGd_EQ (78.0 pt, 5° settore):
+        for p_open in v116_broker.positions:
+            if p_open["ticker"] == "NVDd_EQ":
+                p_open["currentPrice"] = round(float(p_open["averagePrice"]) * 1.0135, 4)
+                p_open["ppl"] = round((p_open["currentPrice"] - float(p_open["averagePrice"])) * float(p_open["quantity"]), 2)
+        intel_v116.peak_pnl_pct["NVDd_EQ"] = 0.0195
+
+        bull_wave_2 = dict(bull_wave_1)
+        bull_wave_2["NVDd_EQ"] = dict(bull_wave_1["NVDd_EQ"], live_price_eur=101.35, green_hook_confirmed=False, entry_hook_confirmed=False)
+        bull_wave_2["SIEd_EQ"] = _mk_tape_stock("SIEd_EQ", 0.16, 0.30, 0.18, score=80.0)
+        bull_wave_2["DTGd_EQ"] = _mk_tape_stock("DTGd_EQ", 0.15, 0.28, 0.16, score=78.0)
+        active_wave[0] = bull_wave_2
+
+        dt_mid_morn = real_dt(2026, 11, 18, 10, 15, 0, tzinfo=daemon.MARKET_TZ)
+        with patch.object(daemon, "LIMIT_FILL_POLL_SEC", 0.0), patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_mid_morn.timestamp()):
+            mock_dt.now.side_effect = lambda tz=None: dt_mid_morn.astimezone(tz) if tz else dt_mid_morn.replace(tzinfo=None)
+            mock_dt.fromtimestamp.side_effect = real_dt.fromtimestamp
+            mock_dt.fromisoformat.side_effect = real_dt.fromisoformat
+            st2 = daemon.run_cycle(v116_bot, intel_v116, v116_scanner, _DummyRadar34(), 2)
+            # Simula riavvio completo VM Cloud a metà giornata: deve leggere 4/4 ingressi e i 4 settori già usati oggi da disco e NON sparare un 5° ordine (DTGd_EQ)!
             intel_rebooted = daemon.HybridUncappedIntelligence()
             intel_rebooted.sync_from_tax_data(v116_bot.tax_tracker.data)
-            st2 = daemon.run_cycle(v116_bot, intel_rebooted, v116_scanner, _DummyRadar34(), 2)
+            st3 = daemon.run_cycle(v116_bot, intel_rebooted, v116_scanner, _DummyRadar34(), 3)
 
-        self.assertEqual(len(v116_broker.buys), 2)
-        self.assertEqual([b[0] for b in v116_broker.buys], ["SAPd_EQ", "NVDd_EQ"])
-        for _, _, _, cost in v116_broker.buys:
+        self.assertEqual([s[0] for s in v116_broker.sells], ["NVDd_EQ"])
+        self.assertEqual([b[0] for b in v116_broker.buys], ["SAPd_EQ", "NVDd_EQ", "ASMLa_EQ", "SIEd_EQ"])
+        self.assertNotIn("AMDd_EQ", [b[0] for b in v116_broker.buys])  # Stesso settore di NVDd_EQ vietato anche dopo chiusura!
+        self.assertNotIn("DTGd_EQ", [b[0] for b in v116_broker.buys])  # 5° sparo giornaliero vietato (Zero Ping-Pong)!
+        used_sectors_4 = {daemon.ASSET_PROFILES[b[0]]["sector"] for b in v116_broker.buys}
+        self.assertEqual(len(used_sectors_4), 4)
+        for _, _, _, cost in v116_broker.buys[:3]:
             self.assertLessEqual(cost, 23.59 + 1e-6)
             self.assertGreaterEqual(cost, 23.40)
-        self.assertEqual(st1["daily_entries_count"], 2)
-        self.assertEqual(st2["daily_entries_count"], 2)
-        self.assertEqual(st2["max_daily_new_entries"], 2)
-        self.assertAlmostEqual(st2["taglia_cartuccia_composta_eur"], 23.59, places=2)
+        self.assertEqual(st2["daily_entries_count"], 4)
+        self.assertEqual(st3["daily_entries_count"], 4)
+        self.assertEqual(st3["max_daily_new_entries"], 4)
+        self.assertEqual(set(st3["daily_entries_sectors"]), used_sectors_4)
 
 
 if __name__ == "__main__":

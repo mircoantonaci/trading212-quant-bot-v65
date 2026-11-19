@@ -56,7 +56,7 @@ BASE_MIN_BUY_SCORE = 58.0
 LIMIT_ORDER_CAP_PCT = 0.0100  # +1,00% tetto anti-spike MiFID II RTS 11
 DAILY_VAULT_TRIGGER_EUR = 1.60
 DAILY_VAULT_GIVEBACK_EUR = 0.30
-MAX_DAILY_NEW_ENTRIES = 2  # V11.6 Tetto Anti-Overtrading (max 2 lanci ad alta convinzione/giorno contro erosione spread)
+MAX_DAILY_NEW_ENTRIES = 4  # V11.6 Zero Ping-Pong: max 1 sparo per cartuccia/giorno (4/4 cartucce su 4 settori Markowitz distinti nei regimi rialzisti)
 
 ASSET_PROFILES: Dict[str, Dict[str, Any]] = {
     "RHMd_EQ": {
@@ -1816,6 +1816,7 @@ class HybridUncappedIntelligence:
         self.prev_open_snapshot: Dict[str, Tuple[float, float]] = {}
         self.daily_entries_date: str = ""
         self.daily_entries_count: int = 0
+        self.daily_entries_sectors: set[str] = set()
         self._load_persisted_peaks()
 
     def get_today_entries_count(
@@ -1830,23 +1831,59 @@ class HybridUncappedIntelligence:
         if self.daily_entries_date != today_iso:
             self.daily_entries_date = today_iso
             self.daily_entries_count = 0
+            self.daily_entries_sectors = set()
         if isinstance(tax_data, dict) and str(tax_data.get("daily_entries_date", "")) == today_iso:
             self.daily_entries_count = max(
                 self.daily_entries_count,
                 int(tax_data.get("daily_entries_count", 0)),
             )
+            raw_tx_secs = tax_data.get("daily_entries_sectors", [])
+            if isinstance(raw_tx_secs, list):
+                self.daily_entries_sectors |= {str(s) for s in raw_tx_secs if s}
         return self.daily_entries_count
+
+    def get_today_used_sectors(
+        self,
+        today_iso: str,
+        tax_data: Optional[Dict[str, Any]] = None,
+    ) -> set[str]:
+        """
+        Restituisce l'insieme dei settori Markowitz già utilizzati per nuovi ingressi nella seduta `today_iso`.
+        Impedisce il ping-pong settoriale: anche se una cartuccia aperta oggi viene chiusa in giornata,
+        le restanti cartucce operano esclusivamente su settori Markowitz distinti non ancora usati oggi.
+        """
+        cnt = self.get_today_entries_count(today_iso, tax_data)
+        if isinstance(tax_data, dict) and cnt > len(self.daily_entries_sectors):
+            for tkr, lots in tax_data.get("lotti_aperti_lifo", {}).items():
+                if tkr in ASSET_PROFILES and isinstance(lots, list):
+                    if any(str(l.get("timestamp", "")).startswith(today_iso) for l in lots if isinstance(l, dict)):
+                        self.daily_entries_sectors.add(ASSET_PROFILES[tkr]["sector"])
+            if cnt > len(self.daily_entries_sectors):
+                for op in tax_data.get("operazioni_chiuse", []):
+                    if not isinstance(op, dict) or bool(op.get("overnight_carry_cleanup", False)):
+                        continue
+                    tkr_op = str(op.get("ticker", ""))
+                    ts_op = str(op.get("timestamp", ""))
+                    if tkr_op in ASSET_PROFILES and ts_op.startswith(today_iso):
+                        self.daily_entries_sectors.add(ASSET_PROFILES[tkr_op]["sector"])
+            if str(tax_data.get("daily_entries_date", "")) == today_iso and self.daily_entries_sectors:
+                tax_data["daily_entries_sectors"] = sorted(self.daily_entries_sectors)
+        return set(self.daily_entries_sectors)
 
     def record_daily_entry(
         self,
         today_iso: str,
         tax_data: Optional[Dict[str, Any]] = None,
+        sector: Optional[str] = None,
     ) -> int:
         cur = self.get_today_entries_count(today_iso, tax_data)
         self.daily_entries_count = cur + 1
+        if sector:
+            self.daily_entries_sectors.add(str(sector))
         if isinstance(tax_data, dict):
             tax_data["daily_entries_date"] = today_iso
             tax_data["daily_entries_count"] = self.daily_entries_count
+            tax_data["daily_entries_sectors"] = sorted(self.daily_entries_sectors)
         return self.daily_entries_count
 
     def sync_from_tax_data(self, tx: Dict[str, Any]) -> None:
@@ -1890,6 +1927,9 @@ class HybridUncappedIntelligence:
                 if st_ent_date:
                     self.daily_entries_date = st_ent_date
                     self.daily_entries_count = max(0, int(st.get("daily_entries_count", 0)))
+                    raw_st_secs = st.get("daily_entries_sectors", [])
+                    if isinstance(raw_st_secs, list):
+                        self.daily_entries_sectors = {str(s) for s in raw_st_secs if s}
                 state_fresh = False
                 st_ts_str = str(st.get("timestamp", ""))
                 if st_ts_str:
@@ -1934,15 +1974,22 @@ class HybridUncappedIntelligence:
                     tx = json.load(f)
                 tx_ent_date = str(tx.get("daily_entries_date", ""))
                 if tx_ent_date:
+                    tx_secs = (
+                        {str(s) for s in tx.get("daily_entries_sectors", []) if s}
+                        if isinstance(tx.get("daily_entries_sectors"), list)
+                        else set()
+                    )
                     if not self.daily_entries_date or tx_ent_date >= self.daily_entries_date:
                         if tx_ent_date != self.daily_entries_date:
                             self.daily_entries_date = tx_ent_date
                             self.daily_entries_count = max(0, int(tx.get("daily_entries_count", 0)))
+                            self.daily_entries_sectors = tx_secs
                         else:
                             self.daily_entries_count = max(
                                 self.daily_entries_count,
                                 int(tx.get("daily_entries_count", 0)),
                             )
+                            self.daily_entries_sectors |= tx_secs
                 for tkr, lots in tx.get("lotti_aperti_lifo", {}).items():
                     if lots:
                         ts_str = lots[-1].get("timestamp", "")
@@ -2953,11 +3000,13 @@ def run_cycle(
     def _refresh_bench_candidates(vault_flag: bool) -> List[Dict[str, Any]]:
         if intel.get_today_entries_count(today_prefix, bot.tax_tracker.data) >= MAX_DAILY_NEW_ENTRIES:
             return []
+        used_secs = intel.get_today_used_sectors(today_prefix, bot.tax_tracker.data)
         return [
             m
             for b_tkr, m in quant_metrics.items()
             if b_tkr not in pos_by_ticker
             and b_tkr not in pending_by_ticker
+            and m.get("sector") not in used_secs
             and intel.is_eligible_entry_candidate(
                 m,
                 regime,
@@ -3253,6 +3302,7 @@ def run_cycle(
 
     active_count = len(cartridge_statuses)
     today_entries_count = intel.get_today_entries_count(today_prefix, bot.tax_tracker.data)
+    today_used_sectors = intel.get_today_used_sectors(today_prefix, bot.tax_tracker.data)
     pre_entry_equity = round(bot.total_budget_eur + realized_net_eur + unrealized_pnl_100e, 2)
     if pre_entry_equity >= bot.target_equity_eur:
         regime = dict(regime)
@@ -3328,7 +3378,7 @@ def run_cycle(
                 continue
             cand_squad = cand["squad"]
             cand_sector = cand["sector"]
-            if cand_sector in active_sectors:
+            if cand_sector in active_sectors or cand_sector in today_used_sectors:
                 continue
             if not intel.is_eligible_entry_candidate(
                 cand,
@@ -3440,7 +3490,12 @@ def run_cycle(
                     fill_px = float(matched_pos.get("averagePrice") or live_px)
                     est_cost = round(filled_qty * fill_px, 2)
                     opened_now_ts = time.time()
-                    today_entries_count = intel.record_daily_entry(today_prefix, bot.tax_tracker.data)
+                    today_entries_count = intel.record_daily_entry(
+                        today_prefix,
+                        bot.tax_tracker.data,
+                        sector=cand_sector,
+                    )
+                    today_used_sectors.add(cand_sector)
                     bot.tax_tracker.record_buy(ticker=tkr, quantity=filled_qty, price_eur=fill_px)
                     real_orders_executed = True
                     if broker_free is not None:
@@ -3606,7 +3661,7 @@ def run_cycle(
         "mode": "INSTITUTIONAL_V11_6_LTS_ZERO_CEROTTI",
         "blindature_attive_v6_istituzionali": [
             "1. Occhio Real-Time 0s GETTEX + Nastro 0s EU32/US7 V11.6 (39/39 titoli in streaming 0s Monaco + Scudo Crollo 0s + Immune VIX-Crush)",
-            f"2. Selettore Cash-Regime Leader RS + Tetto Anti-Overtrading ({today_entries_count}/{MAX_DAILY_NEW_ENTRIES} lanci oggi, Breadth >= 58% per aprire fuoco)",
+            f"2. Selettore Cash-Regime Leader RS + 4 Settori Distinti Zero Ping-Pong ({today_entries_count}/{MAX_DAILY_NEW_ENTRIES} lanci oggi, Breadth >= 58% per aprire fuoco)",
             "3. Marketable Limit Orders MiFID II (+1,00% cap su tick RTS 11 + Rate-Limit >= 2,05s + Quantizzazione math.floor Anti-Overrun)",
             f"4. Simmetria Patrimoniale 4/4 Cartucce (Budget Attivo: {compounded_budget_eur:.2f} EUR -> 4 Cartucce Simmetriche da {dynamic_cartridge_eur:.2f} EUR)",
             f"5. Matrice Markowitz {len(ASSET_PROFILES)} Colossi EUR Zero-Fee + Chiusura C0 Capitolazione Breadth ({round(market_breadth_above_vwap*100,1):.1f}% >= VWAP)",
@@ -3620,6 +3675,7 @@ def run_cycle(
         "intraday_0s_tape": intraday_tape,
         "daily_entries_date": today_prefix,
         "daily_entries_count": today_entries_count,
+        "daily_entries_sectors": sorted(today_used_sectors),
         "max_daily_new_entries": MAX_DAILY_NEW_ENTRIES,
         "radar_onda_notturna_wall_street": overnight_status,
         "account_id": 52318994,
