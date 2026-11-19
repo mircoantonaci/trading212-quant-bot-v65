@@ -70,16 +70,16 @@
   },
   "account_id": 52318994,
   "budget_iniziale_vincolato_eur": 100.0,
-  "budget_composto_attivo_kelly_eur": 105.35,
-  "taglia_cartuccia_composta_eur": 26.34,
+  "budget_composto_attivo_kelly_eur": 99.71,
+  "taglia_cartuccia_composta_eur": 24.93,
   "cassaforte_giornaliera_attiva": false,
   "cassaforte_giornaliera_picco_eur": 0.0,
   "capitale_impegnato_cartucce_eur": 0.0,
-  "liquidita_libera_su_100e_eur": 105.35,
-  "profitto_realizzato_in_cassa_eur": 5.35,
+  "liquidita_libera_su_100e_eur": 99.71,
+  "profitto_realizzato_in_cassa_eur": -0.29,
   "profitto_aperto_non_realizzato_eur": 0.0,
-  "guadagno_totale_netto_eur": 5.35,
-  "valore_totale_portafoglio_100e_eur": 105.35,
+  "guadagno_totale_netto_eur": -0.29,
+  "valore_totale_portafoglio_100e_eur": 99.71,
   "target_incasso_automatico_eur": 130.0,
   "commissioni_pagate_eur": 0.0,
   "classifica_scanner_quantitativo_5m": [
@@ -4698,15 +4698,15 @@
   "riepilogo_fiscale_730": {
     "QUADRO_W_MONITORAGGIO": {
       "Valore_Iniziale_EUR": 100.0,
-      "Valore_Finale_31_12_EUR": 105.35,
+      "Valore_Finale_31_12_EUR": 99.71,
       "IVAFE_Dovuta_EUR": 0.0,
       "Nota_IVAFE": "Esente (sotto soglia minima di 12,00 EUR)"
     },
     "QUADRO_T_PLUSVALENZE_LIFO": {
       "Totale_Corrispettivi_Vendita_EUR": 25.5,
       "Totale_Costi_Carico_LIFO_EUR": 25.79,
-      "Plusvalenza_Netta_Imponibile_EUR": 5.35,
-      "Imposta_Sostitutiva_26_EUR": 1.39,
+      "Plusvalenza_Netta_Imponibile_EUR": 0.0,
+      "Imposta_Sostitutiva_26_EUR": 0.0,
       "Nota_Versamento": "Nessun versamento F24 dovuto (sotto franchigia 12,00 EUR)"
     }
   }
