@@ -1743,6 +1743,7 @@ class QuantMarketScanner:
         # con pendenza 15m/30m positiva, Signed Kaufman ER >= +0,20 e vicino ai massimi di seduta (dip >= -0,45%).
         true_relative_strength = (
             vwap_dist_pct >= 0.10
+            and (intraday_open_chg_pct > 0.0 or len(today_indices) < 2)
             and signed_kaufman_er >= 0.20
             and slope_15m_pct > 0.0
             and slope_30m_pct > 0.0
@@ -2756,9 +2757,29 @@ class HybridUncappedIntelligence:
                 if float(tape.get("us_from_ny_open_pct", 0.0)) < 0.0 or float(tape.get("us_slope_30m_pct", 0.0)) < 0.0:
                     return False
 
+            cand_open_chg = float(cand.get("intraday_open_chg_pct", 0.0))
+            is_us_cand = bool(cand.get("is_us_giant", False))
+            us_live_now = bool(regime.get("us_market_live", False)) and bool(
+                overnight_status.get("us_indices_live_today", True)
+            )
+            if is_us_cand and us_live_now:
+                us_open_c = float(tape.get("us_from_ny_open_pct", 0.0))
+                cand_ny_chg = float(cand.get("ny_open_chg_pct", 0.0))
+                has_open_rs = (
+                    cand_open_chg > 0.0
+                    and cand_ny_chg > 0.0
+                    and cand_ny_chg >= us_open_c
+                )
+            else:
+                has_open_rs = (
+                    cand_open_chg > 0.0
+                    and cand_open_chg >= eu_open_c
+                )
+
             mom_plus_vel = float(cand.get("score_momentum", score)) + float(cand.get("velocity_bonus", 0.0))
             if (
-                not bool(cand.get("true_relative_strength", cand.get("strong_for_overnight", False)))
+                not has_open_rs
+                or not bool(cand.get("true_relative_strength", cand.get("strong_for_overnight", False)))
                 or not (45.0 <= rsi_5m <= 63.0)
                 or not (0.05 <= cand_vwap_dist <= 0.38)
                 or cand_rvol < 1.10

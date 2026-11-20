@@ -2146,6 +2146,7 @@ class TestQuantInvariantsV11(unittest.TestCase):
         #          3) bloccare DTGd_EQ nonostante ci sia uno slot libero (4/4 spari giornalieri raggiunti -> max 1 sparo/cartuccia/giorno!);
         #          4) mantenere il blocco 4/4 anche dopo un riavvio completo della VM Cloud (Ciclo 3).
         bull_wave_1 = {
+            "BMWd_EQ": _mk_tape_stock("BMWd_EQ", 0.12, -0.20, 0.24, score=88.0),  # Falso Leader rosso dall'apertura (-0.20% < eu_open_c): VIETATO!
             "SAPd_EQ": _mk_tape_stock("SAPd_EQ", 0.20, 0.35, 0.22, score=86.0),
             "NVDd_EQ": _mk_tape_stock("NVDd_EQ", 0.22, 0.40, 0.25, score=85.0, us=True),
             "AMDd_EQ": _mk_tape_stock("AMDd_EQ", 0.21, 0.38, 0.24, score=84.5, us=True),  # Stesso settore di NVDd_EQ!
@@ -2250,6 +2251,7 @@ class TestQuantInvariantsV11(unittest.TestCase):
 
         self.assertEqual([s[0] for s in v116_broker.sells], ["NVDd_EQ"])
         self.assertEqual([b[0] for b in v116_broker.buys], ["SAPd_EQ", "NVDd_EQ", "ASMLa_EQ", "SIEd_EQ"])
+        self.assertNotIn("BMWd_EQ", [b[0] for b in v116_broker.buys])  # Falso Leader rosso dall'apertura (-0.20%) bloccato anche con Score 88!
         self.assertNotIn("AMDd_EQ", [b[0] for b in v116_broker.buys])  # Stesso settore di NVDd_EQ vietato anche dopo chiusura!
         self.assertNotIn("DTGd_EQ", [b[0] for b in v116_broker.buys])  # 5° sparo giornaliero vietato (Zero Ping-Pong)!
         used_sectors_4 = {daemon.ASSET_PROFILES[b[0]]["sector"] for b in v116_broker.buys}
