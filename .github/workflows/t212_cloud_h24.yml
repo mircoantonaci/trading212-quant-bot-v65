@@ -97,7 +97,7 @@ jobs:
           restore-keys: |
             t212-intraday-cache-${{ runner.os }}-${{ steps.cache-key.outputs.today }}-
 
-      - name: "🧪 Verifica Bloccante dei 34 Invarianti Matematici (V11.6 LTS Zero Cerotti Anti-Spread)"
+      - name: "🧪 Verifica Bloccante dei 35 Invarianti Matematici (V11.6 LTS + Vault 1.000 EUR)"
         run: |
           python3 -m unittest discover -s tests -p "test_*.py" -v
 
@@ -164,6 +164,7 @@ jobs:
           DONE=0
 
           echo "🚀 Avvio Sessione Continua V11.6 Zero Cerotti per max $TOTAL_CYCLES cicli da 6s (Ora Borsa: $(date))"
+          python3 t212_dual_momentum_1000e.py --auto-daily || true
           while [ "$DONE" -lt "$TOTAL_CYCLES" ]; do
             DOW=$(date +%u)
             HOUR=$(date +%H)
@@ -183,10 +184,14 @@ jobs:
             fi
 
             python3 t212_daemon_100e.py --cycles "$BATCH"
+            if [ $((DONE % 500)) -eq 0 ] && [ "$DONE" -gt 0 ]; then
+              python3 t212_dual_momentum_1000e.py --auto-daily || true
+            fi
             python3 t212-cli.py dashboard
 
             # Checkpoint atomico su GitHub: in rebase '-X theirs' preserva SEMPRE lo stato locale appena calcolato!
             git add trading212_state.json registro_fiscale_730.json dashboard_v6_5.html
+            if [ -f longterm_vault_1000e.json ]; then git add longterm_vault_1000e.json; fi
             if ! git diff --cached --quiet; then
               git commit -m "chore(state): checkpoint V11.6 portafoglio & 730 ($(date +%H:%M) Europe/Rome) [skip ci]"
               if ! git push origin main; then

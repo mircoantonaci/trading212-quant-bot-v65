@@ -428,6 +428,7 @@ class Trading212Client:
         self.api_secret = api_secret.strip() if api_secret else None
         self.mode = mode.lower()
         self._last_limit_order_ts: float = 0.0
+        self.extra_allowed_eur_tickers: set[str] = set()
         if self.mode == "live":
             self.base_url = "https://live.trading212.com/api/v0"
         else:
@@ -470,7 +471,7 @@ class Trading212Client:
             except urllib.error.HTTPError as e:
                 err_body = e.read().decode("utf-8", errors="replace")
                 if e.code == 429 and attempt < 2:
-                    time.sleep(1.8 * (attempt + 1))
+                    time.sleep(5.2 * (attempt + 1))
                     continue
                 if method == "GET" and e.code in (502, 503, 504) and attempt == 0:
                     time.sleep(1.2)
@@ -548,7 +549,7 @@ class Trading212Client:
         - quantity < 0: Vendita
         Vincolo di sicurezza: accetta SOLO ticker presenti in EUR_ZERO_FEE_UNIVERSE.
         """
-        if ticker not in EUR_ZERO_FEE_UNIVERSE:
+        if ticker not in EUR_ZERO_FEE_UNIVERSE and ticker not in self.extra_allowed_eur_tickers:
             raise ValueError(
                 f"BLOCCO SICUREZZA COSTI: {ticker} non appartiene alla lista "
                 "Europea in EUR a 0% cambio valuta e 0% Tobin Tax."
@@ -571,7 +572,7 @@ class Trading212Client:
         Protegge gli ingressi dagli spike anomali senza mai ripiegare su ordini Market ciechi
         e rispetta nativamente il rate-limit Trading 212 (>= 2,05s tra due POST /equity/orders/limit).
         """
-        if ticker not in EUR_ZERO_FEE_UNIVERSE:
+        if ticker not in EUR_ZERO_FEE_UNIVERSE and ticker not in self.extra_allowed_eur_tickers:
             raise ValueError(
                 f"BLOCCO SICUREZZA COSTI: {ticker} non appartiene alla lista "
                 "Europea in EUR a 0% cambio valuta e 0% Tobin Tax."

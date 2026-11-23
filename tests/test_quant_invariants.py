@@ -58,21 +58,25 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self._tmp_bot_state = "/tmp/test_v11_hermetic_state.json"
         self._tmp_scan_cache = "/tmp/test_v11_hermetic_scanner_cache.json"
         self._tmp_tax_path = "/tmp/test_v11_hermetic_tax.json"
-        for p in (self._tmp_bot_state, self._tmp_scan_cache, self._tmp_tax_path):
+        self._tmp_lt_path = "/tmp/test_v11_hermetic_longterm_1000e.json"
+        for p in (self._tmp_bot_state, self._tmp_scan_cache, self._tmp_tax_path, self._tmp_lt_path):
             if os.path.exists(p):
                 os.remove(p)
         self._p_state = patch.object(daemon, "BOT_STATE_PATH", self._tmp_bot_state)
         self._p_cache = patch.object(daemon, "SCANNER_CACHE_PATH", self._tmp_scan_cache)
         self._p_tax = patch.object(daemon, "TAX_TRACKER_PATH", self._tmp_tax_path)
+        self._p_lt = patch.object(daemon, "LONGTERM_VAULT_STATE_PATH", self._tmp_lt_path)
         self._p_state.start()
         self._p_cache.start()
         self._p_tax.start()
+        self._p_lt.start()
 
     def tearDown(self):
+        self._p_lt.stop()
         self._p_tax.stop()
         self._p_cache.stop()
         self._p_state.stop()
-        for p in (self._tmp_bot_state, self._tmp_scan_cache, self._tmp_tax_path):
+        for p in (self._tmp_bot_state, self._tmp_scan_cache, self._tmp_tax_path, self._tmp_lt_path):
             if os.path.exists(p):
                 os.remove(p)
 
@@ -788,15 +792,17 @@ class TestQuantInvariantsV11(unittest.TestCase):
             self.assertEqual(scanner_live.refresh_gettex_live_quotes(force=True), 0)
 
     def test_21_us_big_tech_eur_universe_and_markowitz_sector_isolation(self):
-        """Invariante #21: 44 Colossi EUR Zero-Fee (37 UE incl. 5 Campioni Green/Acqua/Circolare + 7 Big Tech USA in EUR), 100% GETTEX 0s e isolamento Markowitz."""
+        """Invariante #21: 47 Colossi EUR Zero-Fee (40 UE incl. 5 Green & 3 Campioni IT-NL 0% FTT + 7 Big Tech USA in EUR), 100% GETTEX 0s e isolamento Markowitz."""
         daemon.discover_and_verify_eur_giants(None)
         expected_us_eur = {"NVDd_EQ", "MSFd_EQ", "APCd_EQ", "AMZd_EQ", "ABEAd_EQ", "FB2Ad_EQ", "AMDd_EQ"}
         expected_green_eur = {"HEId_EQ", "NDX1d_EQ", "NDAd_EQ", "LIGHTa_EQ", "AALBa_EQ"}
+        expected_it_nl_eur = {"STMpp_EQ", "STLAPp_EQ", "2FEd_EQ"}
         self.assertTrue(expected_us_eur.issubset(set(daemon.ASSET_PROFILES.keys())))
         self.assertTrue(expected_green_eur.issubset(set(daemon.ASSET_PROFILES.keys())))
+        self.assertTrue(expected_it_nl_eur.issubset(set(daemon.ASSET_PROFILES.keys())))
         # FREd_EQ ("" in t212_verified_universe.json) deve essere escluso per evitare ordini HTTP 400 su ticker inesistenti
         self.assertNotIn("FREd_EQ", daemon.ASSET_PROFILES)
-        self.assertEqual(len(daemon.ASSET_PROFILES), 44)
+        self.assertEqual(len(daemon.ASSET_PROFILES), 47)
 
         for tkr, prof in daemon.ASSET_PROFILES.items():
             meta = daemon.EUR_ZERO_FEE_UNIVERSE[tkr]
@@ -804,15 +810,15 @@ class TestQuantInvariantsV11(unittest.TestCase):
             self.assertEqual(meta["tobin_tax"], "0.00%", f"Tobin tax non zero su {tkr}")
             self.assertTrue(str(prof.get("gettex", "")).startswith("GETTEX:"), f"Simbolo GETTEX mancante su {tkr}")
 
-        # Isolamento settoriale Markowitz sulle Big Tech USA correlate e Rinnovabili:
-        # NVIDIA + AMD condividono CHIP_ACCELERATORI_AI; Alphabet + Meta condividono DIGITAL_ADS_SOCIAL_AI;
-        # Microsoft + SAP condividono SOFTWARE_CLOUD; Amazon + Zalando condividono ECOMMERCE_CONSUMER;
-        # Nordex + RWE condividono ENERGIA_RINNOVABILE_POWER; i 4 nuovi pilastri Green hanno settori distinti.
+        # Isolamento settoriale Markowitz sulle Big Tech USA correlate, Rinnovabili e Campioni IT-NL:
         self.assertEqual(daemon.ASSET_PROFILES["NVDd_EQ"]["sector"], daemon.ASSET_PROFILES["AMDd_EQ"]["sector"])
         self.assertEqual(daemon.ASSET_PROFILES["ABEAd_EQ"]["sector"], daemon.ASSET_PROFILES["FB2Ad_EQ"]["sector"])
         self.assertEqual(daemon.ASSET_PROFILES["MSFd_EQ"]["sector"], daemon.ASSET_PROFILES["SAPd_EQ"]["sector"])
         self.assertEqual(daemon.ASSET_PROFILES["AMZd_EQ"]["sector"], daemon.ASSET_PROFILES["ZALd_EQ"]["sector"])
         self.assertEqual(daemon.ASSET_PROFILES["NDX1d_EQ"]["sector"], daemon.ASSET_PROFILES["RWEd_EQ"]["sector"])
+        self.assertEqual(daemon.ASSET_PROFILES["STMpp_EQ"]["sector"], daemon.ASSET_PROFILES["IFXd_EQ"]["sector"])
+        self.assertEqual(daemon.ASSET_PROFILES["STLAPp_EQ"]["sector"], daemon.ASSET_PROFILES["BMWd_EQ"]["sector"])
+        self.assertEqual(daemon.ASSET_PROFILES["2FEd_EQ"]["sector"], "LUXURY_SUPERCARS")
         self.assertEqual(
             len({
                 daemon.ASSET_PROFILES["HEId_EQ"]["sector"],
@@ -2269,6 +2275,136 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertEqual(st3["daily_entries_count"], 4)
         self.assertEqual(st3["max_daily_new_entries"], 4)
         self.assertEqual(set(st3["daily_entries_sectors"]), used_sectors_4)
+
+    def test_35_dual_momentum_1000e_chinese_wall_bear_shield_and_instant_cashout(self):
+        """Invariante #35: Motore #2 Dual Momentum + Oro (1.000 EUR) — Muraglia Cinese 0% overlap, Scudo Bear Market Oro/XEON e Cashout istantaneo."""
+        import t212_dual_momentum_1000e as dm
+
+        daemon.discover_and_verify_eur_giants(None)
+        # 1) Muraglia Cinese sui ticker: 0 sovrapposizioni tra i 47 Colossi intraday e i 12 strumenti Dual Momentum + Oro
+        self.assertTrue(dm.verify_zero_intraday_overlap(set(daemon.EUR_ZERO_FEE_UNIVERSE.keys())))
+        self.assertEqual(len(set(dm.DUAL_MOMENTUM_UNIVERSE.keys()) & set(daemon.EUR_ZERO_FEE_UNIVERSE.keys())), 0)
+
+        # 2) Regime Bull: seleziona Top 2 ETF distinti (45%), Top 2 Azioni distinte (30%), Oro (20%), XEON (5%) -> somma = 1.0000
+        bull_series = {
+            "DBXTd_EQ": [146.0 + i * 0.02 for i in range(252)],
+            "4GLDd_EQ": [88.0 + i * 0.08 for i in range(252)],
+            "SXRVd_EQ": [1050.0 + i * 1.40 for i in range(252)],
+            "QDVEd_EQ": [31.0 + i * 0.035 for i in range(252)],  # stesso sub_group US_TECH_GROWTH di SXRV -> diversifica sul 2° ETF!
+            "IS3Rd_EQ": [70.0 + i * 0.08 for i in range(252)],
+            "XDEQQd_EQ": [68.0 + i * 0.05 for i in range(252)],
+            "IQQ0d_EQ": [66.0 + i * 0.03 for i in range(252)],
+            "BRYNd_EQ": [420.0 + i * 0.45 for i in range(252)],
+            "LINd_EQ": [410.0 + i * 0.25 for i in range(252)],
+            "RENa_EQ": [30.0 + i * 0.03 for i in range(252)],
+            "WKLa_EQ": [78.0 + i * 0.02 for i in range(252)],
+            "ADa_EQ": [33.0 + i * 0.01 for i in range(252)],
+        }
+        xeon_m = dm.compute_instrument_momentum_metrics("DBXTd_EQ", bull_series["DBXTd_EQ"], 0.0)
+        rf_h = xeon_m["composite_mom_pct"]
+        bull_metrics = {t: dm.compute_instrument_momentum_metrics(t, s, rf_h) for t, s in bull_series.items()}
+        w_bull, lbl_bull, _ = dm.compute_dual_momentum_target_weights(bull_metrics)
+        self.assertAlmostEqual(sum(w_bull.values()), 1.0, places=4)
+        self.assertEqual(lbl_bull, "FULL_BULL_MOMENTUM_4_SU_4_ATTIVI")
+        self.assertAlmostEqual(w_bull["4GLDd_EQ"], 0.20, places=4)
+        self.assertAlmostEqual(w_bull["DBXTd_EQ"], 0.05, places=4)
+        # Non deve mai prendere insieme SXRVd_EQ e QDVEd_EQ (stesso sub_group US_TECH_GROWTH)
+        self.assertFalse("SXRVd_EQ" in w_bull and "QDVEd_EQ" in w_bull)
+
+        # 3) Regime Bear (tutte le azioni ed ETF sotto SMA_150): 100% protetto in Oro Fisico (35%) + Monetario BCE XEON (65%)!
+        bear_series = dict(bull_series)
+        for eq_tkr in ("SXRVd_EQ", "QDVEd_EQ", "IS3Rd_EQ", "XDEQQd_EQ", "IQQ0d_EQ", "BRYNd_EQ", "LINd_EQ", "RENa_EQ", "WKLa_EQ", "ADa_EQ"):
+            bear_series[eq_tkr] = [100.0 - i * 0.15 for i in range(252)]
+        bear_metrics = {t: dm.compute_instrument_momentum_metrics(t, s, rf_h) for t, s in bear_series.items()}
+        w_bear, lbl_bear, _ = dm.compute_dual_momentum_target_weights(bear_metrics)
+        self.assertAlmostEqual(sum(w_bear.values()), 1.0, places=4)
+        self.assertEqual(lbl_bear, "SCUDO_DIFENSIVO_BEAR_MARKET_ORO_E_XEON")
+        self.assertEqual(set(w_bear.keys()), {"4GLDd_EQ", "DBXTd_EQ"})
+        self.assertAlmostEqual(w_bear["4GLDd_EQ"], 0.35, places=4)
+        self.assertAlmostEqual(w_bear["DBXTd_EQ"], 0.65, places=4)
+
+        # 4) Esecuzione reale simulata + Muraglia Cinese contabile + Incasso Immediato 100% (`cashout`)
+        class _SharedAccountBroker:
+            def __init__(self):
+                self.positions = []
+                self.free = 4999.71
+                self.result = -0.29
+
+            def get_open_positions(self):
+                return list(self.positions)
+
+            def get_pending_orders(self):
+                return []
+
+            def get_account_cash(self):
+                return {"free": round(self.free, 2), "result": round(self.result, 2)}
+
+            def place_limit_order(self, ticker: str, quantity: float, limit_price: float, time_validity: str = "DAY"):
+                cost = round(quantity * limit_price, 4)
+                self.free -= cost
+                existing = next((p for p in self.positions if p["ticker"] == ticker), None)
+                if existing:
+                    tot_q = round(existing["quantity"] + quantity, 6)
+                    existing["averagePrice"] = round((existing["quantity"] * existing["averagePrice"] + cost) / tot_q, 4)
+                    existing["quantity"] = tot_q
+                    existing["currentPrice"] = limit_price
+                else:
+                    self.positions.append({"ticker": ticker, "quantity": quantity, "averagePrice": limit_price, "currentPrice": limit_price, "ppl": 0.0})
+                return {"id": f"LT_BUY_{ticker}"}
+
+            def cancel_order(self, order_id):
+                return None
+
+            def place_market_order(self, ticker: str, quantity: float):
+                if quantity < 0:
+                    matched = next((p for p in self.positions if p["ticker"] == ticker), None)
+                    if matched:
+                        sell_q = abs(quantity)
+                        cur_px = float(matched["currentPrice"])
+                        avg_px = float(matched["averagePrice"])
+                        pnl = round((cur_px - avg_px) * sell_q, 2)
+                        self.free += round(sell_q * cur_px, 4)
+                        self.result = round(self.result + pnl, 2)
+                        rem_q = round(float(matched["quantity"]) - sell_q, 6)
+                        if rem_q <= 1e-6:
+                            self.positions = [p for p in self.positions if p["ticker"] != ticker]
+                        else:
+                            matched["quantity"] = rem_q
+                return {"id": f"LT_SELL_{ticker}"}
+
+        shared_broker = _SharedAccountBroker()
+        vault = dm.DualMomentumVault1000E(client=shared_broker, state_path=self._tmp_lt_path, initial_budget_eur=1000.0)
+        dt_open = datetime.datetime(2026, 11, 23, 14, 45, 0, tzinfo=daemon.MARKET_TZ)
+        with patch.object(dm, "fetch_daily_series_1y", side_effect=lambda t: bull_series[t]):
+            st_init = vault.run_rebalance_cycle(now=dt_open, poll_sec=0.0)
+        self.assertGreaterEqual(st_init["invested_cost_eur"], 970.0)
+        self.assertLessEqual(st_init["invested_cost_eur"], 1000.01)
+        self.assertEqual(len(st_init["posizioni_attive"]), 6)
+
+        # Simula apprezzamento +50 EUR sul Vault e incasso integrale 100% su richiesta utente:
+        for p_lt in shared_broker.positions:
+            p_lt["currentPrice"] = round(float(p_lt["averagePrice"]) * 1.05, 4)
+        with patch.object(dm, "fetch_daily_series_1y", side_effect=lambda t: bull_series[t]):
+            acts_cashout = vault.cashout(profits_only=False)
+        self.assertTrue(len(acts_cashout) >= 6)
+        self.assertTrue(vault.state["paused_by_user_cashout"])
+        self.assertEqual(len(shared_broker.positions), 0)
+        lt_realized = vault.state["realized_net_pnl_eur"]
+        self.assertGreater(lt_realized, 40.0)
+
+        # Verifica Muraglia Cinese: il conto condiviso ora espone result = -0.29 + lt_realized,
+        # ma il bot intraday da 100 EUR sottrae esattamente lt_realized mantenendo il suo PnL a -0.29 EUR!
+        intraday_bot = daemon.Trading212AutonomousBot(client=shared_broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
+        intraday_bot.tax_tracker = ItalianTaxTracker730(filepath=self._tmp_tax_path)
+        intraday_bot.tax_tracker.data["minusvalenze_lorde_eur"] = 0.29
+        intraday_bot.tax_tracker._recompute_taxable_summary()
+        daemon._sync_certified_cash_safe(intraday_bot, min_interval_sec=0.0)
+        net_intraday = round(
+            float(intraday_bot.tax_tracker.data["plusvalenze_lorde_eur"])
+            - float(intraday_bot.tax_tracker.data["minusvalenze_lorde_eur"]),
+            2,
+        )
+        self.assertAlmostEqual(net_intraday, -0.29, places=2)
 
 
 if __name__ == "__main__":

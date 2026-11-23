@@ -622,13 +622,23 @@ def main() -> None:
     )
     parser.add_argument(
         "command",
-        choices=["status", "tax-730", "dashboard", "start", "stop", "export"],
+        choices=["status", "tax-730", "dashboard", "start", "stop", "export", "longterm-status", "longterm-cashout", "longterm-profits"],
         help="Comando da eseguire",
     )
     args = parser.parse_args()
 
     if args.command == "status":
         cmd_status()
+        lt_file = PROJECT_DIR / "longterm_vault_1000e.json"
+        if lt_file.exists():
+            from t212_dual_momentum_1000e import print_vault_summary
+            print_vault_summary(load_json(lt_file))
+    elif args.command == "longterm-status":
+        subprocess.run([sys.executable, str(PROJECT_DIR / "t212_dual_momentum_1000e.py"), "--status-only"], cwd=str(PROJECT_DIR), check=False)
+    elif args.command == "longterm-cashout":
+        subprocess.run([sys.executable, str(PROJECT_DIR / "t212_dual_momentum_1000e.py"), "--cashout-all"], cwd=str(PROJECT_DIR), check=False)
+    elif args.command == "longterm-profits":
+        subprocess.run([sys.executable, str(PROJECT_DIR / "t212_dual_momentum_1000e.py"), "--cashout-profits"], cwd=str(PROJECT_DIR), check=False)
     elif args.command == "tax-730":
         cmd_tax_730()
     elif args.command == "dashboard":

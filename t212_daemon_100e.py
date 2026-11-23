@@ -49,6 +49,7 @@ CREDENTIALS_PATH = os.path.join(BASE_DIR, "t212_credentials.json")
 SCANNER_CACHE_PATH = os.path.join(BASE_DIR, ".scanner_5m_cache.json")
 RADAR_CACHE_PATH = os.path.join(BASE_DIR, ".radar_wave_cache.json")
 TAX_TRACKER_PATH = os.path.join(BASE_DIR, "registro_fiscale_730.json")
+LONGTERM_VAULT_STATE_PATH = os.path.join(BASE_DIR, "longterm_vault_1000e.json")
 V11_CLEAN_EPOCH_TS = "2026-11-12T15:30:00"
 PRUDENT_MIN_RVOL = 0.20
 LINEAR_ELITE_SCORE = 80.0
@@ -577,6 +578,52 @@ CANDIDATE_EUR_GIANTS: List[Dict[str, Any]] = [
         "shield_pullback_pct": 0.0014,
         "beta_tier": "CORE_BLUE_CHIP",
     },
+    # --- 3 GIGANTI ITALO-EUROPEI ESENTI TOBIN TAX (Sede Olanda NL -> 0,00% FTT, >375k EUR/5m, Feed GETTEX 0s) ---
+    {
+        "fallback_ticker": "STMpp_EQ",
+        "name": "STMicroelectronics NV",
+        "isin": "NL0000226223",
+        "exchange": "Euronext (NL Tax-Exempt)",
+        "yahoo": "STMMI.MI",
+        "gettex": "GETTEX:SGM",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "CHIP_POTENZA_PACKAGING",
+        "role_desc": "Turbo High-Beta Semiconduttori Auto/Industria Agrate-Catania 0% FTT (Senza Tetto)",
+        "ref_price_eur": 37.70,
+        "shield_activation_pct": 0.0078,
+        "shield_pullback_pct": 0.0018,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    {
+        "fallback_ticker": "STLAPp_EQ",
+        "name": "Stellantis NV",
+        "isin": "NL00150001Q9",
+        "exchange": "Euronext (NL Tax-Exempt)",
+        "yahoo": "STLAM.MI",
+        "gettex": "GETTEX:8TI",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "AUTOMOTIVE_PREMIUM",
+        "role_desc": "Turbo High-Beta Colosso Automotive Globale 0% FTT (Senza Tetto)",
+        "ref_price_eur": 12.50,
+        "shield_activation_pct": 0.0076,
+        "shield_pullback_pct": 0.0017,
+        "beta_tier": "TURBO_HIGH_BETA",
+    },
+    {
+        "fallback_ticker": "2FEd_EQ",
+        "name": "Ferrari NV",
+        "isin": "NL0011585146",
+        "exchange": "XETRA (NL Tax-Exempt)",
+        "yahoo": "RACE.MI",
+        "gettex": "GETTEX:2FE",
+        "squad": "SQUADRA_2_CAVALCA_ONDA",
+        "sector": "LUXURY_SUPERCARS",
+        "role_desc": "Icona Mondiale Ultra-Luxury & Motorsport Maranello 0% FTT (Senza Tetto)",
+        "ref_price_eur": 358.50,
+        "shield_activation_pct": 0.0064,
+        "shield_pullback_pct": 0.0015,
+        "beta_tier": "CORE_BLUE_CHIP",
+    },
     # --- 7 BIG TECH USA QUOTATE IN EURO SU XETRA (0,00% FX Fee, 0,00% Tobin Tax, Feed GETTEX 0s) ---
     {
         "fallback_ticker": "NVDd_EQ",
@@ -718,7 +765,7 @@ def discover_and_verify_eur_giants(client: Optional[Trading212Client]) -> int:
                         preferred = [
                             m["ticker"]
                             for m in matches
-                            if str(m.get("ticker", "")).endswith(("d_EQ", "a_EQ"))
+                            if str(m.get("ticker", "")).endswith(("d_EQ", "a_EQ", "p_EQ"))
                         ]
                         chosen_tkr = preferred[0] if preferred else str(matches[0].get("ticker", ""))
                         verified_map[c_isin] = chosen_tkr or ""
@@ -2932,6 +2979,25 @@ def _compute_effective_budget_and_cartridge(
     return compounded_budget_eur, dynamic_cartridge_eur, min_slot_eur
 
 
+def _read_longterm_vault_isolation_offsets() -> Tuple[float, float]:
+    """
+    Muraglia Cinese contabile tra il Bot Intraday (100 EUR) e il Vault Dual Momentum + Oro (1.000 EUR):
+    restituisce (lt_realized_net_pnl_eur, lt_reserved_free_cash_eur) dal file dedicato `longterm_vault_1000e.json`,
+    così eventuali vendite/ribilanciamenti del portafoglio di lungo termine non alterano mai `registro_fiscale_730.json`
+    né il budget composto Kelly dei 100 EUR intraday!
+    """
+    if not os.path.exists(LONGTERM_VAULT_STATE_PATH):
+        return 0.0, 0.0
+    try:
+        with open(LONGTERM_VAULT_STATE_PATH, "r", encoding="utf-8") as f:
+            lt = json.load(f)
+        lt_realized = float(lt.get("realized_net_pnl_eur", 0.0))
+        lt_free = max(0.0, float(lt.get("uninvested_cash_eur", 0.0)))
+        return round(lt_realized, 2), round(lt_free, 2)
+    except Exception:
+        return 0.0, 0.0
+
+
 def _sync_certified_cash_safe(bot: Trading212AutonomousBot, min_interval_sec: float = 5.5) -> None:
     if bot.client is None:
         return
@@ -2944,10 +3010,18 @@ def _sync_certified_cash_safe(bot: Trading212AutonomousBot, min_interval_sec: fl
         setattr(bot, "_last_cash_sync_ts", time.time())
         setattr(bot, "_cash_synced_once", True)
         if isinstance(cash_info, dict):
+            lt_realized_net, lt_reserved_cash = _read_longterm_vault_isolation_offsets()
             if cash_info.get("free") is not None:
-                setattr(bot, "_t212_free_cash", float(cash_info["free"]))
+                raw_free = float(cash_info["free"])
+                isolated_free = (
+                    max(0.0, raw_free - lt_reserved_cash)
+                    if raw_free > (lt_reserved_cash + 120.0)
+                    else raw_free
+                )
+                setattr(bot, "_t212_free_cash", round(isolated_free, 2))
             if cash_info.get("result") is not None:
-                bot.tax_tracker.reconcile_certified_cash_result(float(cash_info["result"]))
+                isolated_result = round(float(cash_info["result"]) - lt_realized_net, 2)
+                bot.tax_tracker.reconcile_certified_cash_result(isolated_result)
     except Exception:
         pass
 
@@ -3756,7 +3830,7 @@ def run_cycle(
         "cycle": cycle_num,
         "mode": "INSTITUTIONAL_V11_6_LTS_ZERO_CEROTTI",
         "blindature_attive_v6_istituzionali": [
-            f"1. Occhio Real-Time 0s GETTEX + Nastro 0s EU37/US7 V11.6 ({len(ASSET_PROFILES)}/{len(ASSET_PROFILES)} titoli in streaming 0s Monaco + Scudo Crollo 0s + Immune VIX-Crush)",
+            f"1. Occhio Real-Time 0s GETTEX + Nastro 0s EU40/US7 V11.6 ({len(ASSET_PROFILES)}/{len(ASSET_PROFILES)} titoli in streaming 0s Monaco + Scudo Crollo 0s + Immune VIX-Crush)",
             f"2. Selettore Cash-Regime Leader RS + 4 Settori Distinti Zero Ping-Pong ({today_entries_count}/{MAX_DAILY_NEW_ENTRIES} lanci oggi, Breadth >= 58% per aprire fuoco)",
             "3. Marketable Limit Orders MiFID II (+1,00% cap su tick RTS 11 + Rate-Limit >= 2,05s + Quantizzazione math.floor Anti-Overrun)",
             f"4. Simmetria Patrimoniale 4/4 Cartucce (Budget Attivo: {compounded_budget_eur:.2f} EUR -> 4 Cartucce Simmetriche da {dynamic_cartridge_eur:.2f} EUR)",
@@ -3824,7 +3898,7 @@ def main():
     client = load_client()
     added_giants = discover_and_verify_eur_giants(client)
     print(
-        f"[RADAR DINAMICO V11.6] Universo EUR Zero-Fee attivo: {len(ASSET_PROFILES)} Colossi (37 UE incl. Green/Acqua/Circolare + 7 Big Tech USA in EUR, +{added_giants} verificati via ISIN, Feed GETTEX 0s)",
+        f"[RADAR DINAMICO V11.6] Universo EUR Zero-Fee attivo: {len(ASSET_PROFILES)} Colossi (40 UE incl. Green & Campioni IT-NL 0% FTT + 7 Big Tech USA in EUR, +{added_giants} verificati via ISIN, Feed GETTEX 0s)",
         flush=True,
     )
     bot = Trading212AutonomousBot(client=client, total_budget_eur=100.00, cartridges=4, annual_target_pct=0.30)

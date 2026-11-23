@@ -1,13 +1,13 @@
-# AGENTS.md — Trading 212 Autonomous Quant Bot (V11.5 LTS "Zero Cerotti")
+# AGENTS.md — Trading 212 Autonomous Quant Bot (V11.6 LTS "Zero Cerotti" + Vault Dual Momentum 1.000 €)
 
-> **Progetto:** Trading 212 Autonomous Quant Bot — V11.5 LTS Institutional Zero-Latency (33 Invarianti Bloccanti, Soluzione C1 Ibrido Asimmetrico)
+> **Progetto:** Trading 212 Autonomous Quant Bot — V11.6 LTS Institutional Zero-Latency (`35` Invarianti Bloccanti + Motore Parallelo #2 Dual Momentum & Oro Fisico)
 > **Broker & Conto:** Trading 212 (`Account ID: 52318994` | Valuta: `EUR` | Modalità: `demo` / `live`)
-> **Budget Isolato:** `100,00 €` base (`4 Cartucce × 25,00 €` + Interesse Composto di Kelly; Soluzione C1: Lun–Gio taglia rossi/deboli entro `17:29 CET` custodendo i soli verdi `>= VWAP` con taglio rapido `09:05 CET` se negativi/lenti; Venerdì `100%` Flat)
-> **Universo Attivo:** `39 Colossi EUR Zero-Fee` (`32 Campioni DAX40/AEX25` + `7 Big Tech USA quotate in EUR su XETRA`, `0,00%` FX, `0,00%` Tobin Tax, Streaming `0s GETTEX` + Esecuzione `0ms T212`)
-> **Target Cash-Out:** `130,00 €` (`+30,00%` netto — liquidazione totale automatica del portafoglio e blocco permanente anti-churn)
+> **Budget Isolato #1 (Intraday):** `100,00 €` base (`4 Cartucce × 25,00 €` su `4 Settori Distinti Zero Ping-Pong` + Interesse Composto di Kelly; Soluzione C1)
+> **Universo Intraday #1:** `47 Colossi EUR Zero-Fee` (`40 Campioni UE` incl. `5 Green Champions` e `3 Campioni Italiani NL 0% Tobin Tax`: `STMpp_EQ`, `STLAPp_EQ`, `2FEd_EQ` + `7 Big Tech USA in EUR`, `0,00%` FX, Streaming `0s GETTEX`)
+> **Budget Isolato #2 (Medio/Lungo Termine):** `1.000,00 €` simulati dedicati (`t212_dual_momentum_1000e.py` + `longterm_vault_1000e.json`, Muraglia Cinese `0%` sovrapposizione sui `12` strumenti EUR Zero-Fee: Oro Fisico `4GLDd_EQ`, Monetario BCE `DBXTd_EQ`, `5` ETF Globali Acc e `5` Azioni Fortezza)
 > **Root Progetto Standalone:** `/Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e`
 
-Questo file fornisce la **memoria architetturale permanente** per **Antigravity IDE** e **Antigravity CLI (`agy`)**. Consulta [`CONSTRAINTS.md`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/CONSTRAINTS.md) per il contratto formale dei **33 Invarianti Matematici Bloccanti** verificati ad ogni deploy tramite `python3 -m unittest discover -s tests -p "test_*.py" -v`.
+Questo file fornisce la **memoria architetturale permanente** per **Antigravity IDE** e **Antigravity CLI (`agy`)**. Consulta [`CONSTRAINTS.md`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/CONSTRAINTS.md) per il contratto formale dei **35 Invarianti Matematici Bloccanti** verificati ad ogni deploy tramite `python3 -m unittest discover -s tests -p "test_*.py" -v`.
 
 ---
 
@@ -38,6 +38,12 @@ Il progetto è gestito tramite lo strumento CLI [`t212-cli.py`](file:///Users/an
 - **Esporta il pacchetto ZIP di backup completo (`dist/trading212-quant-backup.zip` senza segreti):**
   ```bash
   python3 t212-cli.py export
+  ```
+- **Stato / Incasso Immediato del Portafoglio #2 Dual Momentum + Oro (`1.000,00 €` isolati):**
+  ```bash
+  python3 t212-cli.py longterm-status
+  python3 t212-cli.py longterm-profits
+  python3 t212-cli.py longterm-cashout
   ```
 
 ---
