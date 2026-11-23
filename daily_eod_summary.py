@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 BASE_DIR = Path(__file__).resolve().parent
 STATE_FILE = BASE_DIR / "trading212_state.json"
 TAX_FILE = BASE_DIR / "registro_fiscale_730.json"
+LONGTERM_FILE = BASE_DIR / "longterm_vault_1000e.json"
 MARKET_TZ = ZoneInfo("Europe/Rome")
 
 
@@ -119,6 +120,24 @@ def print_eod_summary(target_day: str, do_sync: bool = False) -> None:
                 f"Investito: {fmt_eur(inv)} | PnL: {fmt_eur(cpnl, signed=True)} ({cpct:+.2f}%) "
                 f"[C1: taglio rapido 09:05 se negativa o lenta]"
             )
+
+    lt = load_json(LONGTERM_FILE)
+    if lt:
+        lt_val = float(lt.get("total_portfolio_value_eur", 1000.0))
+        lt_ret_e = float(lt.get("total_net_return_eur", 0.0))
+        lt_ret_p = float(lt.get("total_net_return_pct", 0.0))
+        lt_inv = float(lt.get("invested_cost_eur", 0.0))
+        lt_cash = float(lt.get("uninvested_cash_eur", 0.0))
+        lt_pos = lt.get("posizioni_attive", [])
+        print("─" * 74)
+        print(
+            f"🏛️ PORTAFOGLIO #2 LUNGO TERMINE + ORO (Base 1.000,00 €): {fmt_eur(lt_val)} "
+            f"({fmt_eur(lt_ret_e, signed=True)} / {lt_ret_p:+.2f}%)"
+        )
+        print(
+            f"   • Investiti: {fmt_eur(lt_inv)} su {len(lt_pos)} strumenti | "
+            f"Liquidi Vault: {fmt_eur(lt_cash)} | Regime: {lt.get('regime_dual_momentum', 'N/D')}"
+        )
     print("─" * 74)
 
 

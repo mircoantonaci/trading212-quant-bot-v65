@@ -27,6 +27,7 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parent
 STATE_FILE = PROJECT_DIR / "trading212_state.json"
 TAX_FILE = PROJECT_DIR / "registro_fiscale_730.json"
+LONGTERM_FILE = PROJECT_DIR / "longterm_vault_1000e.json"
 CREDS_FILE = PROJECT_DIR / "t212_credentials.json"
 DAEMON_SCRIPT = PROJECT_DIR / "t212_daemon_100e.py"
 DAEMON_LOG = Path("/tmp/t212_daemon.log")
@@ -37,8 +38,11 @@ PROJECT_FILES = [
     "GEMINI.md",
     "t212-cli.py",
     "t212_daemon_100e.py",
+    "t212_dual_momentum_1000e.py",
+    "t212_verified_universe.json",
     "trading212_bot.py",
     "trading212_state.json",
+    "longterm_vault_1000e.json",
     "registro_fiscale_730.json",
     "dashboard_v6_5.html",
     "docs/architecture_v6_5.md",
@@ -268,7 +272,8 @@ def cmd_tax_730() -> None:
     print("═" * 90 + "\n")
 
 
-def generate_dashboard_html(state: dict, tax: dict) -> str:
+def generate_dashboard_html(state: dict, tax: dict, longterm: dict | None = None) -> str:
+    lt = longterm if isinstance(longterm, dict) else {}
     val_100 = float(state.get("valore_totale_portafoglio_100e_eur", 100.0))
     net_profit = float(state.get("guadagno_totale_netto_eur", 0.0))
     realized_net = float(state.get("profitto_realizzato_in_cassa_eur", 0.0))
@@ -285,7 +290,34 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
     radar = state.get("radar_onda_notturna_wall_street", {})
     closed_trades = tax.get("operazioni_chiuse", [])
 
+    # Dati Portafoglio #2 — Dual Momentum + Oro Fisico (1.000,00 EUR isolati)
+    lt_val = float(lt.get("total_portfolio_value_eur", 1000.0))
+    lt_ret_eur = float(lt.get("total_net_return_eur", 0.0))
+    lt_ret_pct = float(lt.get("total_net_return_pct", 0.0))
+    lt_inv = float(lt.get("invested_cost_eur", 0.0))
+    lt_mkt = float(lt.get("market_value_eur", 0.0))
+    lt_cash = float(lt.get("uninvested_cash_eur", 1000.0))
+    lt_unreal = float(lt.get("unrealized_pnl_eur", 0.0))
+    lt_real = float(lt.get("realized_net_pnl_eur", 0.0))
+    lt_regime = str(lt.get("regime_dual_momentum", "IN_ATTESA"))
+    lt_updated = str(lt.get("timestamp", "N/D"))
+    lt_rebal = str(lt.get("last_rebalance_iso") or "N/D")
+    lt_positions = lt.get("posizioni_attive", [])
+    lt_ranking = lt.get("classifica_dual_momentum_1y", [])
+    lt_closed = lt.get("operazioni_chiuse", [])
+
     cards_html = ""
+    if not cartridges:
+        cards_html = """
+        <div class="card" style="grid-column: 1 / -1; border-style: dashed; text-align: center; padding: 26px;">
+          <span class="slot-tag">4/4 CARTUCCE LIBERE IN CONTANTI EUR</span>
+          <h3 style="margin-top:6px;">Nessuna posizione intraday aperta in questo istante</h3>
+          <p style="color: var(--muted); font-size: 0.88rem; margin-top: 6px;">
+            Tutte le voci tra 95 € e 230 € visibili sull'app Trading 212 appartengono esclusivamente al Portafoglio #2 da 1.000 €.
+            Quando il Bot Intraday sparerà una cartuccia (~25 €), comparirà qui in tempo reale.
+          </p>
+        </div>
+        """
     for pos in cartridges:
         slot = pos.get("slot", 0)
         tk = pos.get("ticker", "")
@@ -310,7 +342,7 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
         <div class="card">
           <div class="card-head">
             <div>
-              <span class="slot-tag">CARTUCCIA #{slot} • {pos.get('settore_markowitz', '')}</span>
+              <span class="slot-tag">⚡ CARTUCCIA INTRADAY #{slot} • {pos.get('settore_markowitz', '')}</span>
               <h3>{pos.get('name', tk)} <small>({tk})</small></h3>
             </div>
             <div class="price-pill {color_cls}">{fmt_pct(pnl_pct)}</div>
@@ -323,6 +355,69 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
           </div>
           <div class="shield-bar">{badge} • RSI 5m: {float(pos.get('rsi_5m', 50.0)):.1f}</div>
         </div>
+        """
+
+    bucket_labels = {
+        "ETF_ENGINE": "📈 MOTORE ETF ACC",
+        "STOCK_COMPOUNDER": "🏰 AZIONE FORTEZZA",
+        "GOLD_SAFE_HAVEN": "🥇 ORO FISICO ETC",
+        "CASH_SAFE_HAVEN": "🏦 TASSO BCE XEON",
+    }
+    lt_cards_html = ""
+    if not lt_positions:
+        lt_cards_html = """
+        <div class="card gold-card" style="grid-column: 1 / -1; text-align: center; padding: 24px;">
+          <span class="slot-tag gold-tag">VAULT 1.000,00 €</span>
+          <h3 style="margin-top:6px;">Nessuna posizione attiva nel Vault 1.000 € (100% Contanti EUR)</h3>
+        </div>
+        """
+    for lp in lt_positions:
+        ltk = lp.get("ticker", "")
+        lpnl_e = float(lp.get("pnl_eur", 0.0))
+        lpnl_p = float(lp.get("pnl_pct", 0.0))
+        lcls = "pos" if lpnl_e >= 0 else "neg"
+        bkt = bucket_labels.get(str(lp.get("bucket", "")), str(lp.get("bucket", "")))
+        sem_txt = "🟢 TREND BULL (Sopra SMA)" if lp.get("is_bull_trend") else "🟡 QUOTA DIFENSIVA CAUTA"
+        sma_d = float(lp.get("sma_150_dist_pct", 0.0))
+        lt_cards_html += f"""
+        <div class="card gold-card">
+          <div class="card-head">
+            <div>
+              <span class="slot-tag gold-tag">{bkt} • TARGET {float(lp.get('target_weight_pct', 0.0)):.1f}%</span>
+              <h3>{lp.get('name', ltk)} <small>({ltk})</small></h3>
+            </div>
+            <div class="price-pill {lcls}">{fmt_pct(lpnl_p)}</div>
+          </div>
+          <div class="metrics-grid">
+            <div><span>Valore Attuale</span><strong>{fmt_eur(float(lp.get('market_value_eur', 0.0)))}</strong></div>
+            <div><span>Costo Carico</span><strong>{fmt_eur(float(lp.get('invested_eur', 0.0)))}</strong></div>
+            <div><span>PnL Netto</span><strong class="{lcls}">{fmt_eur(lpnl_e, True)}</strong></div>
+            <div><span>Prezzo / Quantità</span><strong>{fmt_px(float(lp.get('current_price_eur', 0.0)))} ({float(lp.get('quantity', 0.0)):g})</strong></div>
+          </div>
+          <div class="shield-bar">{sem_txt} • Distanza SMA 150gg: {fmt_pct(sma_d)}</div>
+        </div>
+        """
+
+    lt_rank_rows = ""
+    active_lt_tkrs = {p.get("ticker") for p in lt_positions}
+    for rk in lt_ranking:
+        rtk = rk.get("ticker", "")
+        in_port = "🏛️ IN PORTAFOGLIO" if rtk in active_lt_tkrs else "Panchina"
+        in_cls = "badge-ok" if rtk in active_lt_tkrs else "badge-wait"
+        bull_b = '<span class="badge-ok">🟢 VERDE</span>' if rk.get("is_bull_trend") else '<span class="badge-wait">🔴 SOTTO SMA</span>'
+        lt_rank_rows += f"""
+        <tr>
+          <td><strong>{rtk}</strong> <small>{rk.get('name', '')}</small></td>
+          <td>{bucket_labels.get(str(rk.get('bucket', '')), rk.get('bucket', ''))}</td>
+          <td>{fmt_px(float(rk.get('live_price_eur', 0.0)))}</td>
+          <td class="{'pos' if float(rk.get('ret_1m_pct', 0.0)) >= 0 else 'neg'}">{fmt_pct(float(rk.get('ret_1m_pct', 0.0)))}</td>
+          <td class="{'pos' if float(rk.get('ret_3m_pct', 0.0)) >= 0 else 'neg'}">{fmt_pct(float(rk.get('ret_3m_pct', 0.0)))}</td>
+          <td class="{'pos' if float(rk.get('ret_6m_pct', 0.0)) >= 0 else 'neg'}">{fmt_pct(float(rk.get('ret_6m_pct', 0.0)))}</td>
+          <td><strong>{float(rk.get('dm_sharpe_score', 0.0)):+.2f}</strong></td>
+          <td>{fmt_pct(float(rk.get('sma_150_dist_pct', 0.0)))}</td>
+          <td>{bull_b}</td>
+          <td><span class="{in_cls}">{in_port}</span></td>
+        </tr>
         """
 
     scanner_rows = ""
@@ -357,6 +452,23 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
         </tr>
         """
 
+    lt_closed_rows = ""
+    for ltr in lt_closed:
+        lris = float(ltr.get("realized_pnl_eur", 0.0))
+        lcls = "pos" if lris >= 0 else "neg"
+        lt_closed_rows += f"""
+        <tr>
+          <td>{ltr.get('timestamp', '')[:19]}</td>
+          <td><strong>{ltr.get('ticker', '')}</strong> <small>{ltr.get('reason', '')}</small></td>
+          <td>{float(ltr.get('quantity', 0.0)):.4f}</td>
+          <td>{fmt_eur(float(ltr.get('cost_lifo_eur', 0.0)))}</td>
+          <td>{fmt_eur(float(ltr.get('proceeds_eur', 0.0)))}</td>
+          <td class="{lcls}"><strong>{fmt_eur(lris, True)}</strong></td>
+        </tr>
+        """
+    if not lt_closed_rows:
+        lt_closed_rows = '<tr><td colspan="6" style="color:var(--muted);text-align:center;">Nessuna vendita/rotazione eseguita finora nel Vault 1.000 € (posizioni attive a mercato).</td></tr>'
+
     progress_pct = max(0.0, min(100.0, ((val_100 - 100.0) / 30.0) * 100.0))
 
     return f"""<!DOCTYPE html>
@@ -364,16 +476,18 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Trading 212 Autonomous Quant Bot — V11.5 LTS Zero Cerotti</title>
+  <title>Trading 212 Dual-Engine Dashboard — 100 € Intraday + 1.000 € Lungo Termine & Oro</title>
   <style>
     :root {{
       --bg: #080b11;
       --panel: #111723;
       --panel-2: #172031;
       --border: #25324a;
+      --gold-border: rgba(245, 158, 11, 0.45);
       --text: #f1f5f9;
       --muted: #94a3b8;
       --gold: #f59e0b;
+      --gold-soft: #fde68a;
       --green: #10b981;
       --red: #ef4444;
       --blue: #38bdf8;
@@ -386,12 +500,12 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
       padding: 28px;
       line-height: 1.5;
     }}
-    .container {{ max-width: 1280px; margin: 0 auto; }}
+    .container {{ max-width: 1320px; margin: 0 auto; }}
     .header {{
       display: flex; justify-content: space-between; align-items: center;
       flex-wrap: wrap; gap: 16px; padding: 24px;
       background: linear-gradient(135deg, #111827 0%, #0f172a 100%);
-      border: 1px solid var(--border); border-radius: 16px; margin-bottom: 24px;
+      border: 1px solid var(--border); border-radius: 16px; margin-bottom: 20px;
     }}
     .header h1 {{ font-size: 1.45rem; letter-spacing: -0.02em; }}
     .header p {{ color: var(--muted); font-size: 0.9rem; margin-top: 4px; }}
@@ -399,6 +513,34 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
       background: rgba(16, 185, 129, 0.15); border: 1px solid var(--green);
       color: #34d399; padding: 8px 16px; border-radius: 999px; font-weight: 600; font-size: 0.85rem;
     }}
+    .split-hero {{
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 18px; margin-bottom: 20px;
+    }}
+    .hero-box {{
+      background: var(--panel); border-radius: 16px; padding: 22px;
+      border: 2px solid var(--border);
+    }}
+    .hero-intraday {{ border-color: rgba(56, 189, 248, 0.55); background: linear-gradient(160deg, #0f172a 0%, #111827 100%); }}
+    .hero-longterm {{ border-color: var(--gold-border); background: linear-gradient(160deg, #1c160c 0%, #111723 100%); }}
+    .hero-badge {{
+      display: inline-block; padding: 4px 10px; border-radius: 999px;
+      font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+    }}
+    .badge-blue {{ background: rgba(56, 189, 248, 0.16); color: var(--blue); border: 1px solid rgba(56, 189, 248, 0.4); }}
+    .badge-gold {{ background: rgba(245, 158, 11, 0.16); color: var(--gold-soft); border: 1px solid var(--gold-border); }}
+    .hero-val {{ font-size: 2.15rem; font-weight: 800; margin: 10px 0 4px; }}
+    .hero-sub {{ font-size: 0.86rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); }}
+    .tabs-bar {{
+      display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 22px;
+    }}
+    .tab-btn {{
+      cursor: pointer; background: var(--panel); color: var(--muted);
+      border: 1px solid var(--border); padding: 10px 18px; border-radius: 10px;
+      font-weight: 700; font-size: 0.88rem; transition: all 0.15s ease;
+    }}
+    .tab-btn.active {{ background: #1e293b; color: var(--text); border-color: var(--blue); }}
+    .tab-btn.gold-tab.active {{ border-color: var(--gold); color: var(--gold-soft); }}
     .kpi-grid {{
       display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 16px; margin-bottom: 24px;
@@ -424,19 +566,21 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
       background: linear-gradient(90deg, var(--blue), var(--green));
     }}
     .section-title {{
-      font-size: 1.1rem; font-weight: 700; margin: 26px 0 14px;
+      font-size: 1.15rem; font-weight: 700; margin: 28px 0 14px;
       display: flex; align-items: center; gap: 8px;
     }}
     .cards-grid {{
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       gap: 16px;
     }}
     .card {{
       background: var(--panel); border: 1px solid var(--border);
       border-radius: 14px; padding: 18px;
     }}
+    .gold-card {{ border-color: var(--gold-border); }}
     .card-head {{ display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }}
     .slot-tag {{ font-size: 0.72rem; color: var(--blue); text-transform: uppercase; font-weight: 700; }}
+    .gold-tag {{ color: var(--gold-soft); }}
     .card h3 {{ font-size: 1.05rem; margin-top: 4px; }}
     .card h3 small {{ color: var(--muted); font-weight: 400; }}
     .price-pill {{
@@ -455,104 +599,139 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
     }}
     table {{
       width: 100%; border-collapse: collapse; background: var(--panel);
-      border: 1px solid var(--border); border-radius: 14px; overflow: hidden; font-size: 0.88rem;
+      border: 1px solid var(--border); border-radius: 14px; overflow: hidden; font-size: 0.86rem;
     }}
-    th, td {{ padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }}
-    th {{ background: var(--panel-2); color: var(--muted); font-size: 0.76rem; text-transform: uppercase; }}
+    th, td {{ padding: 11px 13px; text-align: left; border-bottom: 1px solid var(--border); }}
+    th {{ background: var(--panel-2); color: var(--muted); font-size: 0.74rem; text-transform: uppercase; }}
     .badge-ok {{ color: var(--green); font-weight: 700; }}
     .badge-wait {{ color: var(--muted); }}
-    .shields-grid {{
-      display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;
-    }}
-    .shield-item {{
-      background: var(--panel); border: 1px solid var(--border);
-      padding: 14px; border-radius: 12px; font-size: 0.85rem;
-    }}
-    .shield-item strong {{ color: var(--blue); display: block; margin-bottom: 4px; }}
+    .hidden-panel {{ display: none !important; }}
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <div>
-        <h1>🛡️ Trading 212 Autonomous Quant Bot — V11.5 LTS Zero Cerotti</h1>
-        <p>Conto ID: 52318994 (EUR) • 39 Colossi Zero-Fee (GETTEX 0s + T212 0ms) • Ordini LIMIT MiFID II • Ciclo #{cycle} ({updated_at[:19]})</p>
+        <h1>🛡️ Trading 212 Dual-Engine Command Center — V11.6 LTS</h1>
+        <p>Conto ID: 52318994 (EUR) • Muraglia Cinese Attiva (0% Titoli Sovrapposti) • Aggiornato: {updated_at[:19]} (Ciclo #{cycle})</p>
       </div>
-      <div class="status-pill">🟢 MOTORE V11.5 ATTIVO (0ms Zero-Latency)</div>
+      <div class="status-pill">🟢 DOPPIO MOTORE CLOUD H24 ATTIVO</div>
     </div>
 
-    <div class="kpi-grid">
-      <div class="kpi">
-        <span>Valore Portafoglio (Base 100 €)</span>
-        <h2 class="{'pos' if net_profit >= 0 else 'neg'}">{fmt_eur(val_100)}</h2>
-        <small>Profitto Totale: {fmt_eur(net_profit, True)} ({fmt_pct(net_profit)})</small>
+    <div class="split-hero">
+      <div class="hero-box hero-intraday">
+        <span class="hero-badge badge-blue">⚡ PORTAFOGLIO #1 • BOT INTRADAY (BASE 100,00 €)</span>
+        <div class="hero-val {'pos' if net_profit >= 0 else 'neg'}">{fmt_eur(val_100)} <small style="font-size:1rem;">({fmt_eur(net_profit, True)} / {fmt_pct(net_profit)})</small></div>
+        <div style="font-size:0.86rem; color:var(--muted);">47 Colossi EUR Zero-Fee (incl. STM, Stellantis, Ferrari) • Cartucce da ~{fmt_eur(dyn_slot)}</div>
+        <div class="hero-sub">
+          <span>📦 Aperte ora: <strong>{len(cartridges)}/4</strong></span>
+          <span>💶 Investiti: <strong>{fmt_eur(invested)}</strong></span>
+          <span>🏦 Liquidi: <strong>{fmt_eur(free_cash)}</strong></span>
+          <span>💰 Cassa Chiusa: <strong class="{'pos' if realized_net >= 0 else 'neg'}">{fmt_eur(realized_net, True)}</strong></span>
+        </div>
       </div>
-      <div class="kpi">
-        <span>Utili Realizzati in Cassa</span>
-        <h2 class="pos">{fmt_eur(realized_net, True)}</h2>
-        <small>Già contabilizzati nel Registro 730 LIFO</small>
-      </div>
-      <div class="kpi">
-        <span>PnL Aperto (4 Cartucce)</span>
-        <h2 class="{'pos' if open_pnl >= 0 else 'neg'}">{fmt_eur(open_pnl, True)}</h2>
-        <small>Investiti: {fmt_eur(invested)} • Cassa: {fmt_eur(free_cash)}</small>
-      </div>
-      <div class="kpi">
-        <span>Taglia Cartuccia Kelly</span>
-        <h2>{fmt_eur(dyn_slot)}</h2>
-        <small>Auto-Compounding su {fmt_eur(kelly_budget)} attivi</small>
+
+      <div class="hero-box hero-longterm">
+        <span class="hero-badge badge-gold">🏛️ PORTAFOGLIO #2 • DUAL MOMENTUM + ORO (BASE 1.000,00 €)</span>
+        <div class="hero-val {'pos' if lt_ret_eur >= 0 else 'neg'}">{fmt_eur(lt_val)} <small style="font-size:1rem;">({fmt_eur(lt_ret_eur, True)} / {fmt_pct(lt_ret_pct)})</small></div>
+        <div style="font-size:0.86rem; color:var(--muted);">Regime: <strong>{lt_regime}</strong> • Fette da 100 € – 225 € (Agg.: {lt_updated[:19]})</div>
+        <div class="hero-sub">
+          <span>📦 Strumenti: <strong>{len(lt_positions)} attivi</strong></span>
+          <span>💶 A Mercato: <strong>{fmt_eur(lt_mkt)}</strong> (Costo {fmt_eur(lt_inv)})</span>
+          <span>🏦 Liquidi Vault: <strong>{fmt_eur(lt_cash)}</strong></span>
+          <span>💰 Realizzati: <strong class="{'pos' if lt_real >= 0 else 'neg'}">{fmt_eur(lt_real, True)}</strong></span>
+        </div>
       </div>
     </div>
 
-    <div class="progress-wrap">
-      <div style="display:flex; justify-content:space-between; font-size:0.88rem; flex-wrap:wrap; gap:8px;">
-        <strong>🎯 Traguardo Cash-Out Automatico (+30,00%): 130,00 €</strong>
-        <span>Avanzamento: {progress_pct:.1f}% ({fmt_eur(val_100)} / 130,00 €) • Radar 17:15: {radar.get('verdict', 'N/D')} (Nasdaq {fmt_pct(float(radar.get('nasdaq_change_pct', 0.0)))})</span>
-      </div>
-      <div class="progress-bar-bg"><div class="progress-bar-fill"></div></div>
+    <div class="tabs-bar">
+      <button class="tab-btn active" onclick="switchView('all', this)">👁️ Mostra Entrambi i Portafogli</button>
+      <button class="tab-btn" onclick="switchView('intraday', this)">⚡ Solo Bot Intraday (100 €)</button>
+      <button class="tab-btn gold-tab" onclick="switchView('longterm', this)">🏛️ Solo Lungo Termine + Oro (1.000 €)</button>
     </div>
 
-    <div class="section-title">🎯 Le 4 Cartucce Attive (Schema 2+2 • Vincolo Markowitz 4 Settori)</div>
-    <div class="cards-grid">{cards_html}</div>
+    <!-- ================= SEZIONE PORTAFOGLIO #2: 1.000 € DUAL MOMENTUM + ORO ================= -->
+    <div id="panel-longterm">
+      <div class="section-title" style="color: var(--gold-soft);">🏛️ Portafoglio #2 — Posizioni Attive Lungo Termine + Oro Fisico (Base 1.000,00 € • Ultimo Ribilanciamento: {lt_rebal[:16]})</div>
+      <div class="cards-grid">{lt_cards_html}</div>
 
-    <div class="section-title">📡 Scanner Sinusoidale a 5 Minuti + Fusione Zero-Latency (0ms)</div>
-    <table>
-      <thead>
-        <tr>
-          <th>Titolo (EUR)</th><th>Settore Markowitz</th><th>Prezzo 0ms</th>
-          <th>RSI 5m</th><th>ATR Mult</th><th>Scudo / Ritracc.</th><th>Uncino Verde</th><th>Quant Score</th><th>Fase Onda 5m</th>
-        </tr>
-      </thead>
-      <tbody>{scanner_rows}</tbody>
-    </table>
+      <div class="section-title" style="color: var(--gold-soft);">🧭 Classifica Matematica Dual Momentum a 1 Anno (12 Strumenti EUR Zero-Fee • Semaforo SMA 150gg)</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Strumento (EUR)</th><th>Categoria</th><th>Prezzo</th>
+            <th>1 Mese</th><th>3 Mesi</th><th>6 Mesi</th><th>Score Sharpe</th><th>Dist. SMA150</th><th>Semaforo</th><th>Stato Vault</th>
+          </tr>
+        </thead>
+        <tbody>{lt_rank_rows}</tbody>
+      </table>
 
-    <div class="section-title">🇮🇹 Registro Fiscale Modello 730 (Quadro T LIFO — Operazioni Chiuse: {len(closed_trades)})</div>
-    <table>
-      <thead>
-        <tr>
-          <th>Data/Ora</th><th>Titolo</th><th>Quantità</th><th>Costo Carico LIFO</th>
-          <th>Ricavo Vendita</th><th>Plus/Minus Netto</th>
-        </tr>
-      </thead>
-      <tbody>{closed_rows}</tbody>
-    </table>
+      <div class="section-title" style="color: var(--gold-soft);">📜 Storico Rotazioni & Incassi Vault 1.000 € (Operazioni Chiuse: {len(lt_closed)})</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Data/Ora</th><th>Strumento / Motivo</th><th>Quantità</th><th>Costo LIFO</th><th>Ricavo</th><th>Risultato Netto</th>
+          </tr>
+        </thead>
+        <tbody>{lt_closed_rows}</tbody>
+      </table>
+    </div>
 
-    <div class="section-title">🏛️ Architettura Istituzionale V11.5 LTS Zero Cerotti</div>
-    <div class="shields-grid">
-      <div class="shield-item"><strong>1. Curva Bilaterale C0 Salva-Utile</strong>Pavimento C0-continuo monotono col picco fino allo Scudo Mobile Senza Tetto (zero salti sinistri e zero buchi su flash-gap).</div>
-      <div class="shield-item"><strong>2. Taper VWAP Scale-Invariant ATR</strong>Attenuazione proporzionale a 1,30x ATR (premia i lanci freschi vicino a VWAP rispetto agli inseguimenti tirati).</div>
-      <div class="shield-item"><strong>3. Raccolto Gap 09:00–09:30</strong>Stringe il ritracciamento a 0,14% sui gap di apertura mattutini >= +0,52%.</div>
-      <div class="shield-item"><strong>4. Radar Onda Notturna 17:15</strong>Incrocia Nasdaq, S&P500, DAX e VIX (con protezione anti-timeout) per filtrare l'overnight.</div>
-      <div class="shield-item"><strong>5. Scudo Weekend Venerdì</strong>Protegge il capitale dalle 63 ore di chiusura mercati del fine settimana.</div>
-      <div class="shield-item"><strong>6. Interesse Composto Kelly</strong>Reinveste gli utili netti aumentando ogni cartuccia a {fmt_eur(dyn_slot)}.</div>
-      <div class="shield-item"><strong>7. Vincolo Markowitz 12+ Settori</strong>4 cartucce su 4 sotto-filiere industriali distinte (Litografia vs Packaging separati).</div>
-      <div class="shield-item"><strong>8. ATR 5m & Signed Kaufman ER</strong>Esclude salti notturni >30m e crolli rettilinei 50m per misurare vera volatilità e direzione a 5m.</div>
-      <div class="shield-item"><strong>9. Ordini LIMIT +1,00% MiFID II</strong>Tetto anti-spike su tick regolamentari RTS 11 con Eventual-Consistency Fill Re-Check e retry puro 5m.</div>
-      <div class="shield-item"><strong>10. Cassaforte Giornaliera Mobile</strong>Lascia correre le giornate di forte trend oltre +1,60 € e blinda solo su ritracciamento >= 0,30 €.</div>
-      <div class="shield-item"><strong>11. Fusione 0s GETTEX + 0ms T212</strong>Streaming 0s Monaco con guardia barra congelata :00 + peso VWAP proporzionale al tempo.</div>
-      <div class="shield-item"><strong>12. Cecchino Mezzogiorno & Macro USA</strong>Max 2/4 slot su esplosioni 0s RVOL>=2,2x tra 11:15–08:27 ET e stop totale dati macro USA 08:28–08:35 ET.</div>
+    <!-- ================= SEZIONE PORTAFOGLIO #1: 100 € BOT INTRADAY ================= -->
+    <div id="panel-intraday">
+      <div class="section-title" style="color: var(--blue);">⚡ Portafoglio #1 — Bot Intraday V11.6 (Base 100,00 € • 4 Cartucce da ~{fmt_eur(dyn_slot)} su 4 Settori Distinti)</div>
+      <div class="progress-wrap">
+        <div style="display:flex; justify-content:space-between; font-size:0.88rem; flex-wrap:wrap; gap:8px;">
+          <strong>🎯 Traguardo Cash-Out Intraday (+30,00%): 130,00 €</strong>
+          <span>Avanzamento: {progress_pct:.1f}% ({fmt_eur(val_100)} / 130,00 €) • Radar: {radar.get('verdict', 'N/D')} (Nasdaq {fmt_pct(float(radar.get('nasdaq_change_pct', 0.0)))})</span>
+        </div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill"></div></div>
+      </div>
+
+      <div class="cards-grid">{cards_html}</div>
+
+      <div class="section-title" style="color: var(--blue);">📡 Scanner Intraday a 5 Minuti + Streaming 0s GETTEX ({len(scanner)} Colossi EUR Zero-Fee)</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Titolo (EUR)</th><th>Settore Markowitz</th><th>Prezzo 0s</th>
+            <th>RSI 5m</th><th>ATR Mult</th><th>Scudo / Ritracc.</th><th>Uncino Verde</th><th>Quant Score</th><th>Fase Onda 5m</th>
+          </tr>
+        </thead>
+        <tbody>{scanner_rows}</tbody>
+      </table>
+
+      <div class="section-title" style="color: var(--blue);">🇮🇹 Registro Fiscale Intraday 100 € — Modello 730 LIFO (Operazioni Chiuse: {len(closed_trades)})</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Data/Ora</th><th>Titolo</th><th>Quantità</th><th>Costo Carico LIFO</th>
+            <th>Ricavo Vendita</th><th>Plus/Minus Netto</th>
+          </tr>
+        </thead>
+        <tbody>{closed_rows}</tbody>
+      </table>
     </div>
   </div>
+
+  <script>
+    function switchView(mode, btn) {{
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      const pIntra = document.getElementById('panel-intraday');
+      const pLong = document.getElementById('panel-longterm');
+      if (mode === 'intraday') {{
+        pIntra.classList.remove('hidden-panel');
+        pLong.classList.add('hidden-panel');
+      }} else if (mode === 'longterm') {{
+        pIntra.classList.add('hidden-panel');
+        pLong.classList.remove('hidden-panel');
+      }} else {{
+        pIntra.classList.remove('hidden-panel');
+        pLong.classList.remove('hidden-panel');
+      }}
+    }}
+  </script>
 </body>
 </html>
 """
@@ -561,10 +740,11 @@ def generate_dashboard_html(state: dict, tax: dict) -> str:
 def cmd_dashboard() -> None:
     state = load_json(STATE_FILE)
     tax = load_json(TAX_FILE)
-    html = generate_dashboard_html(state, tax)
+    lt = load_json(LONGTERM_FILE)
+    html = generate_dashboard_html(state, tax, lt)
     out_path = PROJECT_DIR / "dashboard_v6_5.html"
     out_path.write_text(html, encoding="utf-8")
-    print(f"✅ Dashboard HTML aggiornata in: {out_path}")
+    print(f"✅ Dashboard HTML Dual-Engine aggiornata in: {out_path}")
 
 
 def cmd_start() -> None:
