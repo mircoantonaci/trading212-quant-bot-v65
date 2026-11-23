@@ -66,16 +66,16 @@
   },
   "account_id": 52318994,
   "budget_iniziale_vincolato_eur": 100.0,
-  "budget_composto_attivo_kelly_eur": 101.68,
-  "taglia_cartuccia_composta_eur": 25.42,
+  "budget_composto_attivo_kelly_eur": 100.0,
+  "taglia_cartuccia_composta_eur": 25.0,
   "cassaforte_giornaliera_attiva": false,
   "cassaforte_giornaliera_picco_eur": 0.0,
   "capitale_impegnato_cartucce_eur": 0.0,
-  "liquidita_libera_su_100e_eur": 101.68,
-  "profitto_realizzato_in_cassa_eur": 1.68,
+  "liquidita_libera_su_100e_eur": 100.0,
+  "profitto_realizzato_in_cassa_eur": 0.0,
   "profitto_aperto_non_realizzato_eur": 0.0,
-  "guadagno_totale_netto_eur": 1.68,
-  "valore_totale_portafoglio_100e_eur": 101.68,
+  "guadagno_totale_netto_eur": 0.0,
+  "valore_totale_portafoglio_100e_eur": 100.0,
   "target_incasso_automatico_eur": 130.0,
   "commissioni_pagate_eur": 0.0,
   "classifica_scanner_quantitativo_5m": [
@@ -4997,7 +4997,9 @@
     }
   },
   "cartucce_4x25_eur": [],
-  "ultime_azioni_bot": [],
+  "ultime_azioni_bot": [
+    "RESET DAY-0 (100,00 EUR = 4x25,00 EUR) — Ripartenza da zero domani alle 09:00 CET"
+  ],
   "riepilogo_fiscale_730": {
     "QUADRO_W_MONITORAGGIO": {
       "Valore_Iniziale_EUR": 100.0,

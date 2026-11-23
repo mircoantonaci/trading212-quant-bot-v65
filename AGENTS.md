@@ -4,7 +4,7 @@
 > **Broker & Conto:** Trading 212 (`Account ID: 52318994` | Valuta: `EUR` | Modalità: `demo` / `live`)
 > **Budget Isolato #1 (Intraday):** `100,00 €` base (`4 Cartucce × 25,00 €` su `4 Settori Distinti Zero Ping-Pong` + Interesse Composto di Kelly; Soluzione C1)
 > **Universo Intraday #1:** `47 Colossi EUR Zero-Fee` (`40 Campioni UE` incl. `5 Green Champions` e `3 Campioni Italiani NL 0% Tobin Tax`: `STMpp_EQ`, `STLAPp_EQ`, `2FEd_EQ` + `7 Big Tech USA in EUR`, `0,00%` FX, Streaming `0s GETTEX`)
-> **Budget Isolato #2 (Medio/Lungo Termine):** `1.000,00 €` simulati dedicati (`t212_dual_momentum_1000e.py` + `longterm_vault_1000e.json`, Muraglia Cinese `0%` sovrapposizione sui `12` strumenti EUR Zero-Fee: Oro Fisico `4GLDd_EQ`, Monetario BCE `DBXTd_EQ`, `5` ETF Globali Acc e `5` Azioni Fortezza)
+> **Budget Isolato #2 (Portafoglio Definitivo Medio/Lungo Termine):** `900,00 €` dedicati su Conto Totale `1.000,00 €` (`t212_dual_momentum_1000e.py` + `longterm_vault_1000e.json`, Muraglia Cinese `0%` sovrapposizione sui `12` strumenti EUR Zero-Fee: Oro Fisico `4GLDd_EQ`, Monetario BCE `DBXTd_EQ`, `5` ETF Globali Acc e `5` Azioni Fortezza)
 > **Root Progetto Standalone:** `/Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e`
 
 Questo file fornisce la **memoria architetturale permanente** per **Antigravity IDE** e **Antigravity CLI (`agy`)**. Consulta [`CONSTRAINTS.md`](file:///Users/antonacim/.gemini/antigravity/scratch/trading-arena-50e/CONSTRAINTS.md) per il contratto formale dei **35 Invarianti Matematici Bloccanti** verificati ad ogni deploy tramite `python3 -m unittest discover -s tests -p "test_*.py" -v`.

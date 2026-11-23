@@ -44,10 +44,10 @@ from trading212_bot import (
 CREDENTIALS_PATH = os.path.join(BASE_DIR, "t212_credentials.json")
 LONGTERM_STATE_PATH = os.path.join(BASE_DIR, "longterm_vault_1000e.json")
 
-INITIAL_LONGTERM_BUDGET_EUR = 1000.00
+INITIAL_LONGTERM_BUDGET_EUR = 900.00  # Conto Totale 1.000,00 EUR = 100,00 EUR Intraday + 900,00 EUR Portafoglio Definitivo
 LONGTERM_LIMIT_CAP_PCT = 0.0100  # +1,00% tetto Limit protetto MiFID II RTS 11
 REBALANCE_MIN_INTERVAL_DAYS = 7.0
-MIN_TRADE_DELTA_EUR = 45.00
+MIN_TRADE_DELTA_EUR = 40.00
 
 # Universo Certificato EUR Zero-Fee (12 strumenti: 100% disgiunti dai 47 titoli intraday, 0% cambio FX, 0% Tobin Tax)
 DUAL_MOMENTUM_UNIVERSE: Dict[str, Dict[str, Any]] = {
@@ -424,18 +424,19 @@ class DualMomentumVault1000E:
     def _load_state(self) -> Dict[str, Any]:
         default_st: Dict[str, Any] = {
             "timestamp": "",
-            "mode": "DUAL_MOMENTUM_GOLD_VAULT_1000E_V1",
-            "initial_budget_eur": INITIAL_LONGTERM_BUDGET_EUR,
-            "compounded_budget_eur": INITIAL_LONGTERM_BUDGET_EUR,
+            "mode": "DUAL_MOMENTUM_GOLD_VAULT_900E_V1",
+            "initial_budget_eur": self.initial_budget_eur,
+            "compounded_budget_eur": self.initial_budget_eur,
             "invested_cost_eur": 0.0,
             "market_value_eur": 0.0,
-            "uninvested_cash_eur": INITIAL_LONGTERM_BUDGET_EUR,
+            "uninvested_cash_eur": self.initial_budget_eur,
             "unrealized_pnl_eur": 0.0,
             "realized_net_pnl_eur": 0.0,
             "total_net_return_eur": 0.0,
             "total_net_return_pct": 0.0,
-            "total_portfolio_value_eur": INITIAL_LONGTERM_BUDGET_EUR,
+            "total_portfolio_value_eur": self.initial_budget_eur,
             "paused_by_user_cashout": False,
+            "reboot_hold_date": "",
             "last_rebalance_ts": 0.0,
             "last_rebalance_iso": "",
             "regime_dual_momentum": "IN_ATTESA_PRIMA_SCANSIONE",
@@ -850,19 +851,34 @@ class DualMomentumVault1000E:
         metrics = self.scan_universe_1y()
         target_w, regime_lbl, _ = compute_dual_momentum_target_weights(metrics)
 
+        dt_now_rome = (
+            now.astimezone(MARKET_TZ)
+            if (now and now.tzinfo)
+            else (now.replace(tzinfo=MARKET_TZ) if now else datetime.datetime.now(MARKET_TZ))
+        )
+        if str(self.state.get("reboot_hold_date", "")) == dt_now_rome.date().isoformat() and not force_rebalance:
+            return self.refresh_status_only(metrics)
+
         if bool(self.state.get("paused_by_user_cashout", False)) and not force_rebalance:
             return self.refresh_status_only(metrics)
         if force_rebalance:
             self.state["paused_by_user_cashout"] = False
+            self.state["reboot_hold_date"] = ""
 
         if not self.is_xetra_trading_window(now):
             return self.refresh_status_only(metrics)
 
+        all_broker_pos = self._safe_get_positions()
         open_lt = {
             p["ticker"]: p
-            for p in self._safe_get_positions()
+            for p in all_broker_pos
             if p.get("ticker") in DUAL_MOMENTUM_UNIVERSE and float(p.get("quantity", 0.0)) > 0
         }
+        intraday_open_cost = sum(
+            float(p.get("quantity", 0.0)) * float(p.get("averagePrice", 0.0))
+            for p in all_broker_pos
+            if p.get("ticker") in EUR_ZERO_FEE_UNIVERSE and float(p.get("quantity", 0.0)) > 0
+        )
         now_ts = now.timestamp() if now else time.time()
         last_reb_ts = float(self.state.get("last_rebalance_ts", 0.0))
         days_since_reb = (now_ts - last_reb_ts) / 86400.0 if last_reb_ts > 0 else 999.0
@@ -937,8 +953,9 @@ class DualMomentumVault1000E:
 
         try:
             acct_cash = self.client.get_account_cash()
-            # Riserva sempre almeno 110 EUR sul conto broker per non intaccare mai i 100 EUR del bot intraday!
-            broker_safe_free = max(0.0, float(acct_cash.get("free", available_vault_cash)) - 110.0)
+            # Riserva sempre al centesimo la quota liquida non ancora investita dei 100,00 EUR del bot intraday!
+            intraday_reserved_cash = max(0.0, round(100.0 - intraday_open_cost, 2))
+            broker_safe_free = max(0.0, float(acct_cash.get("free", available_vault_cash)) - intraday_reserved_cash)
             available_vault_cash = min(available_vault_cash, round(broker_safe_free, 2))
         except Exception:
             pass
@@ -988,12 +1005,13 @@ class DualMomentumVault1000E:
 
 
 def print_vault_summary(st: Dict[str, Any]) -> None:
+    init_b = float(st.get("initial_budget_eur", INITIAL_LONGTERM_BUDGET_EUR))
     print("\n" + "═" * 92)
-    print(" 🏛️  PORTAFOGLIO #2: DUAL MOMENTUM DINAMICO + ORO FISICO (VAULT ISOLATO 1.000,00 €)")
+    print(f" 🏛️  PORTAFOGLIO #2: DUAL MOMENTUM DINAMICO + ORO FISICO (VAULT ISOLATO {init_b:,.2f} €)")
     print("═" * 92)
     print(f" ⏱️  Aggiornato:        {st.get('timestamp', 'N/D')} | Ultimo Ribilanciamento: {st.get('last_rebalance_iso') or 'N/D'}")
     print(f" 🧭 Regime Attivo:     {st.get('regime_dual_momentum', 'N/D')}")
-    tot_v = float(st.get("total_portfolio_value_eur", 1000.0))
+    tot_v = float(st.get("total_portfolio_value_eur", init_b))
     ret_e = float(st.get("total_net_return_eur", 0.0))
     ret_p = float(st.get("total_net_return_pct", 0.0))
     inv_e = float(st.get("invested_cost_eur", 0.0))
@@ -1001,13 +1019,13 @@ def print_vault_summary(st: Dict[str, Any]) -> None:
     unr_e = float(st.get("unrealized_pnl_eur", 0.0))
     real_e = float(st.get("realized_net_pnl_eur", 0.0))
     print("─" * 92)
-    print(f" 💰 VALORE VAULT (BASE 1.000,00 €): {tot_v:,.2f} € ({ret_e:+.2f} € / {ret_p:+.2f}%)")
+    print(f" 💰 VALORE VAULT (BASE {init_b:,.2f} €): {tot_v:,.2f} € ({ret_e:+.2f} € / {ret_p:+.2f}%)")
     print(f"    ├─ Investito a Mercato:  {inv_e:,.2f} € | Liquidità Vault: {uninv_e:,.2f} €")
     print(f"    └─ PnL Aperto:           {unr_e:+.2f} € | Utili Realizzati: {real_e:+.2f} € | Commissioni: 0,00 €")
 
     pos_list = st.get("posizioni_attive", [])
     print("\n" + "─" * 92)
-    print(f" 📦 POSIZIONI ATTIVE NEL VAULT 1.000 € ({len(pos_list)} STRUMENTI — ZERO CONFLITTI COL BOT 100 €)")
+    print(f" 📦 POSIZIONI ATTIVE NEL VAULT {init_b:,.0f} € ({len(pos_list)} STRUMENTI — ZERO CONFLITTI COL BOT 100 €)")
     print("─" * 92)
     for p in pos_list:
         sem = "🟢 BULL" if p.get("is_bull_trend") else "🟡 CAUTO"

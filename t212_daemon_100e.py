@@ -3011,15 +3011,20 @@ def _sync_certified_cash_safe(bot: Trading212AutonomousBot, min_interval_sec: fl
         setattr(bot, "_cash_synced_once", True)
         if isinstance(cash_info, dict):
             lt_realized_net, lt_reserved_cash = _read_longterm_vault_isolation_offsets()
+            today_iso_sync = datetime.datetime.now(MARKET_TZ).date().isoformat()
+            is_reboot_hold_today = (
+                str(bot.tax_tracker.data.get("reboot_hold_date", "")) == today_iso_sync
+            )
             if cash_info.get("free") is not None:
                 raw_free = float(cash_info["free"])
+                intraday_open_est = float(getattr(bot, "_last_intraday_open_cost", 0.0))
                 isolated_free = (
                     max(0.0, raw_free - lt_reserved_cash)
-                    if raw_free > (lt_reserved_cash + 120.0)
+                    if lt_reserved_cash > 0.0 and (raw_free + intraday_open_est) >= (lt_reserved_cash + 40.0)
                     else raw_free
                 )
                 setattr(bot, "_t212_free_cash", round(isolated_free, 2))
-            if cash_info.get("result") is not None:
+            if cash_info.get("result") is not None and not is_reboot_hold_today:
                 isolated_result = round(float(cash_info["result"]) - lt_realized_net, 2)
                 bot.tax_tracker.reconcile_certified_cash_result(isolated_result)
     except Exception:
@@ -3122,6 +3127,11 @@ def run_cycle(
     overnight_status["intraday_0s_tape"] = intraday_tape
 
     # Sincronizzazione primo avvio / heartbeat con cassa reale Trading 212 (simmetrica su plus/minusvalenze)
+    setattr(
+        bot,
+        "_last_intraday_open_cost",
+        round(sum(float(p.get("quantity", 0.0)) * float(p.get("averagePrice", 0.0)) for p in positions), 2),
+    )
     first_cash_sync = not getattr(bot, "_cash_synced_once", False)
     if first_cash_sync or (cycle_num % 5 == 0):
         _sync_certified_cash_safe(bot, min_interval_sec=0.0 if first_cash_sync else 5.5)
@@ -3480,7 +3490,11 @@ def run_cycle(
     today_entries_count = intel.get_today_entries_count(today_prefix, bot.tax_tracker.data)
     today_used_sectors = intel.get_today_used_sectors(today_prefix, bot.tax_tracker.data)
     pre_entry_equity = round(bot.total_budget_eur + realized_net_eur + unrealized_pnl_100e, 2)
-    if pre_entry_equity >= bot.target_equity_eur:
+    if str(bot.tax_tracker.data.get("reboot_hold_date", "")) == today_prefix:
+        regime = dict(regime)
+        regime["allow_new_buys"] = False
+        regime["code"] = "ATTESA_RIPARTENZA_DA_ZERO_DOMANI_09_00"
+    elif pre_entry_equity >= bot.target_equity_eur:
         regime = dict(regime)
         regime["allow_new_buys"] = False
         regime["code"] = "TARGET_30PCT_RAGGIUNTO_CONTO_IN_CASSAFORTE"

@@ -123,7 +123,8 @@ def print_eod_summary(target_day: str, do_sync: bool = False) -> None:
 
     lt = load_json(LONGTERM_FILE)
     if lt:
-        lt_val = float(lt.get("total_portfolio_value_eur", 1000.0))
+        lt_init = float(lt.get("initial_budget_eur", 900.0))
+        lt_val = float(lt.get("total_portfolio_value_eur", lt_init))
         lt_ret_e = float(lt.get("total_net_return_eur", 0.0))
         lt_ret_p = float(lt.get("total_net_return_pct", 0.0))
         lt_inv = float(lt.get("invested_cost_eur", 0.0))
@@ -131,7 +132,7 @@ def print_eod_summary(target_day: str, do_sync: bool = False) -> None:
         lt_pos = lt.get("posizioni_attive", [])
         print("─" * 74)
         print(
-            f"🏛️ PORTAFOGLIO #2 LUNGO TERMINE + ORO (Base 1.000,00 €): {fmt_eur(lt_val)} "
+            f"🏛️ PORTAFOGLIO #2 LUNGO TERMINE + ORO (Base {fmt_eur(lt_init)}): {fmt_eur(lt_val)} "
             f"({fmt_eur(lt_ret_e, signed=True)} / {lt_ret_p:+.2f}%)"
         )
         print(

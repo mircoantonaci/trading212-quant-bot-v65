@@ -89,7 +89,7 @@
       height: 10px; background: #1e293b; border-radius: 999px; overflow: hidden; margin-top: 10px;
     }
     .progress-bar-fill {
-      height: 100%; width: 5.6%;
+      height: 100%; width: 0.0%;
       background: linear-gradient(90deg, var(--blue), var(--green));
     }
     .section-title {
@@ -148,139 +148,42 @@
     <div class="split-hero">
       <div class="hero-box hero-intraday">
         <span class="hero-badge badge-blue">⚡ PORTAFOGLIO #1 • BOT INTRADAY (BASE 100,00 €)</span>
-        <div class="hero-val pos">101,68 € <small style="font-size:1rem;">(+1,68 € / +1,68%)</small></div>
-        <div style="font-size:0.86rem; color:var(--muted);">47 Colossi EUR Zero-Fee (incl. STM, Stellantis, Ferrari) • Cartucce da ~25,42 €</div>
+        <div class="hero-val pos">100,00 € <small style="font-size:1rem;">(+0,00 € / +0,00%)</small></div>
+        <div style="font-size:0.86rem; color:var(--muted);">47 Colossi EUR Zero-Fee (incl. STM, Stellantis, Ferrari) • Cartucce da ~25,00 €</div>
         <div class="hero-sub">
           <span>📦 Aperte ora: <strong>0/4</strong></span>
           <span>💶 Investiti: <strong>0,00 €</strong></span>
-          <span>🏦 Liquidi: <strong>101,68 €</strong></span>
-          <span>💰 Cassa Chiusa: <strong class="pos">+1,68 €</strong></span>
+          <span>🏦 Liquidi: <strong>100,00 €</strong></span>
+          <span>💰 Cassa Chiusa: <strong class="pos">+0,00 €</strong></span>
         </div>
       </div>
 
       <div class="hero-box hero-longterm">
-        <span class="hero-badge badge-gold">🏛️ PORTAFOGLIO #2 • DUAL MOMENTUM + ORO (BASE 1.000,00 €)</span>
-        <div class="hero-val neg">999,43 € <small style="font-size:1rem;">(-0,57 € / -0,06%)</small></div>
-        <div style="font-size:0.86rem; color:var(--muted);">Regime: <strong>FULL_BULL_MOMENTUM_4_SU_4_ATTIVI</strong> • Fette da 100 € – 225 € (Agg.: 2026-11-23T15:52:16)</div>
+        <span class="hero-badge badge-gold">🏛️ PORTAFOGLIO #2 • DUAL MOMENTUM + ORO (BASE 900,00 €)</span>
+        <div class="hero-val pos">900,00 € <small style="font-size:1rem;">(+0,00 € / +0,00%)</small></div>
+        <div style="font-size:0.86rem; color:var(--muted);">Regime: <strong>FULL_BULL_MOMENTUM_4_SU_4_ATTIVI</strong> • Fette da 90 € – 203 € (Agg.: 2026-11-23T16:44:52)</div>
         <div class="hero-sub">
-          <span>📦 Strumenti: <strong>6 attivi</strong></span>
-          <span>💶 A Mercato: <strong>992,56 €</strong> (Costo 993,13 €)</span>
-          <span>🏦 Liquidi Vault: <strong>6,87 €</strong></span>
+          <span>📦 Strumenti: <strong>0 attivi</strong></span>
+          <span>💶 A Mercato: <strong>0,00 €</strong> (Costo 0,00 €)</span>
+          <span>🏦 Liquidi Vault: <strong>900,00 €</strong></span>
           <span>💰 Realizzati: <strong class="pos">+0,00 €</strong></span>
         </div>
       </div>
     </div>
 
     <div class="tabs-bar">
-      <button class="tab-btn active" onclick="switchView('all', this)">👁️ Mostra Entrambi i Portafogli</button>
+      <button class="tab-btn active" onclick="switchView('all', this)">👁️ Mostra Entrambi (Totale Base 1.000,00 €)</button>
       <button class="tab-btn" onclick="switchView('intraday', this)">⚡ Solo Bot Intraday (100 €)</button>
-      <button class="tab-btn gold-tab" onclick="switchView('longterm', this)">🏛️ Solo Lungo Termine + Oro (1.000 €)</button>
+      <button class="tab-btn gold-tab" onclick="switchView('longterm', this)">🏛️ Solo Lungo Termine + Oro (900,00 €)</button>
     </div>
 
-    <!-- ================= SEZIONE PORTAFOGLIO #2: 1.000 € DUAL MOMENTUM + ORO ================= -->
+    <!-- ================= SEZIONE PORTAFOGLIO #2: 900 € DUAL MOMENTUM + ORO ================= -->
     <div id="panel-longterm">
-      <div class="section-title" style="color: var(--gold-soft);">🏛️ Portafoglio #2 — Posizioni Attive Lungo Termine + Oro Fisico (Base 1.000,00 € • Ultimo Ribilanciamento: 2026-11-23T15:50)</div>
+      <div class="section-title" style="color: var(--gold-soft);">🏛️ Portafoglio #2 — Posizioni Attive Lungo Termine + Oro Fisico (Base 900,00 € • Ultimo Ribilanciamento: N/D)</div>
       <div class="cards-grid">
-        <div class="card gold-card">
-          <div class="card-head">
-            <div>
-              <span class="slot-tag gold-tag">📈 MOTORE ETF ACC • TARGET 22.5%</span>
-              <h3>iShares Edge MSCI World Min Volatility (EUR Acc) <small>(IQQ0d_EQ)</small></h3>
-            </div>
-            <div class="price-pill pos">+0,15%</div>
-          </div>
-          <div class="metrics-grid">
-            <div><span>Valore Attuale</span><strong>224,23 €</strong></div>
-            <div><span>Costo Carico</span><strong>223,89 €</strong></div>
-            <div><span>PnL Netto</span><strong class="pos">+0,34 €</strong></div>
-            <div><span>Prezzo / Quantità</span><strong>71,64 € (3.13)</strong></div>
-          </div>
-          <div class="shield-bar">🟢 TREND BULL (Sopra SMA) • Distanza SMA 150gg: +6,88%</div>
-        </div>
-        
-        <div class="card gold-card">
-          <div class="card-head">
-            <div>
-              <span class="slot-tag gold-tag">📈 MOTORE ETF ACC • TARGET 22.5%</span>
-              <h3>Xtrackers MSCI World Quality (EUR Acc) <small>(XDEQQd_EQ)</small></h3>
-            </div>
-            <div class="price-pill neg">-0,37%</div>
-          </div>
-          <div class="metrics-grid">
-            <div><span>Valore Attuale</span><strong>223,28 €</strong></div>
-            <div><span>Costo Carico</span><strong>224,12 €</strong></div>
-            <div><span>PnL Netto</span><strong class="neg">-0,84 €</strong></div>
-            <div><span>Prezzo / Quantità</span><strong>80,03 € (2.79)</strong></div>
-          </div>
-          <div class="shield-bar">🟢 TREND BULL (Sopra SMA) • Distanza SMA 150gg: +1,67%</div>
-        </div>
-        
-        <div class="card gold-card">
-          <div class="card-head">
-            <div>
-              <span class="slot-tag gold-tag">🏰 AZIONE FORTEZZA • TARGET 15.0%</span>
-              <h3>Wolters Kluwer NV (EUR Amsterdam) <small>(WKLa_EQ)</small></h3>
-            </div>
-            <div class="price-pill pos">+0,37%</div>
-          </div>
-          <div class="metrics-grid">
-            <div><span>Valore Attuale</span><strong>149,43 €</strong></div>
-            <div><span>Costo Carico</span><strong>148,88 €</strong></div>
-            <div><span>PnL Netto</span><strong class="pos">+0,55 €</strong></div>
-            <div><span>Prezzo / Quantità</span><strong>83,95 € (1.78)</strong></div>
-          </div>
-          <div class="shield-bar">🟢 TREND BULL (Sopra SMA) • Distanza SMA 150gg: +20,36%</div>
-        </div>
-        
-        <div class="card gold-card">
-          <div class="card-head">
-            <div>
-              <span class="slot-tag gold-tag">🏰 AZIONE FORTEZZA • TARGET 15.0%</span>
-              <h3>Berkshire Hathaway Inc Class B (EUR) <small>(BRYNd_EQ)</small></h3>
-            </div>
-            <div class="price-pill neg">-0,17%</div>
-          </div>
-          <div class="metrics-grid">
-            <div><span>Valore Attuale</span><strong>148,30 €</strong></div>
-            <div><span>Costo Carico</span><strong>148,55 €</strong></div>
-            <div><span>PnL Netto</span><strong class="neg">-0,25 €</strong></div>
-            <div><span>Prezzo / Quantità</span><strong>523,10 € (0.2835)</strong></div>
-          </div>
-          <div class="shield-bar">🟢 TREND BULL (Sopra SMA) • Distanza SMA 150gg: +17,72%</div>
-        </div>
-        
-        <div class="card gold-card">
-          <div class="card-head">
-            <div>
-              <span class="slot-tag gold-tag">🏦 TASSO BCE XEON • TARGET 15.0%</span>
-              <h3>Xtrackers II EUR Overnight Rate Swap XEON (Acc) <small>(DBXTd_EQ)</small></h3>
-            </div>
-            <div class="price-pill neg">-0,01%</div>
-          </div>
-          <div class="metrics-grid">
-            <div><span>Valore Attuale</span><strong>148,01 €</strong></div>
-            <div><span>Costo Carico</span><strong>148,02 €</strong></div>
-            <div><span>PnL Netto</span><strong class="neg">-0,01 €</strong></div>
-            <div><span>Prezzo / Quantità</span><strong>150,887 € (0.9809)</strong></div>
-          </div>
-          <div class="shield-bar">🟢 TREND BULL (Sopra SMA) • Distanza SMA 150gg: +0,66%</div>
-        </div>
-        
-        <div class="card gold-card">
-          <div class="card-head">
-            <div>
-              <span class="slot-tag gold-tag">🥇 ORO FISICO ETC • TARGET 10.0%</span>
-              <h3>Xetra-Gold Physical Gold ETC (EUR) <small>(4GLDd_EQ)</small></h3>
-            </div>
-            <div class="price-pill neg">-0,36%</div>
-          </div>
-          <div class="metrics-grid">
-            <div><span>Valore Attuale</span><strong>99,31 €</strong></div>
-            <div><span>Costo Carico</span><strong>99,67 €</strong></div>
-            <div><span>PnL Netto</span><strong class="neg">-0,36 €</strong></div>
-            <div><span>Prezzo / Quantità</span><strong>107,85 € (0.9208)</strong></div>
-          </div>
-          <div class="shield-bar">🟡 QUOTA DIFENSIVA CAUTA • Distanza SMA 150gg: -9,52%</div>
+        <div class="card gold-card" style="grid-column: 1 / -1; text-align: center; padding: 24px;">
+          <span class="slot-tag gold-tag">VAULT 900,00 €</span>
+          <h3 style="margin-top:6px;">Nessuna posizione aperta nel Vault 900,00 € (100% Contanti EUR pronti per l'apertura XETRA 09:15)</h3>
         </div>
         </div>
 
@@ -296,51 +199,51 @@
         <tr>
           <td><strong>BRYNd_EQ</strong> <small>Berkshire Hathaway Inc Class B (EUR)</small></td>
           <td>🏰 AZIONE FORTEZZA</td>
-          <td>524,30 €</td>
-          <td class="pos">+7,73%</td>
-          <td class="pos">+21,02%</td>
-          <td class="pos">+29,39%</td>
-          <td><strong>+1.36</strong></td>
-          <td>+17,72%</td>
+          <td>525,60 €</td>
+          <td class="pos">+7,99%</td>
+          <td class="pos">+21,32%</td>
+          <td class="pos">+29,71%</td>
+          <td><strong>+1.38</strong></td>
+          <td>+18,01%</td>
           <td><span class="badge-ok">🟢 VERDE</span></td>
-          <td><span class="badge-ok">🏛️ IN PORTAFOGLIO</span></td>
+          <td><span class="badge-wait">Panchina</span></td>
         </tr>
         
         <tr>
           <td><strong>IQQ0d_EQ</strong> <small>iShares Edge MSCI World Min Volatility (EUR Acc)</small></td>
           <td>📈 MOTORE ETF ACC</td>
-          <td>71,38 €</td>
-          <td class="pos">+0,08%</td>
-          <td class="pos">+5,80%</td>
-          <td class="pos">+12,32%</td>
-          <td><strong>+0.82</strong></td>
-          <td>+6,88%</td>
+          <td>71,98 €</td>
+          <td class="pos">+0,93%</td>
+          <td class="pos">+6,68%</td>
+          <td class="pos">+13,27%</td>
+          <td><strong>+0.92</strong></td>
+          <td>+7,77%</td>
           <td><span class="badge-ok">🟢 VERDE</span></td>
-          <td><span class="badge-ok">🏛️ IN PORTAFOGLIO</span></td>
+          <td><span class="badge-wait">Panchina</span></td>
         </tr>
         
         <tr>
           <td><strong>WKLa_EQ</strong> <small>Wolters Kluwer NV (EUR Amsterdam)</small></td>
           <td>🏰 AZIONE FORTEZZA</td>
-          <td>83,42 €</td>
-          <td class="neg">-5,40%</td>
-          <td class="pos">+20,83%</td>
-          <td class="pos">+36,71%</td>
-          <td><strong>+0.58</strong></td>
-          <td>+20,36%</td>
+          <td>83,56 €</td>
+          <td class="neg">-5,24%</td>
+          <td class="pos">+21,03%</td>
+          <td class="pos">+36,94%</td>
+          <td><strong>+0.59</strong></td>
+          <td>+20,56%</td>
           <td><span class="badge-ok">🟢 VERDE</span></td>
-          <td><span class="badge-ok">🏛️ IN PORTAFOGLIO</span></td>
+          <td><span class="badge-wait">Panchina</span></td>
         </tr>
         
         <tr>
           <td><strong>RENa_EQ</strong> <small>RELX PLC (EUR Amsterdam)</small></td>
           <td>🏰 AZIONE FORTEZZA</td>
-          <td>34,96 €</td>
-          <td class="neg">-3,59%</td>
-          <td class="pos">+15,08%</td>
-          <td class="pos">+23,10%</td>
+          <td>35,02 €</td>
+          <td class="neg">-3,42%</td>
+          <td class="pos">+15,27%</td>
+          <td class="pos">+23,31%</td>
           <td><strong>+0.47</strong></td>
-          <td>+13,81%</td>
+          <td>+14,00%</td>
           <td><span class="badge-ok">🟢 VERDE</span></td>
           <td><span class="badge-wait">Panchina</span></td>
         </tr>
@@ -348,25 +251,12 @@
         <tr>
           <td><strong>LINd_EQ</strong> <small>Linde PLC (EUR)</small></td>
           <td>🏰 AZIONE FORTEZZA</td>
-          <td>465,40 €</td>
-          <td class="pos">+2,11%</td>
-          <td class="pos">+10,49%</td>
-          <td class="pos">+9,35%</td>
-          <td><strong>+0.43</strong></td>
-          <td>+6,31%</td>
-          <td><span class="badge-ok">🟢 VERDE</span></td>
-          <td><span class="badge-wait">Panchina</span></td>
-        </tr>
-        
-        <tr>
-          <td><strong>ADa_EQ</strong> <small>Koninklijke Ahold Delhaize NV (EUR Amsterdam)</small></td>
-          <td>🏰 AZIONE FORTEZZA</td>
-          <td>34,49 €</td>
-          <td class="pos">+4,07%</td>
-          <td class="pos">+11,47%</td>
-          <td class="neg">-4,64%</td>
-          <td><strong>+0.21</strong></td>
-          <td>+0,84%</td>
+          <td>467,95 €</td>
+          <td class="pos">+2,67%</td>
+          <td class="pos">+11,10%</td>
+          <td class="pos">+9,95%</td>
+          <td><strong>+0.46</strong></td>
+          <td>+6,88%</td>
           <td><span class="badge-ok">🟢 VERDE</span></td>
           <td><span class="badge-wait">Panchina</span></td>
         </tr>
@@ -374,51 +264,64 @@
         <tr>
           <td><strong>XDEQQd_EQ</strong> <small>Xtrackers MSCI World Quality (EUR Acc)</small></td>
           <td>📈 MOTORE ETF ACC</td>
-          <td>79,82 €</td>
-          <td class="neg">-2,11%</td>
-          <td class="pos">+0,94%</td>
-          <td class="pos">+5,57%</td>
-          <td><strong>+0.20</strong></td>
-          <td>+1,67%</td>
+          <td>80,78 €</td>
+          <td class="neg">-0,93%</td>
+          <td class="pos">+2,15%</td>
+          <td class="pos">+6,84%</td>
+          <td><strong>+0.30</strong></td>
+          <td>+2,88%</td>
           <td><span class="badge-ok">🟢 VERDE</span></td>
-          <td><span class="badge-ok">🏛️ IN PORTAFOGLIO</span></td>
+          <td><span class="badge-wait">Panchina</span></td>
+        </tr>
+        
+        <tr>
+          <td><strong>ADa_EQ</strong> <small>Koninklijke Ahold Delhaize NV (EUR Amsterdam)</small></td>
+          <td>🏰 AZIONE FORTEZZA</td>
+          <td>34,36 €</td>
+          <td class="pos">+3,68%</td>
+          <td class="pos">+11,05%</td>
+          <td class="neg">-5,00%</td>
+          <td><strong>+0.19</strong></td>
+          <td>+0,46%</td>
+          <td><span class="badge-ok">🟢 VERDE</span></td>
+          <td><span class="badge-wait">Panchina</span></td>
         </tr>
         
         <tr>
           <td><strong>DBXTd_EQ</strong> <small>Xtrackers II EUR Overnight Rate Swap XEON (Acc)</small></td>
           <td>🏦 TASSO BCE XEON</td>
-          <td>150,874 €</td>
-          <td class="pos">+0,19%</td>
-          <td class="pos">+0,59%</td>
-          <td class="pos">+1,09%</td>
+          <td>150,862 €</td>
+          <td class="pos">+0,18%</td>
+          <td class="pos">+0,58%</td>
+          <td class="pos">+1,08%</td>
           <td><strong>+0.09</strong></td>
-          <td>+0,66%</td>
+          <td>+0,65%</td>
           <td><span class="badge-ok">🟢 VERDE</span></td>
-          <td><span class="badge-ok">🏛️ IN PORTAFOGLIO</span></td>
-        </tr>
-        
-        <tr>
-          <td><strong>SXRVd_EQ</strong> <small>iShares Nasdaq 100 UCITS ETF (EUR Acc)</small></td>
-          <td>📈 MOTORE ETF ACC</td>
-          <td>1397,00 €</td>
-          <td class="neg">-6,47%</td>
-          <td class="neg">-2,86%</td>
-          <td class="neg">-6,37%</td>
-          <td><strong>-0.20</strong></td>
-          <td>-4,89%</td>
-          <td><span class="badge-wait">🔴 SOTTO SMA</span></td>
           <td><span class="badge-wait">Panchina</span></td>
         </tr>
         
         <tr>
           <td><strong>QDVEd_EQ</strong> <small>iShares S&P 500 Information Technology (EUR Acc)</small></td>
           <td>📈 MOTORE ETF ACC</td>
-          <td>41,30 €</td>
-          <td class="neg">-9,50%</td>
-          <td class="neg">-3,92%</td>
-          <td class="neg">-6,80%</td>
-          <td><strong>-0.21</strong></td>
-          <td>-5,65%</td>
+          <td>42,235 €</td>
+          <td class="neg">-7,45%</td>
+          <td class="neg">-1,74%</td>
+          <td class="neg">-4,69%</td>
+          <td><strong>-0.12</strong></td>
+          <td>-3,53%</td>
+          <td><span class="badge-wait">🔴 SOTTO SMA</span></td>
+          <td><span class="badge-wait">Panchina</span></td>
+        </tr>
+        
+        <tr>
+          <td><strong>SXRVd_EQ</strong> <small>iShares Nasdaq 100 UCITS ETF (EUR Acc)</small></td>
+          <td>📈 MOTORE ETF ACC</td>
+          <td>1419,80 €</td>
+          <td class="neg">-4,94%</td>
+          <td class="neg">-1,28%</td>
+          <td class="neg">-4,84%</td>
+          <td><strong>-0.13</strong></td>
+          <td>-3,35%</td>
           <td><span class="badge-wait">🔴 SOTTO SMA</span></td>
           <td><span class="badge-wait">Panchina</span></td>
         </tr>
@@ -426,12 +329,12 @@
         <tr>
           <td><strong>IS3Rd_EQ</strong> <small>iShares Edge MSCI World Momentum Factor (EUR Acc)</small></td>
           <td>📈 MOTORE ETF ACC</td>
-          <td>89,76 €</td>
-          <td class="neg">-8,49%</td>
-          <td class="neg">-9,70%</td>
-          <td class="neg">-9,93%</td>
-          <td><strong>-0.36</strong></td>
-          <td>-10,15%</td>
+          <td>90,54 €</td>
+          <td class="neg">-7,70%</td>
+          <td class="neg">-8,91%</td>
+          <td class="neg">-9,15%</td>
+          <td><strong>-0.33</strong></td>
+          <td>-9,37%</td>
           <td><span class="badge-wait">🔴 SOTTO SMA</span></td>
           <td><span class="badge-wait">Panchina</span></td>
         </tr>
@@ -439,19 +342,19 @@
         <tr>
           <td><strong>4GLDd_EQ</strong> <small>Xetra-Gold Physical Gold ETC (EUR)</small></td>
           <td>🥇 ORO FISICO ETC</td>
-          <td>108,02 €</td>
-          <td class="neg">-5,91%</td>
-          <td class="neg">-14,88%</td>
-          <td class="neg">-14,28%</td>
-          <td><strong>-0.57</strong></td>
-          <td>-9,52%</td>
+          <td>108,45 €</td>
+          <td class="neg">-5,54%</td>
+          <td class="neg">-14,54%</td>
+          <td class="neg">-13,94%</td>
+          <td><strong>-0.55</strong></td>
+          <td>-9,17%</td>
           <td><span class="badge-wait">🔴 SOTTO SMA</span></td>
-          <td><span class="badge-ok">🏛️ IN PORTAFOGLIO</span></td>
+          <td><span class="badge-wait">Panchina</span></td>
         </tr>
         </tbody>
       </table>
 
-      <div class="section-title" style="color: var(--gold-soft);">📜 Storico Rotazioni & Incassi Vault 1.000 € (Operazioni Chiuse: 0)</div>
+      <div class="section-title" style="color: var(--gold-soft);">📜 Storico Rotazioni & Incassi Vault 900,00 € (Operazioni Chiuse: 0)</div>
       <table>
         <thead>
           <tr>
@@ -464,11 +367,11 @@
 
     <!-- ================= SEZIONE PORTAFOGLIO #1: 100 € BOT INTRADAY ================= -->
     <div id="panel-intraday">
-      <div class="section-title" style="color: var(--blue);">⚡ Portafoglio #1 — Bot Intraday V11.6 (Base 100,00 € • 4 Cartucce da ~25,42 € su 4 Settori Distinti)</div>
+      <div class="section-title" style="color: var(--blue);">⚡ Portafoglio #1 — Bot Intraday V11.6 (Base 100,00 € • 4 Cartucce da ~25,00 € su 4 Settori Distinti)</div>
       <div class="progress-wrap">
         <div style="display:flex; justify-content:space-between; font-size:0.88rem; flex-wrap:wrap; gap:8px;">
           <strong>🎯 Traguardo Cash-Out Intraday (+30,00%): 130,00 €</strong>
-          <span>Avanzamento: 5.6% (101,68 € / 130,00 €) • Radar: ONDA_MACRO_POSITIVA_DECOMPRESSIONE_MORBIDA_17_00 (Nasdaq +6,91%)</span>
+          <span>Avanzamento: 0.0% (100,00 € / 130,00 €) • Radar: ONDA_MACRO_POSITIVA_DECOMPRESSIONE_MORBIDA_17_00 (Nasdaq +6,91%)</span>
         </div>
         <div class="progress-bar-bg"><div class="progress-bar-fill"></div></div>
       </div>
@@ -478,7 +381,7 @@
           <span class="slot-tag">4/4 CARTUCCE LIBERE IN CONTANTI EUR</span>
           <h3 style="margin-top:6px;">Nessuna posizione intraday aperta in questo istante</h3>
           <p style="color: var(--muted); font-size: 0.88rem; margin-top: 6px;">
-            Tutte le voci tra 95 € e 230 € visibili sull'app Trading 212 appartengono esclusivamente al Portafoglio #2 da 1.000 €.
+            Tutte le voci tra 85 € e 210 € visibili sull'app Trading 212 appartengono esclusivamente al Portafoglio #2 da 900,00 €.
             Quando il Bot Intraday sparerà una cartuccia (~25 €), comparirà qui in tempo reale.
           </p>
         </div>
@@ -1059,7 +962,7 @@
         </tbody>
       </table>
 
-      <div class="section-title" style="color: var(--blue);">🇮🇹 Registro Fiscale Intraday 100 € — Modello 730 LIFO (Operazioni Chiuse: 1)</div>
+      <div class="section-title" style="color: var(--blue);">🇮🇹 Registro Fiscale Intraday 100 € — Modello 730 LIFO (Operazioni Chiuse: 0)</div>
       <table>
         <thead>
           <tr>
@@ -1067,16 +970,7 @@
             <th>Ricavo Vendita</th><th>Plus/Minus Netto</th>
           </tr>
         </thead>
-        <tbody>
-        <tr>
-          <td>2026-11-19T17:25:01</td>
-          <td><strong>BMWd_EQ</strong></td>
-          <td>0.4700</td>
-          <td>25,79 €</td>
-          <td>25,50 €</td>
-          <td class="neg"><strong>-0,29 €</strong></td>
-        </tr>
-        </tbody>
+        <tbody></tbody>
       </table>
     </div>
   </div>

@@ -290,13 +290,14 @@ def generate_dashboard_html(state: dict, tax: dict, longterm: dict | None = None
     radar = state.get("radar_onda_notturna_wall_street", {})
     closed_trades = tax.get("operazioni_chiuse", [])
 
-    # Dati Portafoglio #2 — Dual Momentum + Oro Fisico (1.000,00 EUR isolati)
-    lt_val = float(lt.get("total_portfolio_value_eur", 1000.0))
+    # Dati Portafoglio #2 — Dual Momentum + Oro Fisico (900,00 EUR isolati su Conto Totale 1.000,00 EUR)
+    lt_init = float(lt.get("initial_budget_eur", 900.0))
+    lt_val = float(lt.get("total_portfolio_value_eur", lt_init))
     lt_ret_eur = float(lt.get("total_net_return_eur", 0.0))
     lt_ret_pct = float(lt.get("total_net_return_pct", 0.0))
     lt_inv = float(lt.get("invested_cost_eur", 0.0))
     lt_mkt = float(lt.get("market_value_eur", 0.0))
-    lt_cash = float(lt.get("uninvested_cash_eur", 1000.0))
+    lt_cash = float(lt.get("uninvested_cash_eur", lt_init))
     lt_unreal = float(lt.get("unrealized_pnl_eur", 0.0))
     lt_real = float(lt.get("realized_net_pnl_eur", 0.0))
     lt_regime = str(lt.get("regime_dual_momentum", "IN_ATTESA"))
@@ -308,12 +309,12 @@ def generate_dashboard_html(state: dict, tax: dict, longterm: dict | None = None
 
     cards_html = ""
     if not cartridges:
-        cards_html = """
+        cards_html = f"""
         <div class="card" style="grid-column: 1 / -1; border-style: dashed; text-align: center; padding: 26px;">
           <span class="slot-tag">4/4 CARTUCCE LIBERE IN CONTANTI EUR</span>
           <h3 style="margin-top:6px;">Nessuna posizione intraday aperta in questo istante</h3>
           <p style="color: var(--muted); font-size: 0.88rem; margin-top: 6px;">
-            Tutte le voci tra 95 € e 230 € visibili sull'app Trading 212 appartengono esclusivamente al Portafoglio #2 da 1.000 €.
+            Tutte le voci tra 85 € e 210 € visibili sull'app Trading 212 appartengono esclusivamente al Portafoglio #2 da {fmt_eur(lt_init)}.
             Quando il Bot Intraday sparerà una cartuccia (~25 €), comparirà qui in tempo reale.
           </p>
         </div>
@@ -365,10 +366,10 @@ def generate_dashboard_html(state: dict, tax: dict, longterm: dict | None = None
     }
     lt_cards_html = ""
     if not lt_positions:
-        lt_cards_html = """
+        lt_cards_html = f"""
         <div class="card gold-card" style="grid-column: 1 / -1; text-align: center; padding: 24px;">
-          <span class="slot-tag gold-tag">VAULT 1.000,00 €</span>
-          <h3 style="margin-top:6px;">Nessuna posizione attiva nel Vault 1.000 € (100% Contanti EUR)</h3>
+          <span class="slot-tag gold-tag">VAULT {fmt_eur(lt_init)}</span>
+          <h3 style="margin-top:6px;">Nessuna posizione aperta nel Vault {fmt_eur(lt_init)} (100% Contanti EUR pronti per l'apertura XETRA 09:15)</h3>
         </div>
         """
     for lp in lt_positions:
@@ -632,9 +633,9 @@ def generate_dashboard_html(state: dict, tax: dict, longterm: dict | None = None
       </div>
 
       <div class="hero-box hero-longterm">
-        <span class="hero-badge badge-gold">🏛️ PORTAFOGLIO #2 • DUAL MOMENTUM + ORO (BASE 1.000,00 €)</span>
+        <span class="hero-badge badge-gold">🏛️ PORTAFOGLIO #2 • DUAL MOMENTUM + ORO (BASE {fmt_eur(lt_init)})</span>
         <div class="hero-val {'pos' if lt_ret_eur >= 0 else 'neg'}">{fmt_eur(lt_val)} <small style="font-size:1rem;">({fmt_eur(lt_ret_eur, True)} / {fmt_pct(lt_ret_pct)})</small></div>
-        <div style="font-size:0.86rem; color:var(--muted);">Regime: <strong>{lt_regime}</strong> • Fette da 100 € – 225 € (Agg.: {lt_updated[:19]})</div>
+        <div style="font-size:0.86rem; color:var(--muted);">Regime: <strong>{lt_regime}</strong> • Fette da 90 € – 203 € (Agg.: {lt_updated[:19]})</div>
         <div class="hero-sub">
           <span>📦 Strumenti: <strong>{len(lt_positions)} attivi</strong></span>
           <span>💶 A Mercato: <strong>{fmt_eur(lt_mkt)}</strong> (Costo {fmt_eur(lt_inv)})</span>
@@ -645,14 +646,14 @@ def generate_dashboard_html(state: dict, tax: dict, longterm: dict | None = None
     </div>
 
     <div class="tabs-bar">
-      <button class="tab-btn active" onclick="switchView('all', this)">👁️ Mostra Entrambi i Portafogli</button>
+      <button class="tab-btn active" onclick="switchView('all', this)">👁️ Mostra Entrambi (Totale Base 1.000,00 €)</button>
       <button class="tab-btn" onclick="switchView('intraday', this)">⚡ Solo Bot Intraday (100 €)</button>
-      <button class="tab-btn gold-tab" onclick="switchView('longterm', this)">🏛️ Solo Lungo Termine + Oro (1.000 €)</button>
+      <button class="tab-btn gold-tab" onclick="switchView('longterm', this)">🏛️ Solo Lungo Termine + Oro ({fmt_eur(lt_init)})</button>
     </div>
 
-    <!-- ================= SEZIONE PORTAFOGLIO #2: 1.000 € DUAL MOMENTUM + ORO ================= -->
+    <!-- ================= SEZIONE PORTAFOGLIO #2: 900 € DUAL MOMENTUM + ORO ================= -->
     <div id="panel-longterm">
-      <div class="section-title" style="color: var(--gold-soft);">🏛️ Portafoglio #2 — Posizioni Attive Lungo Termine + Oro Fisico (Base 1.000,00 € • Ultimo Ribilanciamento: {lt_rebal[:16]})</div>
+      <div class="section-title" style="color: var(--gold-soft);">🏛️ Portafoglio #2 — Posizioni Attive Lungo Termine + Oro Fisico (Base {fmt_eur(lt_init)} • Ultimo Ribilanciamento: {lt_rebal[:16]})</div>
       <div class="cards-grid">{lt_cards_html}</div>
 
       <div class="section-title" style="color: var(--gold-soft);">🧭 Classifica Matematica Dual Momentum a 1 Anno (12 Strumenti EUR Zero-Fee • Semaforo SMA 150gg)</div>
@@ -666,7 +667,7 @@ def generate_dashboard_html(state: dict, tax: dict, longterm: dict | None = None
         <tbody>{lt_rank_rows}</tbody>
       </table>
 
-      <div class="section-title" style="color: var(--gold-soft);">📜 Storico Rotazioni & Incassi Vault 1.000 € (Operazioni Chiuse: {len(lt_closed)})</div>
+      <div class="section-title" style="color: var(--gold-soft);">📜 Storico Rotazioni & Incassi Vault {fmt_eur(lt_init)} (Operazioni Chiuse: {len(lt_closed)})</div>
       <table>
         <thead>
           <tr>

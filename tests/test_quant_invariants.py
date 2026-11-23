@@ -2329,8 +2329,8 @@ class TestQuantInvariantsV11(unittest.TestCase):
                 self.positions = []
                 self.pending = []
                 self.cancelled_ids = []
-                self.free = 4999.71
-                self.result = -0.29
+                self.free = 1000.00
+                self.result = 0.00
 
             def get_open_positions(self):
                 return list(self.positions)
@@ -2377,12 +2377,13 @@ class TestQuantInvariantsV11(unittest.TestCase):
                 return {"id": f"LT_SELL_{ticker}"}
 
         shared_broker = _SharedAccountBroker()
-        vault = dm.DualMomentumVault1000E(client=shared_broker, state_path=self._tmp_lt_path, initial_budget_eur=1000.0)
-        dt_open = datetime.datetime(2026, 11, 23, 14, 45, 0, tzinfo=daemon.MARKET_TZ)
+        vault = dm.DualMomentumVault1000E(client=shared_broker, state_path=self._tmp_lt_path, initial_budget_eur=900.0)
+        dt_open = datetime.datetime(2026, 11, 24, 9, 45, 0, tzinfo=daemon.MARKET_TZ)
         with patch.object(dm, "fetch_daily_series_1y", side_effect=lambda t: bull_series[t]):
             st_init = vault.run_rebalance_cycle(now=dt_open, poll_sec=0.0)
-        self.assertGreaterEqual(st_init["invested_cost_eur"], 970.0)
-        self.assertLessEqual(st_init["invested_cost_eur"], 1000.01)
+        self.assertGreaterEqual(st_init["invested_cost_eur"], 870.0)
+        self.assertLessEqual(st_init["invested_cost_eur"], 900.01)
+        self.assertGreaterEqual(shared_broker.free, 99.99)
         self.assertEqual(len(st_init["posizioni_attive"]), 6)
 
         # Verifica coesistenza live: con 6 posizioni aperte nel Vault 1.000 EUR + 1 ordine LIMIT pendente del Vault,
@@ -2450,9 +2451,10 @@ class TestQuantInvariantsV11(unittest.TestCase):
             daemon.run_cycle(intraday_live_bot, fake_intel, fake_scanner, fake_radar, cycle_num=1)
 
         self.assertNotIn("LT_PEND_GOLD", shared_broker.cancelled_ids)
-        self.assertTrue(any(p["ticker"] == "SAPd_EQ" for p in shared_broker.positions))
+        sap_pos = next((p for p in shared_broker.positions if p["ticker"] == "SAPd_EQ"), None)
+        self.assertIsNotNone(sap_pos)
+        shared_broker.place_market_order("SAPd_EQ", -float(sap_pos["quantity"]))
         shared_broker.pending.clear()
-        shared_broker.positions = [p for p in shared_broker.positions if p["ticker"] != "SAPd_EQ"]
 
         # Simula apprezzamento +50 EUR sul Vault e incasso integrale 100% su richiesta utente:
         for p_lt in shared_broker.positions:
@@ -2463,21 +2465,21 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertTrue(vault.state["paused_by_user_cashout"])
         self.assertEqual(len(shared_broker.positions), 0)
         lt_realized = vault.state["realized_net_pnl_eur"]
-        self.assertGreater(lt_realized, 40.0)
+        self.assertGreater(lt_realized, 36.0)
 
-        # Verifica Muraglia Cinese: il conto condiviso ora espone result = -0.29 + lt_realized,
-        # ma il bot intraday da 100 EUR sottrae esattamente lt_realized mantenendo il suo PnL a -0.29 EUR!
+        # Verifica Muraglia Cinese su Conto Condiviso 1.000 EUR (100 EUR Intraday + 900 EUR Vault):
+        # il conto condiviso ora espone result = 0.00 + lt_realized, ma il bot intraday da 100 EUR
+        # sottrae esattamente lt_realized mantenendo il suo PnL netto a 0.00 EUR e la sua cassa a 100.00 EUR!
         intraday_bot = daemon.Trading212AutonomousBot(client=shared_broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
         intraday_bot.tax_tracker = ItalianTaxTracker730(filepath=self._tmp_tax_path)
-        intraday_bot.tax_tracker.data["minusvalenze_lorde_eur"] = 0.29
-        intraday_bot.tax_tracker._recompute_taxable_summary()
         daemon._sync_certified_cash_safe(intraday_bot, min_interval_sec=0.0)
         net_intraday = round(
             float(intraday_bot.tax_tracker.data["plusvalenze_lorde_eur"])
             - float(intraday_bot.tax_tracker.data["minusvalenze_lorde_eur"]),
             2,
         )
-        self.assertAlmostEqual(net_intraday, -0.29, places=2)
+        self.assertAlmostEqual(net_intraday, 0.00, delta=0.02)
+        self.assertAlmostEqual(getattr(intraday_bot, "_t212_free_cash", 0.0), 100.00, delta=0.02)
 
 
 if __name__ == "__main__":
