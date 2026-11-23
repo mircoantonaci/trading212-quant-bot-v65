@@ -2697,7 +2697,8 @@ class HybridUncappedIntelligence:
             return False
 
         vix_c = float(overnight_status.get("vix_fear_change_pct", 0.0))
-        if vix_c >= 3.50 and not bool(cand.get("strong_for_overnight", False)):
+        us_idx_live_today = bool(overnight_status.get("us_indices_live_today", True))
+        if us_idx_live_today and vix_c >= 3.50 and not bool(cand.get("strong_for_overnight", False)):
             return False
 
         # V11.2/V11.6 Cecchino Esplosioni Straordinarie (11:15 CET - 08:27 ET & Pre-Bell Whipsaw 08:36-09:34 ET, Max 2/4 Slot):
@@ -2748,20 +2749,18 @@ class HybridUncappedIntelligence:
                 if not (in_morning_drive or in_us_drive or in_midday_super_brk):
                     return False
 
+            us_live_now = bool(regime.get("us_market_live", False)) and us_idx_live_today
             tape_br = float(tape.get("breadth_above_vwap", market_breadth_above_vwap))
             eu_open_c = float(tape.get("eu_from_open_pct", 0.0))
             eu_sl30_c = float(tape.get("eu_slope_30m_pct", 0.0))
-            if tape_br < 0.58 or eu_open_c < 0.12 or eu_sl30_c < 0.0 or vix_c >= 1.50:
+            if tape_br < 0.58 or eu_open_c < 0.12 or eu_sl30_c < 0.0 or (us_live_now and vix_c >= 1.50):
                 return False
-            if bool(regime.get("us_market_live", False)) and bool(overnight_status.get("us_indices_live_today", True)):
+            if us_live_now:
                 if float(tape.get("us_from_ny_open_pct", 0.0)) < 0.0 or float(tape.get("us_slope_30m_pct", 0.0)) < 0.0:
                     return False
 
             cand_open_chg = float(cand.get("intraday_open_chg_pct", 0.0))
             is_us_cand = bool(cand.get("is_us_giant", False))
-            us_live_now = bool(regime.get("us_market_live", False)) and bool(
-                overnight_status.get("us_indices_live_today", True)
-            )
             if is_us_cand and us_live_now:
                 us_open_c = float(tape.get("us_from_ny_open_pct", 0.0))
                 cand_ny_chg = float(cand.get("ny_open_chg_pct", 0.0))

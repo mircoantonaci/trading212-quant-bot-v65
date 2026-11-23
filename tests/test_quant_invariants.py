@@ -2210,7 +2210,13 @@ class TestQuantInvariantsV11(unittest.TestCase):
 
         class _DummyRadar34:
             def evaluate_overnight_wave(self):
-                return {"verdict": "OK", "allow_overnight_hold": True, "nasdaq_change_pct": 0.35, "sp500_change_pct": 0.25, "dax_change_pct": 0.30, "vix_fear_change_pct": -1.5, "vix_level": 15.8}
+                # Simula anche il caso reale di lunedì mattina (us_indices_live_today=False, vix_fear_change_pct congelato a +8.58% da venerdì):
+                # con borsa USA ancora chiusa, un VIX congelato da venerdì NON deve accecare il relief-rally europeo (Breadth >= 58%, eu_open >= +0.12%)!
+                return {
+                    "verdict": "OK", "allow_overnight_hold": False, "us_indices_live_today": False,
+                    "nasdaq_change_pct": -5.28, "sp500_change_pct": -3.70, "dax_change_pct": 0.62,
+                    "vix_fear_change_pct": 8.58, "vix_level": 30.9,
+                }
 
         dt_morn_drive = real_dt(2026, 11, 18, 9, 45, 0, tzinfo=daemon.MARKET_TZ)
         with patch.object(daemon, "LIMIT_FILL_POLL_SEC", 0.0), patch("datetime.datetime") as mock_dt, patch("time.time", return_value=dt_morn_drive.timestamp()):
