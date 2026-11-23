@@ -3042,8 +3042,11 @@ def run_cycle(
     now = now_rome.replace(tzinfo=None)
     regime = intel.get_intraday_regime(now_rome)
 
-    # 1. Leggi posizioni aperte e ordini pendenti da Trading 212 (con pulizia ordini LIMIT orfani all'avvio, sweep periodico e pre-chiusura)
-    positions = client.get_open_positions()
+    # 1. Leggi posizioni aperte e ordini pendenti da Trading 212 (isolati sull'universo intraday EUR_ZERO_FEE_UNIVERSE: Muraglia Cinese col Vault 1.000 EUR!)
+    positions = [
+        p for p in client.get_open_positions()
+        if p.get("ticker") in EUR_ZERO_FEE_UNIVERSE
+    ]
     first_pending_sweep = not getattr(bot, "_pending_swept_once", False)
     periodic_pending_sweep = (cycle_num % 10 == 0)
     if (
@@ -3055,7 +3058,10 @@ def run_cycle(
     ):
         setattr(bot, "_pending_swept_once", True)
         time.sleep(0.10)
-        raw_pending = client.get_pending_orders()
+        raw_pending = [
+            o for o in client.get_pending_orders()
+            if o.get("ticker") in EUR_ZERO_FEE_UNIVERSE
+        ]
         pending_orders = []
         for o in raw_pending:
             o_id = o.get("id")
@@ -3529,7 +3535,7 @@ def run_cycle(
         try:
             fresh_pos_once = [
                 p for p in client.get_open_positions()
-                if float(p.get("quantity", 0.0)) > 0
+                if p.get("ticker") in EUR_ZERO_FEE_UNIVERSE and float(p.get("quantity", 0.0)) > 0
             ]
             live_broker_tickers = {str(p.get("ticker", "")) for p in fresh_pos_once if p.get("ticker")}
             active_count = max(active_count, len(fresh_pos_once))
@@ -3611,7 +3617,19 @@ def run_cycle(
 
                 ord_id = order_res.get("id") if isinstance(order_res, dict) else None
                 if LIMIT_FILL_POLL_SEC > 0:
-                    time.sleep(LIMIT_FILL_POLL_SEC)
+                    if ord_id is not None:
+                        poll_deadline = time.time() + max(LIMIT_FILL_POLL_SEC, 5.2)
+                        step_sleep = min(1.3, max(0.25, LIMIT_FILL_POLL_SEC))
+                        while time.time() < poll_deadline:
+                            time.sleep(step_sleep)
+                            try:
+                                chk_pend = client.get_pending_orders()
+                                if not any(o.get("id") == ord_id for o in chk_pend):
+                                    break
+                            except Exception:
+                                break
+                    else:
+                        time.sleep(LIMIT_FILL_POLL_SEC)
 
                 still_pending = False
                 cancelled_unfilled = False

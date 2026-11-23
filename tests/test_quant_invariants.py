@@ -2327,6 +2327,8 @@ class TestQuantInvariantsV11(unittest.TestCase):
         class _SharedAccountBroker:
             def __init__(self):
                 self.positions = []
+                self.pending = []
+                self.cancelled_ids = []
                 self.free = 4999.71
                 self.result = -0.29
 
@@ -2334,7 +2336,7 @@ class TestQuantInvariantsV11(unittest.TestCase):
                 return list(self.positions)
 
             def get_pending_orders(self):
-                return []
+                return list(self.pending)
 
             def get_account_cash(self):
                 return {"free": round(self.free, 2), "result": round(self.result, 2)}
@@ -2350,9 +2352,11 @@ class TestQuantInvariantsV11(unittest.TestCase):
                     existing["currentPrice"] = limit_price
                 else:
                     self.positions.append({"ticker": ticker, "quantity": quantity, "averagePrice": limit_price, "currentPrice": limit_price, "ppl": 0.0})
-                return {"id": f"LT_BUY_{ticker}"}
+                return {"id": f"ORD_BUY_{ticker}"}
 
             def cancel_order(self, order_id):
+                self.cancelled_ids.append(order_id)
+                self.pending = [o for o in self.pending if o.get("id") != order_id]
                 return None
 
             def place_market_order(self, ticker: str, quantity: float):
@@ -2380,6 +2384,75 @@ class TestQuantInvariantsV11(unittest.TestCase):
         self.assertGreaterEqual(st_init["invested_cost_eur"], 970.0)
         self.assertLessEqual(st_init["invested_cost_eur"], 1000.01)
         self.assertEqual(len(st_init["posizioni_attive"]), 6)
+
+        # Verifica coesistenza live: con 6 posizioni aperte nel Vault 1.000 EUR + 1 ordine LIMIT pendente del Vault,
+        # `run_cycle` del bot intraday da 100 EUR NON cancella l'ordine del Vault e NON vede `active_count == 6`,
+        # ma apre liberamente la propria cartuccia intraday!
+        from unittest.mock import MagicMock
+        shared_broker.pending.append({"id": "LT_PEND_GOLD", "ticker": "4GLDd_EQ", "quantity": 0.5, "type": "LIMIT"})
+        intraday_live_bot = daemon.Trading212AutonomousBot(client=shared_broker, total_budget_eur=100.0, cartridges=4, annual_target_pct=0.30)
+        intraday_live_bot.tax_tracker = ItalianTaxTracker730(filepath=self._tmp_tax_path)
+        fake_intel = daemon.HybridUncappedIntelligence()
+        fake_intel.daily_entries_date = "2026-11-23"
+        fake_intel.daily_entries_count = 0
+        fake_intel.daily_entries_sectors = set()
+        fake_scanner = daemon.QuantMarketScanner()
+        fake_scan_res = {
+            "SAPd_EQ": {
+                "ticker": "SAPd_EQ",
+                "name": "SAP SE",
+                "is_us_giant": False,
+                "squad": "SQUADRA_2_CAVALCA_ONDA",
+                "sector": "SOFTWARE_CLOUD",
+                "live_price_eur": 250.0,
+                "price_feed_source": "GETTEX_STREAMING_0S",
+                "quant_buy_score": 84.0,
+                "score_momentum": 76.0,
+                "velocity_bonus": 6.0,
+                "rsi_5m": 55.0,
+                "vwap_dist_pct": 0.18,
+                "intraday_open_chg_pct": 1.25,
+                "ny_open_chg_pct": 0.40,
+                "slope_30m_pct": 0.35,
+                "atr_5m_volatility_pct": 0.25,
+                "day_range_pct": 1.80,
+                "kaufman_efficiency_ratio": 0.62,
+                "rvol_ratio": 1.80,
+                "green_hook_confirmed": True,
+                "entry_hook_confirmed": True,
+                "breakout_5m": True,
+                "true_relative_strength": True,
+                "strong_for_overnight": True,
+                "has_fresh_intraday_feed": True,
+            }
+        }
+        fake_radar = MagicMock()
+        fake_radar.evaluate_overnight_wave.return_value = {
+            "verdict": "ONDA_POSITIVA",
+            "allow_overnight_hold": True,
+            "us_indices_live_today": False,
+            "nasdaq_change_pct": 0.5,
+            "sp500_change_pct": 0.4,
+            "dax_change_pct": 0.8,
+            "vix_fear_change_pct": -2.0,
+            "vix_level": 18.0,
+        }
+        dt_morn_coexist = datetime.datetime(2026, 11, 23, 9, 45, 0, tzinfo=daemon.MARKET_TZ)
+        with (
+            patch.object(daemon, "BOT_STATE_PATH", self._tmp_lt_path + ".intra.json"),
+            patch.object(daemon, "LIMIT_FILL_POLL_SEC", 0.0),
+            patch.object(fake_scanner, "scan_all", return_value=fake_scan_res),
+            patch("datetime.datetime") as mock_dt_c,
+        ):
+            mock_dt_c.now.return_value = dt_morn_coexist
+            mock_dt_c.fromtimestamp.side_effect = datetime.datetime.fromtimestamp
+            mock_dt_c.fromisoformat.side_effect = datetime.datetime.fromisoformat
+            daemon.run_cycle(intraday_live_bot, fake_intel, fake_scanner, fake_radar, cycle_num=1)
+
+        self.assertNotIn("LT_PEND_GOLD", shared_broker.cancelled_ids)
+        self.assertTrue(any(p["ticker"] == "SAPd_EQ" for p in shared_broker.positions))
+        shared_broker.pending.clear()
+        shared_broker.positions = [p for p in shared_broker.positions if p["ticker"] != "SAPd_EQ"]
 
         # Simula apprezzamento +50 EUR sul Vault e incasso integrale 100% su richiesta utente:
         for p_lt in shared_broker.positions:
