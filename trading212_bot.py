@@ -462,7 +462,7 @@ class Trading212Client:
         }
         data = json.dumps(payload).encode("utf-8") if payload is not None else None
         last_err: Optional[Exception] = None
-        for attempt in range(3):
+        for attempt in range(5):
             req = urllib.request.Request(url, data=data, headers=headers, method=method)
             try:
                 with urllib.request.urlopen(req, timeout=15) as resp:
@@ -470,8 +470,8 @@ class Trading212Client:
                     return json.loads(body) if (body and body.strip()) else {}
             except urllib.error.HTTPError as e:
                 err_body = e.read().decode("utf-8", errors="replace")
-                if e.code == 429 and attempt < 2:
-                    time.sleep(5.2 * (attempt + 1))
+                if e.code == 429 and attempt < 4:
+                    time.sleep(3.3 + 1.9 * attempt)
                     continue
                 if method == "GET" and e.code in (502, 503, 504) and attempt == 0:
                     time.sleep(1.2)

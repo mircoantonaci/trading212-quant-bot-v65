@@ -164,7 +164,9 @@ jobs:
           DONE=0
 
           echo "🚀 Avvio Sessione Continua V11.6 Zero Cerotti per max $TOTAL_CYCLES cicli da 6s (Ora Borsa: $(date))"
+          LT_OPEN_SYNCED=0
           python3 t212_dual_momentum_1000e.py --auto-daily || true
+          if [ "$HM" -ge 555 ] && [ "$HM" -le 1035 ]; then LT_OPEN_SYNCED=1; fi
           while [ "$DONE" -lt "$TOTAL_CYCLES" ]; do
             DOW=$(date +%u)
             HOUR=$(date +%H)
@@ -184,8 +186,13 @@ jobs:
             fi
 
             python3 t212_daemon_100e.py --cycles "$BATCH"
-            if [ $((DONE % 500)) -eq 0 ] && [ "$DONE" -gt 0 ]; then
+            HOUR=$(date +%H)
+            MIN=$(date +%M)
+            HM=$((10#$HOUR * 60 + 10#$MIN))
+            if [ "$HM" -ge 555 ] && [ "$HM" -le 1035 ] && { [ "$LT_OPEN_SYNCED" -eq 0 ] || [ $((DONE % 300)) -eq 0 ]; }; then
+              sleep 5
               python3 t212_dual_momentum_1000e.py --auto-daily || true
+              LT_OPEN_SYNCED=1
             fi
             python3 t212-cli.py dashboard
 
