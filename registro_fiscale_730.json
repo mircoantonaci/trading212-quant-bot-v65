@@ -5,23 +5,22 @@
   "valore_iniziale_quadro_w_eur": 100.0,
   "valore_finale_stimato_quadro_w_eur": 100.0,
   "giorni_detenzione_ivafe": 365,
-  "lotti_aperti_lifo": {
-    "AIRd_EQ": [
-      {
-        "timestamp": "2026-11-25T09:17:47",
-        "ticker": "AIRd_EQ",
-        "isin": "NL0000235190",
-        "quantity": 0.1266,
-        "price_eur": 195.4186,
-        "total_eur": 24.74
-      }
-    ]
-  },
-  "operazioni_chiuse": [],
-  "totale_corrispettivi_vendita_eur": 0.0,
-  "totale_costi_carico_lifo_eur": 0.0,
+  "lotti_aperti_lifo": {},
+  "operazioni_chiuse": [
+    {
+      "timestamp": "2026-11-25T14:21:15",
+      "ticker": "AIRd_EQ",
+      "quantity": 0.1266,
+      "sell_price_eur": 192.78,
+      "corrispettivo_eur": 24.41,
+      "costo_lifo_eur": 24.74,
+      "risultato_fiscale_eur": -0.33
+    }
+  ],
+  "totale_corrispettivi_vendita_eur": 24.41,
+  "totale_costi_carico_lifo_eur": 24.74,
   "plusvalenze_lorde_eur": 0.0,
-  "minusvalenze_lorde_eur": 0.0,
+  "minusvalenze_lorde_eur": 0.34,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
   "zainetto_fiscale_residuo_eur": 0.0,
