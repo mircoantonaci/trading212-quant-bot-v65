@@ -5,18 +5,7 @@
   "valore_iniziale_quadro_w_eur": 100.0,
   "valore_finale_stimato_quadro_w_eur": 100.0,
   "giorni_detenzione_ivafe": 365,
-  "lotti_aperti_lifo": {
-    "SAPd_EQ": [
-      {
-        "timestamp": "2026-11-27T09:17:43",
-        "ticker": "SAPd_EQ",
-        "isin": "DE0007164600",
-        "quantity": 0.1272,
-        "price_eur": 193.7107,
-        "total_eur": 24.64
-      }
-    ]
-  },
+  "lotti_aperti_lifo": {},
   "operazioni_chiuse": [
     {
       "timestamp": "2026-11-25T14:21:15",
@@ -26,11 +15,20 @@
       "corrispettivo_eur": 24.41,
       "costo_lifo_eur": 24.74,
       "risultato_fiscale_eur": -0.33
+    },
+    {
+      "timestamp": "2026-11-27T17:00:12",
+      "ticker": "SAPd_EQ",
+      "quantity": 0.1272,
+      "sell_price_eur": 195.43,
+      "corrispettivo_eur": 24.86,
+      "costo_lifo_eur": 24.64,
+      "risultato_fiscale_eur": 0.22
     }
   ],
-  "totale_corrispettivi_vendita_eur": 24.41,
-  "totale_costi_carico_lifo_eur": 24.74,
-  "plusvalenze_lorde_eur": 0.0,
+  "totale_corrispettivi_vendita_eur": 49.27,
+  "totale_costi_carico_lifo_eur": 49.38,
+  "plusvalenze_lorde_eur": 0.22,
   "minusvalenze_lorde_eur": 0.34,
   "imponibile_netto_eur": 0.0,
   "imposta_sostitutiva_26_eur": 0.0,
