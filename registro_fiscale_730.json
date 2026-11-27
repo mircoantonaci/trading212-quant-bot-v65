@@ -5,7 +5,18 @@
   "valore_iniziale_quadro_w_eur": 100.0,
   "valore_finale_stimato_quadro_w_eur": 100.0,
   "giorni_detenzione_ivafe": 365,
-  "lotti_aperti_lifo": {},
+  "lotti_aperti_lifo": {
+    "SAPd_EQ": [
+      {
+        "timestamp": "2026-11-27T09:17:43",
+        "ticker": "SAPd_EQ",
+        "isin": "DE0007164600",
+        "quantity": 0.1272,
+        "price_eur": 193.7107,
+        "total_eur": 24.64
+      }
+    ]
+  },
   "operazioni_chiuse": [
     {
       "timestamp": "2026-11-25T14:21:15",
@@ -29,10 +40,10 @@
   "profitto_storico_anni_precedenti_eur": 0.0,
   "zainetto_minusvalenze_pregresse_eur": 0.0,
   "archivio_storico_pre_v11_6_ref": "archivio_storico_pre_v11_6.json",
-  "daily_entries_date": "2026-11-25",
+  "daily_entries_date": "2026-11-27",
   "daily_entries_count": 1,
   "daily_entries_sectors": [
-    "AVIAZIONE_CIVILE_GLOBALE"
+    "SOFTWARE_CLOUD"
   ],
   "reboot_hold_date": "2026-11-23"
 }
